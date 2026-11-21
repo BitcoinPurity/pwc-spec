@@ -11,6 +11,7 @@ Purity Wallet Connect is a family of specifications that lets applications use a
 | [`specs/`](specs/) | The specification documents |
 | [`pwc-schema/`](pwc-schema/) | JSON Schemas (2020-12), the machine-readable registry and their generators |
 | [`pwc-testkit/`](pwc-testkit/) | Test vectors, PSBT fixtures, the LOCAL conformance runner, a mock Provider and a minimal Client |
+| [`pwc-provider/`](pwc-provider/) | A Rust Provider implementing Core and LOCAL, with an in-memory demo wallet (requirements in [`input/`](input/), design in [`docs/`](docs/)) |
 
 ## Documents
 
