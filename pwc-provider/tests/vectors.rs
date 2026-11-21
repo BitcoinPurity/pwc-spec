@@ -97,3 +97,39 @@ fn balance_vectors() {
         assert_eq!(got, v["expected"], "{}", v["id"]);
     }
 }
+
+/// BIP-322 test vectors for the P2WPKH address of private key L3VFeEujGtevx9w18HD1fhRbCH67Az2dpCymeRE1SoPK6XQtaN2k.
+#[test]
+fn bip322_vectors() {
+    use pwc_provider::message::*;
+    let hex = |b: &[u8]| bitcoin::hex::DisplayHex::to_lower_hex_string(b);
+    assert_eq!(hex(&bip322_hash(b"")), "c90c269c4f8fcbe6880f72a721ddfbf1914268a794cbb21cfafee13770ae19f1");
+    assert_eq!(hex(&bip322_hash(b"Hello World")), "f0eb03b1a75ac6d9847f55c624a99169b5dccba2a31f5b23bea77ba270de0a7a");
+    let secp = bitcoin::secp256k1::Secp256k1::new();
+    let address: bitcoin::Address = "bc1q9vza2e8x573nczrlzms0wvx3gsqjx7vavgkx0l".parse::<bitcoin::Address<_>>().unwrap().assume_checked();
+    let b64 = |s: &str| base64::Engine::decode(&base64::engine::general_purpose::STANDARD, s).unwrap();
+    let empty = b64("AkcwRAIgM2gBAQqvZX15ZiysmKmQpDrG83avLIT492QBzLnQIxYCIBaTpOaD20qRlEylyxFSeEA2ba9YOixpX8z46TSDtS40ASECx/EgAxlkQpQ9hYjgGu6EBCPMVPwVIVJqO4XCsMvViHI=");
+    let hello = b64("AkcwRAIgZRfIY3p7/DoVTty6YZbWS71bc5Vct9p9Fia83eRmw2QCICK/ENGfwLtptFluMGs2KsqoNSk89pO7F29zJLUx9a/sASECx/EgAxlkQpQ9hYjgGu6EBCPMVPwVIVJqO4XCsMvViHI=");
+    assert_eq!(verify_bip322_simple(&secp, &address, b"", &empty), Ok(true));
+    assert_eq!(verify_bip322_simple(&secp, &address, b"Hello World", &hello), Ok(true));
+    assert_eq!(verify_bip322_simple(&secp, &address, b"Hello World", &empty), Ok(false));
+    assert!(verify_bip322_simple(&secp, &address, b"", b"\x05garbage").is_err());
+
+    let key: bitcoin::PrivateKey = "L3VFeEujGtevx9w18HD1fhRbCH67Az2dpCymeRE1SoPK6XQtaN2k".parse().unwrap();
+    let ours = sign_bip322_simple(&secp, &key.inner, "Hello World".as_bytes());
+    assert_eq!(verify_bip322_simple(&secp, &address, b"Hello World", &ours), Ok(true));
+}
+
+#[test]
+fn legacy_message_signature_round_trip() {
+    use pwc_provider::message::*;
+    let secp = bitcoin::secp256k1::Secp256k1::new();
+    let key = bitcoin::secp256k1::SecretKey::from_slice(&[3u8; 32]).unwrap();
+    let pk = bitcoin::CompressedPublicKey(key.public_key(&secp));
+    let address = bitcoin::Address::p2pkh(pk, bitcoin::Network::Bitcoin);
+    let sig = sign_legacy(&secp, &key, "Grüße \t ");
+    assert_eq!(sig.len(), 65);
+    assert_eq!(verify_legacy(&secp, &address, "Grüße \t ", &sig), Ok(true));
+    assert_eq!(verify_legacy(&secp, &address, "Grüße", &sig), Ok(false));
+    assert!(verify_legacy(&secp, &address, "x", &[1, 2, 3]).is_err());
+}

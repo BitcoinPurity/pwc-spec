@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use serde::Serialize;
 
 use crate::error::PwcError;
-use crate::types::{Hash256, Hex, Id, Sats, ScriptType, SignedSats, Text, Timestamp};
+use crate::types::{Hash256, Hex, Id, MessageFormat, Sats, ScriptType, SignedSats, Text, Timestamp};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -159,6 +159,13 @@ pub trait WalletBackend: Send + Sync + 'static {
     fn fee_estimate(&self, network: &str, target_blocks: u64) -> Option<u64>;
     /// Selects coins and builds an unsigned PSBT; `excluded` outpoints are not selected.
     fn create_psbt(&self, account_id: &str, request: &CreateRequest, excluded: &Reserved) -> Result<CreatedPsbt, PwcError>;
+    /// The account's output at `outpoint` on the account's network, if the account owns it.
+    fn owned_output(&self, account_id: &str, outpoint: &bitcoin::OutPoint) -> Option<bitcoin::TxOut>;
+    /// Adds the account's `SIGHASH_ALL` signatures to the given inputs, whose `witness_utxo` is set; returns the
+    /// indexes that gained a signature.
+    fn sign_psbt(&self, account_id: &str, psbt: &mut bitcoin::Psbt, inputs: &[usize]) -> Result<Vec<u32>, PwcError>;
+    /// Signs the exact UTF-8 bytes of `message` with the account key of `script`.
+    fn sign_message(&self, account_id: &str, script: &bitcoin::Script, message: &str, format: MessageFormat) -> Result<Vec<u8>, PwcError>;
     /// Submits a transaction to the network backend; `TRANSACTION_REJECTED` or `NETWORK_UNAVAILABLE` on failure.
     fn broadcast(&self, network: &str, tx: &bitcoin::Transaction) -> Result<bitcoin::Txid, PwcError>;
 

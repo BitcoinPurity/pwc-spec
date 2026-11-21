@@ -11,7 +11,7 @@
 | [TASK-005](TASK-005.md) | 后端 trait 与读方法 | M4 | C-02、C-16、C-17、C-24、C-25、C-34、C-35、C-36、C-38、C-57、C-58 | 已完成 |
 | [TASK-006](TASK-006.md) | psbt.combine 与 psbt.finalize | M5 | C-11 到 C-14、C-30、C-40、C-55 | 已完成 |
 | [TASK-007](TASK-007.md) | psbt.create、预留与广播 | M6 | C-15、C-19、C-39、C-44、C-46 到 C-49、C-54、C-64 | 已完成 |
-| [TASK-008](TASK-008.md) | psbt.sign 与消息签名 | M7 | C-03、C-04、C-06 到 C-10、C-32、C-41 到 C-43、C-45、C-59 到 C-61、C-63 | 待开始 |
+| [TASK-008](TASK-008.md) | psbt.sign 与消息签名 | M7 | C-03、C-04、C-06 到 C-10、C-32、C-41 到 C-43、C-45、C-59 到 C-61、C-63 | 已完成 |
 | [TASK-009](TASK-009.md) | 事件推送 | M8 | C-27、C-53、L-21、L-22 | 待开始 |
 | [TASK-010](TASK-010.md) | 状态保存与加载 | M9 | Core §8.5、§9.3，LOCAL §5.5 | 待开始 |
 

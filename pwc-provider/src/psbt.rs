@@ -324,3 +324,49 @@ pub fn verify_input<C: Verification>(secp: &Secp256k1<C>, tx: &Transaction, inde
     };
     secp.verify_ecdsa(&Message::from_digest(digest), &sig.signature, &pk).is_ok()
 }
+
+/// Core §4.7 `signing_status` for P2WPKH and P2PKH inputs; other scripts make completeness unknown.
+pub fn signing_status(psbt: &Psbt) -> &'static str {
+    let mut unknown = false;
+    for (i, input) in psbt.inputs.iter().enumerate() {
+        if input.final_script_sig.is_some() || input.final_script_witness.is_some() {
+            continue;
+        }
+        let Ok(Some(prev)) = previous_output(psbt, i) else {
+            unknown = true;
+            continue;
+        };
+        let spk = &prev.script_pubkey;
+        let signed_by = |f: &dyn Fn(&PublicKey) -> bitcoin::ScriptBuf| input.partial_sigs.keys().any(|pk| f(pk) == *spk);
+        let satisfied = if spk.is_p2wpkh() {
+            signed_by(&|pk| pk.wpubkey_hash().map(|h| bitcoin::ScriptBuf::new_p2wpkh(&h)).unwrap_or_default())
+        } else if spk.is_p2pkh() {
+            signed_by(&|pk| bitcoin::ScriptBuf::new_p2pkh(&pk.pubkey_hash()))
+        } else {
+            unknown = true;
+            continue;
+        };
+        if !satisfied {
+            return "partial";
+        }
+    }
+    if unknown {
+        "unknown"
+    } else {
+        "complete"
+    }
+}
+
+/// Estimated virtual size of the transaction once signed, from the previous output of each input.
+pub fn estimate_signed_vsize(psbt: &Psbt, prevouts: &[Option<TxOut>]) -> u64 {
+    let base = bitcoin::consensus::serialize(&psbt.unsigned_tx).len() as u64;
+    let extra: u64 = prevouts
+        .iter()
+        .map(|p| match p {
+            Some(o) if o.script_pubkey.is_p2wpkh() => 108,
+            Some(o) if o.script_pubkey.is_p2pkh() => 4 * 107,
+            _ => 0,
+        })
+        .sum();
+    (4 * base + 2 + extra).div_ceil(4)
+}

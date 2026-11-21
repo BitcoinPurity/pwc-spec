@@ -72,6 +72,9 @@ fn answer(backend: &dyn WalletBackend, prompt: Prompt, yes: bool) {
         Prompt::Permissions { request, reply } => {
             let _ = reply.send(yes.then(|| as_requested(backend, &request)));
         }
+        Prompt::SignPsbt { reply, .. } | Prompt::SignMessage { reply, .. } => {
+            let _ = reply.send(yes);
+        }
     }
 }
 

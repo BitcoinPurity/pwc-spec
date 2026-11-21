@@ -10,7 +10,7 @@ use bitcoin::{absolute, transaction, Address, Amount, CompressedPublicKey, OutPo
 use crate::backend::*;
 use crate::balance::{self, Class, ConfirmedOutput, PendingOutput, PendingTx, Policy, Scenario};
 use crate::error::{err, ErrorCode, PwcError};
-use crate::types::{chain_network, Hash256, Hex, Id, Sats, ScriptType, SignedSats, Text, Timestamp, SUPPORTED_NETWORKS};
+use crate::types::{chain_network, Hash256, Hex, Id, MessageFormat, Sats, ScriptType, SignedSats, Text, Timestamp, SUPPORTED_NETWORKS};
 
 /// Account-scoped methods (Core §4.2) by account kind.
 const SIGNING_WPKH: &[&str] = &[
@@ -584,6 +584,50 @@ impl WalletBackend for MemoryBackend {
             vsize: crate::psbt::estimate_vsize(chosen.len(), &lens),
             change_output_indexes,
             inputs: chosen.iter().map(|c| c.outpoint).collect(),
+        })
+    }
+
+    fn owned_output(&self, account_id: &str, outpoint: &OutPoint) -> Option<TxOut> {
+        let mem = self.lock();
+        let account = mem.account(account_id);
+        let chain = mem.chain(&account.info.network);
+        let active = chain.active();
+        let tx = active.iter().map(|&i| &chain.txs[i].tx).find(|t| t.compute_txid() == outpoint.txid)?;
+        let out = tx.output.get(outpoint.vout as usize)?;
+        mem.owns(account, &out.script_pubkey).map(|_| out.clone())
+    }
+
+    fn sign_psbt(&self, account_id: &str, psbt: &mut bitcoin::Psbt, inputs: &[usize]) -> Result<Vec<u32>, PwcError> {
+        use bitcoin::secp256k1::Message;
+        let mem = self.lock();
+        let account = mem.account(account_id);
+        let mut signed = Vec::new();
+        for &i in inputs {
+            let prev = psbt.inputs[i].witness_utxo.clone().expect("witness_utxo set for signed inputs");
+            let key = &account.keys[mem.owns(account, &prev.script_pubkey).expect("owned input")];
+            let public = bitcoin::PublicKey::new(key.public.0);
+            if psbt.inputs[i].partial_sigs.contains_key(&public) {
+                continue;
+            }
+            let sighash = bitcoin::sighash::SighashCache::new(&psbt.unsigned_tx)
+                .p2wpkh_signature_hash(i, &prev.script_pubkey, prev.value, bitcoin::EcdsaSighashType::All)
+                .map_err(|_| err(ErrorCode::PsbtValidationFailed, "Cannot compute the signature hash"))?;
+            let signature = self.secp.sign_ecdsa_low_r(&Message::from_digest(sighash.to_byte_array()), &key.secret);
+            let sig = bitcoin::ecdsa::Signature { signature, sighash_type: bitcoin::EcdsaSighashType::All };
+            psbt.inputs[i].partial_sigs.insert(public, sig);
+            signed.push(i as u32);
+        }
+        Ok(signed)
+    }
+
+    fn sign_message(&self, account_id: &str, script: &bitcoin::Script, message: &str, format: MessageFormat) -> Result<Vec<u8>, PwcError> {
+        let mem = self.lock();
+        let account = mem.account(account_id);
+        let key = &account.keys[mem.owns(account, script).expect("owned address")];
+        Ok(match format {
+            MessageFormat::Bip322Simple => crate::message::sign_bip322_simple(&self.secp, &key.secret, message.as_bytes()),
+            MessageFormat::Legacy => crate::message::sign_legacy(&self.secp, &key.secret, message),
+            MessageFormat::Bip322Full => return Err(err(ErrorCode::UnsupportedOperation, "bip322-full is not supported")),
         })
     }
 

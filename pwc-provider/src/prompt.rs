@@ -112,9 +112,70 @@ pub struct GrantChoice {
     pub constraints: Option<GrantConstraints>,
 }
 
+/// One output of a transaction to sign, derived from the PSBT itself (Core §9.2).
+#[derive(Debug, Clone)]
+pub struct OutputSummary {
+    /// The address, when the script has an address form on the account's network.
+    pub address: Option<String>,
+    pub script_pub_key: String,
+    pub amount_sats: u64,
+    pub to_this_account: bool,
+}
+
+/// A `psbt.sign` request; every field is computed from the PSBT and the wallet, not from the Client.
+#[derive(Debug, Clone)]
+pub struct PsbtSignRequest {
+    pub requester: Requester,
+    pub account_id: Id,
+    pub network: String,
+    /// The inputs the account will sign.
+    pub inputs_to_sign: Vec<u32>,
+    pub input_count: usize,
+    pub outputs: Vec<OutputSummary>,
+    pub fee_sats: u64,
+    pub fee_rate_sat_per_kvb: u64,
+    /// The exact PSBT the approval binds to.
+    pub psbt: Vec<u8>,
+}
+
+impl fmt::Display for PsbtSignRequest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "Transaction signing request from {}", self.requester)?;
+        writeln!(f, "  account {} on {}", self.account_id, self.network)?;
+        writeln!(f, "  sign inputs {:?} of {}", self.inputs_to_sign, self.input_count)?;
+        for o in &self.outputs {
+            let dest = o.address.clone().unwrap_or_else(|| format!("script {}", o.script_pub_key));
+            let own = if o.to_this_account { " (back to this account)" } else { "" };
+            writeln!(f, "  pay {} sat to {dest}{own}", o.amount_sats)?;
+        }
+        write!(f, "  fee {} sat ({} sat/kvB)", self.fee_sats, self.fee_rate_sat_per_kvb)
+    }
+}
+
+/// A `message.sign` request with the exact message.
+#[derive(Debug, Clone)]
+pub struct MessageSignRequest {
+    pub requester: Requester,
+    pub account_id: Id,
+    pub network: String,
+    pub address: String,
+    pub message: String,
+    pub format: crate::types::MessageFormat,
+}
+
+impl fmt::Display for MessageSignRequest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "Message signing request from {}", self.requester)?;
+        writeln!(f, "  address {} ({}) on {}", self.address, serde_json::to_string(&self.format).unwrap(), self.network)?;
+        write!(f, "  message (exact bytes, JSON-escaped): {}", serde_json::to_string(&self.message).unwrap())
+    }
+}
+
 pub enum Prompt {
     Pairing { request: PairingRequest, reply: oneshot::Sender<bool> },
     Permissions { request: PermissionRequest, reply: oneshot::Sender<Option<GrantChoice>> },
+    SignPsbt { request: PsbtSignRequest, reply: oneshot::Sender<bool> },
+    SignMessage { request: MessageSignRequest, reply: oneshot::Sender<bool> },
 }
 
 impl fmt::Display for Prompt {
@@ -122,6 +183,8 @@ impl fmt::Display for Prompt {
         match self {
             Prompt::Pairing { request, .. } => request.fmt(f),
             Prompt::Permissions { request, .. } => request.fmt(f),
+            Prompt::SignPsbt { request, .. } => request.fmt(f),
+            Prompt::SignMessage { request, .. } => request.fmt(f),
         }
     }
 }

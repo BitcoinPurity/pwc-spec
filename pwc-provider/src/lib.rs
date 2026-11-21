@@ -5,6 +5,7 @@ pub mod balance;
 pub mod error;
 pub mod local;
 pub mod memory;
+pub mod message;
 pub mod methods;
 pub mod types;
 pub mod prompt;

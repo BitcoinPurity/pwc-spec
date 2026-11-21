@@ -13,7 +13,9 @@ use crate::error::{err, ErrorCode, PwcError};
 use crate::methods::{Listing, Request, RequestPermissions};
 use crate::prompt::{GrantChoice, PermissionRequest, Prompt};
 use crate::backend::CreateRequest;
-use crate::types::{chain_network, Base64, FeePolicy, Hex, Id, Sats, Timestamp};
+use crate::message;
+use crate::prompt::{MessageSignRequest, OutputSummary, PsbtSignRequest};
+use crate::types::{chain_network, Base64, FeePolicy, Hex, Id, MessageFormat, Sats, Timestamp};
 
 pub(super) struct Ctx<'a> {
     pub client_id: &'a Id,
@@ -29,6 +31,23 @@ impl Ctx<'_> {
 
     fn wallet(&self) -> &WalletInfo {
         &self.target.expect("wallet resolved at check 7").wallet
+    }
+}
+
+fn parse_address(s: &str, network: bitcoin::Network) -> Result<bitcoin::Address, PwcError> {
+    let address: bitcoin::Address<bitcoin::address::NetworkUnchecked> =
+        s.parse().map_err(|_| err(ErrorCode::InvalidArgument, "Not a valid address"))?;
+    address.require_network(network).map_err(|_| err(ErrorCode::NetworkMismatch, "The address is encoded for another network"))
+}
+
+/// Core §8.4: a format absent from `message_formats`, or one that cannot sign this address type.
+fn format_signs(format: MessageFormat, address: &bitcoin::Address) -> Result<(), PwcError> {
+    let spk = address.script_pubkey();
+    match format {
+        MessageFormat::Bip322Simple if spk.is_p2wpkh() => Ok(()),
+        MessageFormat::Legacy if spk.is_p2pkh() => Ok(()),
+        MessageFormat::Bip322Full => Err(err(ErrorCode::UnsupportedOperation, "bip322-full is not supported")),
+        _ => Err(err(ErrorCode::UnsupportedOperation, "The format cannot sign this address type")),
     }
 }
 
@@ -201,7 +220,21 @@ impl Provider {
                 };
                 Ok(Outcome::Operation(self.finished_operation(inner, ctx, "transaction.broadcast", outcome)))
             }
-            _ => Err(err(ErrorCode::InternalError, "not implemented")),
+            Request::PsbtSign(p) => self.psbt_sign(inner, ctx, p),
+            Request::MessageSign(p) => self.message_sign(inner, ctx, p),
+            Request::MessageVerify(p) => {
+                let net = chain_network(p.network.as_str())
+                    .ok_or_else(|| err(ErrorCode::UnsupportedOperation, "The network is not supported"))?;
+                let address = parse_address(p.address.as_str(), net)?;
+                format_signs(p.format, &address)?;
+                let secp = bitcoin::secp256k1::Secp256k1::verification_only();
+                let valid = match p.format {
+                    MessageFormat::Bip322Simple => message::verify_bip322_simple(&secp, &address, p.message.as_bytes(), &p.signature.0),
+                    _ => message::verify_legacy(&secp, &address, &p.message, &p.signature.0),
+                }
+                .map_err(|_| err(ErrorCode::InvalidArgument, "Malformed signature"))?;
+                Ok(Outcome::Value(json!({ "valid": valid })))
+            }
         }
     }
 
@@ -224,12 +257,7 @@ impl Provider {
         let network = chain_network(&account.network).expect("supported network");
         let mut outputs = Vec::new();
         for o in &p.outputs {
-            let address: bitcoin::Address<bitcoin::address::NetworkUnchecked> =
-                o.address.as_str().parse().map_err(|_| err(ErrorCode::InvalidArgument, "Not a valid address"))?;
-            let address = address
-                .require_network(network)
-                .map_err(|_| err(ErrorCode::NetworkMismatch, "The address is encoded for another network"))?;
-            outputs.push((address.script_pubkey(), o.amount_sats.0));
+            outputs.push((parse_address(o.address.as_str(), network)?.script_pubkey(), o.amount_sats.0));
         }
         let fee_rate = match &p.fee_policy {
             FeePolicy::Rate { sat_per_kvb } => sat_per_kvb.0,
@@ -281,6 +309,175 @@ impl Provider {
             "reserved_until": until,
         });
         Ok(Outcome::Operation(self.finished_operation(inner, ctx, "psbt.create", Ok(result))))
+    }
+
+    /// Core §8.3 `psbt.sign`, checked in the order parsing and version, `input_indexes`, signability, script
+    /// types and sighash modes, review validation, grant constraints, high-fee warning.
+    fn psbt_sign(self: &Arc<Self>, inner: &mut Inner, ctx: &Ctx, p: crate::methods::PsbtSign) -> Result<Outcome, PwcError> {
+        self.account_method(ctx, "psbt.sign")?;
+        let account = ctx.account().clone();
+        let id = account.account_id.as_str();
+        let mut psbt = crate::psbt::parse(&p.psbt.0)?;
+        let n = psbt.inputs.len();
+        if p.input_indexes.as_ref().is_some_and(|idx| idx.iter().any(|&i| i as usize >= n)) {
+            return Err(err(ErrorCode::InvalidArgument, "input_indexes out of range"));
+        }
+        let owned: Vec<Option<bitcoin::TxOut>> =
+            psbt.unsigned_tx.input.iter().map(|txin| self.backend.owned_output(id, &txin.previous_output)).collect();
+        let cannot = || err(ErrorCode::UnsupportedOperation, "The account cannot sign the requested inputs");
+        let targets: Vec<usize> = match &p.input_indexes {
+            Some(idx) => {
+                let mut t: Vec<usize> = idx.iter().map(|&i| i as usize).collect();
+                t.sort_unstable();
+                if t.iter().any(|&i| owned[i].is_none()) {
+                    return Err(cannot());
+                }
+                t
+            }
+            None => (0..n).filter(|&i| owned[i].is_some()).collect(),
+        };
+        if targets.is_empty() {
+            return Err(cannot());
+        }
+        let mut nondefault_sighash = false;
+        for &i in &targets {
+            if !owned[i].as_ref().unwrap().script_pubkey.is_p2wpkh() {
+                return Err(err(ErrorCode::UnsupportedScript, "Unsupported script type"));
+            }
+            if let Some(t) = psbt.inputs[i].sighash_type {
+                match t.ecdsa_hash_ty() {
+                    Ok(bitcoin::EcdsaSighashType::All) => {}
+                    Ok(_) => nondefault_sighash = true,
+                    Err(_) => return Err(err(ErrorCode::UnsupportedScript, "Unsupported sighash mode")),
+                }
+            }
+        }
+        let mut prevouts = Vec::with_capacity(n);
+        for (i, real) in owned.iter().enumerate() {
+            let claimed = crate::psbt::previous_output(&psbt, i)?;
+            match real {
+                Some(r) if claimed.as_ref().is_some_and(|c| c != r) => {
+                    return Err(err(ErrorCode::PsbtValidationFailed, "Previous-output data does not match the wallet"));
+                }
+                Some(r) => prevouts.push(Some(r.clone())),
+                None => prevouts.push(claimed),
+            }
+        }
+        let out_total: u64 = psbt.unsigned_tx.output.iter().map(|o| o.value.to_sat()).sum();
+        let in_total: Option<u64> = prevouts.iter().map(|p| p.as_ref().map(|o| o.value.to_sat())).sum();
+        if in_total.is_some_and(|t| out_total > t) {
+            return Err(err(ErrorCode::PsbtValidationFailed, "Outputs exceed inputs"));
+        }
+        let owned_in: u64 = owned.iter().flatten().map(|o| o.value.to_sat()).sum();
+        let back: u64 = psbt.unsigned_tx.output.iter().filter(|o| self.backend.owns_script(id, &o.script_pubkey)).map(|o| o.value.to_sat()).sum();
+        self.grant_for_amount(inner, ctx, "psbt:sign", owned_in.saturating_sub(back))?;
+        let fee = in_total.map(|t| t - out_total).ok_or_else(|| err(ErrorCode::PolicyViolation, "The fee cannot be determined"))?;
+        let vsize = crate::psbt::estimate_signed_vsize(&psbt, &prevouts);
+        if fee as u128 * 1000 > self.config.limits.high_fee_rate.0 as u128 * vsize as u128 {
+            return Err(err(ErrorCode::PolicyViolation, "The fee rate exceeds limits.high_fee_rate"));
+        }
+        if nondefault_sighash {
+            return Err(err(ErrorCode::PolicyViolation, "Only SIGHASH_ALL is signed"));
+        }
+        for &i in &targets {
+            psbt.inputs[i].witness_utxo.get_or_insert_with(|| owned[i].clone().unwrap());
+        }
+        let net = chain_network(&account.network).expect("supported network");
+        let outputs = psbt
+            .unsigned_tx
+            .output
+            .iter()
+            .map(|o| OutputSummary {
+                address: bitcoin::Address::from_script(&o.script_pubkey, net).ok().map(|a| a.to_string()),
+                script_pub_key: o.script_pubkey.to_hex_string(),
+                amount_sats: o.value.to_sat(),
+                to_this_account: self.backend.owns_script(id, &o.script_pubkey),
+            })
+            .collect();
+        let request = PsbtSignRequest {
+            requester: self.requester(inner, ctx.client_id),
+            account_id: account.account_id.clone(),
+            network: account.network.clone(),
+            inputs_to_sign: targets.iter().map(|&i| i as u32).collect(),
+            input_count: n,
+            outputs,
+            fee_sats: fee,
+            fee_rate_sat_per_kvb: fee * 1000 / vsize,
+            psbt: psbt.serialize(),
+        };
+        let op_id = self.new_operation(inner, ctx, "psbt.sign", OpState::AwaitingApproval);
+        let (reply, answer) = oneshot::channel();
+        let client_id = ctx.client_id.clone();
+        let decide = move |provider: &Arc<Provider>, inner: &mut Inner, op_id: &Id, yes: bool| {
+            let sign = |provider: &Arc<Provider>, inner: &mut Inner| -> Result<Value, PwcError> {
+                provider.still_allowed(inner, &client_id, "psbt:sign", &account)?;
+                let signed = provider.backend.sign_psbt(account.account_id.as_str(), &mut psbt, &targets)?;
+                Ok(json!({
+                    "account_id": account.account_id,
+                    "network": account.network,
+                    "psbt": Base64(psbt.serialize()),
+                    "psbt_version": 0,
+                    "signed_input_indexes": signed,
+                    "signing_status": crate::psbt::signing_status(&psbt),
+                }))
+            };
+            provider.conclude(inner, op_id, yes, sign);
+        };
+        self.await_approval(inner, &op_id, ctx.client_id, Prompt::SignPsbt { request, reply }, answer, decide);
+        Ok(Outcome::Operation(op_id))
+    }
+
+    fn message_sign(self: &Arc<Self>, inner: &mut Inner, ctx: &Ctx, p: crate::methods::MessageSign) -> Result<Outcome, PwcError> {
+        self.account_method(ctx, "message.sign")?;
+        let account = ctx.account().clone();
+        let address = parse_address(p.address.as_str(), chain_network(&account.network).expect("supported network"))?;
+        format_signs(p.format, &address)?;
+        if !self.backend.owns_script(account.account_id.as_str(), &address.script_pubkey()) {
+            return Err(err(ErrorCode::InvalidArgument, "The account does not own this address"));
+        }
+        let request = MessageSignRequest {
+            requester: self.requester(inner, ctx.client_id),
+            account_id: account.account_id.clone(),
+            network: account.network.clone(),
+            address: p.address.to_string(),
+            message: p.message.clone(),
+            format: p.format,
+        };
+        let op_id = self.new_operation(inner, ctx, "message.sign", OpState::AwaitingApproval);
+        let (reply, answer) = oneshot::channel();
+        let client_id = ctx.client_id.clone();
+        let decide = move |provider: &Arc<Provider>, inner: &mut Inner, op_id: &Id, yes: bool| {
+            let sign = |provider: &Arc<Provider>, inner: &mut Inner| -> Result<Value, PwcError> {
+                provider.still_allowed(inner, &client_id, "messages:sign", &account)?;
+                let sig = provider.backend.sign_message(account.account_id.as_str(), &address.script_pubkey(), &p.message, p.format)?;
+                Ok(json!({ "signature": Base64(sig), "format": p.format, "address": p.address }))
+            };
+            provider.conclude(inner, op_id, yes, sign);
+        };
+        self.await_approval(inner, &op_id, ctx.client_id, Prompt::SignMessage { request, reply }, answer, decide);
+        Ok(Outcome::Operation(op_id))
+    }
+
+    /// After approval the request is authorized afresh (Core §7 step 5).
+    fn still_allowed(&self, inner: &Inner, client_id: &Id, scope: &str, account: &AccountInfo) -> Result<(), PwcError> {
+        if !self.authorized(inner, client_id, scope, Some(&account.account_id), Timestamp::now()) {
+            return Err(err(ErrorCode::PermissionRevoked, "The grant was revoked"));
+        }
+        let wallet = self.backend.wallet(account.wallet_id.as_str()).ok_or_else(|| err(ErrorCode::StateUnavailable, "The wallet is unavailable"))?;
+        super::wallet_readable(&wallet)
+    }
+
+    /// Ends an approval Operation: refused, or completed or failed by `run`.
+    fn conclude(self: &Arc<Self>, inner: &mut Inner, op_id: &Id, approved: bool, run: impl FnOnce(&Arc<Provider>, &mut Inner) -> Result<Value, PwcError>) {
+        if !approved {
+            let e = err(ErrorCode::UserRejected, "The User refused the request");
+            self.transition(inner, op_id, OpState::Rejected, None, Some(e));
+            return;
+        }
+        match run(self, inner) {
+            Ok(result) => self.transition(inner, op_id, OpState::Completed, Some(result), None),
+            Err(e) => self.fail(inner, op_id, e),
+        }
     }
 
     /// Core §4.2: a method absent from the account's `methods` is unsupported for it.
