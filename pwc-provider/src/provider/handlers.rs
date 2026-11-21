@@ -6,12 +6,14 @@ use serde_json::{json, Value};
 use tokio::sync::oneshot;
 
 use super::grants::{self, Grant};
+use super::operations::Reservation;
 use super::{Inner, OpState, Outcome, Provider, Target};
 use crate::backend::{AccountInfo, WalletInfo};
 use crate::error::{err, ErrorCode, PwcError};
 use crate::methods::{Listing, Request, RequestPermissions};
 use crate::prompt::{GrantChoice, PermissionRequest, Prompt};
-use crate::types::{Base64, Hex, Id, Timestamp};
+use crate::backend::CreateRequest;
+use crate::types::{chain_network, Base64, FeePolicy, Hex, Id, Sats, Timestamp};
 
 pub(super) struct Ctx<'a> {
     pub client_id: &'a Id,
@@ -177,8 +179,108 @@ impl Provider {
                 }
                 Ok(Outcome::Value(v))
             }
+            Request::PsbtCreate(p) => self.psbt_create(inner, ctx, p),
+            Request::ReleaseReservation(p) => {
+                let not_found = || err(ErrorCode::ReservationNotFound, "Reservation not found");
+                let r = inner.state.reservations.get(&p.reservation_id).ok_or_else(not_found)?;
+                if &r.client_id != ctx.client_id || r.account_id != ctx.account().account_id {
+                    return Err(not_found());
+                }
+                let released = self.reservation_active(inner, r, ctx.now);
+                inner.state.reservations.get_mut(&p.reservation_id).expect("found above").released = true;
+                Ok(Outcome::Value(json!({ "released": released })))
+            }
+            Request::Broadcast(p) => {
+                self.account_method(ctx, "transaction.broadcast")?;
+                let tx: bitcoin::Transaction = bitcoin::consensus::deserialize(&p.raw_transaction.0)
+                    .map_err(|_| err(ErrorCode::InvalidArgument, "raw_transaction is not a valid transaction"))?;
+                let outcome = match self.backend.broadcast(&ctx.account().network, &tx) {
+                    Ok(txid) => Ok(json!({ "txid": txid.to_string() })),
+                    Err(e) if matches!(e.code, ErrorCode::TransactionRejected | ErrorCode::NetworkUnavailable) => Err(e),
+                    Err(e) => return Err(e),
+                };
+                Ok(Outcome::Operation(self.finished_operation(inner, ctx, "transaction.broadcast", outcome)))
+            }
             _ => Err(err(ErrorCode::InternalError, "not implemented")),
         }
+    }
+
+    /// The grant under which an amount is allowed: an active grant of the Client holding `scope` for the
+    /// account whose `max_amount_sats_per_request` admits `outflow` (Core §4.8).
+    fn grant_for_amount(&self, inner: &Inner, ctx: &Ctx, scope: &str, outflow: u64) -> Result<Id, PwcError> {
+        self.active_grants(inner, ctx.client_id, ctx.now)
+            .filter(|g| g.has_scope(scope) && g.covers_account(ctx.account()))
+            .find(|g| {
+                let limit = g.constraints.as_ref().and_then(|c| c.max_amount_sats_per_request);
+                limit.is_none_or(|l| outflow <= l.0)
+            })
+            .map(|g| g.grant_id.clone())
+            .ok_or_else(|| err(ErrorCode::GrantConstraintViolated, "The amount exceeds the grant's max_amount_sats_per_request"))
+    }
+
+    fn psbt_create(&self, inner: &mut Inner, ctx: &Ctx, p: crate::methods::PsbtCreate) -> Result<Outcome, PwcError> {
+        self.account_method(ctx, "psbt.create")?;
+        let account = ctx.account();
+        let network = chain_network(&account.network).expect("supported network");
+        let mut outputs = Vec::new();
+        for o in &p.outputs {
+            let address: bitcoin::Address<bitcoin::address::NetworkUnchecked> =
+                o.address.as_str().parse().map_err(|_| err(ErrorCode::InvalidArgument, "Not a valid address"))?;
+            let address = address
+                .require_network(network)
+                .map_err(|_| err(ErrorCode::NetworkMismatch, "The address is encoded for another network"))?;
+            outputs.push((address.script_pubkey(), o.amount_sats.0));
+        }
+        let fee_rate = match &p.fee_policy {
+            FeePolicy::Rate { sat_per_kvb } => sat_per_kvb.0,
+            FeePolicy::WalletEstimate { target_blocks } => self
+                .backend
+                .fee_estimate(&account.network, target_blocks.0)
+                .ok_or_else(|| err(ErrorCode::StateUnavailable, "The wallet cannot estimate a fee now"))?,
+        };
+        let selected = p.selected_utxos.as_ref().map(|list| {
+            list.iter()
+                .map(|o| bitcoin::OutPoint { txid: o.txid.as_str().parse().expect("Hash256 is a txid"), vout: o.vout })
+                .collect()
+        });
+        let request = CreateRequest { outputs, fee_rate, selected, replaceable: p.replaceable.unwrap_or(true) };
+        let excluded = self.reserved(inner, &account.account_id, ctx.now);
+        let created = self.backend.create_psbt(account.account_id.as_str(), &request, &excluded)?;
+        let inputs: u64 = created.psbt.inputs.iter().filter_map(|i| i.witness_utxo.as_ref()).map(|o| o.value.to_sat()).sum();
+        let back: u64 = created
+            .psbt
+            .unsigned_tx
+            .output
+            .iter()
+            .filter(|o| self.backend.owns_script(account.account_id.as_str(), &o.script_pubkey))
+            .map(|o| o.value.to_sat())
+            .sum();
+        let grant_id = self.grant_for_amount(inner, ctx, "psbt:create", inputs.saturating_sub(back))?;
+        let reservation_id = Id::random("rs");
+        let until = ctx.now.after(self.config.reservation_ttl.min(std::time::Duration::from_secs(86_400)));
+        inner.state.reservations.insert(
+            reservation_id.clone(),
+            Reservation {
+                client_id: ctx.client_id.clone(),
+                account_id: account.account_id.clone(),
+                grant_id,
+                outpoints: created.inputs.clone(),
+                until,
+                released: false,
+            },
+        );
+        let result = json!({
+            "account_id": account.account_id,
+            "network": account.network,
+            "psbt": Base64(created.psbt.serialize()),
+            "psbt_version": 0,
+            "fee_sats": Sats(created.fee),
+            "vsize": created.vsize,
+            "change_output_indexes": created.change_output_indexes,
+            "reservation_id": reservation_id,
+            "reserved_until": until,
+        });
+        Ok(Outcome::Operation(self.finished_operation(inner, ctx, "psbt.create", Ok(result))))
     }
 
     /// Core §4.2: a method absent from the account's `methods` is unsupported for it.

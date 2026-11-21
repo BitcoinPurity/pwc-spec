@@ -52,6 +52,8 @@ const WATCH_WPKH: &[&str] = &[
 ];
 
 const COINBASE_MATURITY: u32 = 100;
+const MIN_FEE_RATE: u64 = 1000;
+const DUST: u64 = 294;
 const POLICY: Policy = Policy { spend_unconfirmed_self: true, spend_unconfirmed_external: false };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -94,6 +96,7 @@ struct Chain {
     tip: u32,
     txs: Vec<ChainTx>,
     offline: bool,
+    fee_estimate: Option<u64>,
 }
 
 struct Mem {
@@ -200,7 +203,7 @@ impl MemoryBackend {
             secp: Secp256k1::new(),
         };
         for net in SUPPORTED_NETWORKS {
-            backend.lock().chains.insert(net.to_string(), Chain { tip: 1000, txs: Vec::new(), offline: false });
+            backend.lock().chains.insert(net.to_string(), Chain { tip: 1000, txs: Vec::new(), offline: false, fee_estimate: Some(2000) });
             let main = backend.add_wallet(&format!("w-{net}-main"), "Main wallet", net, WalletKind::Software);
             let wpkh = backend.add_account(&main, &format!("a-{net}-wpkh"), "Savings", ScriptType::P2wpkh, true);
             let pkh = backend.add_account(&main, &format!("a-{net}-pkh"), "Legacy", ScriptType::P2pkh, true);
@@ -373,6 +376,25 @@ impl MemoryBackend {
         self.lock().chains.get_mut(network).expect("supported network").offline = offline;
     }
 
+    pub fn set_fee_estimate(&self, network: &str, sat_per_kvb: Option<u64>) {
+        self.lock().chains.get_mut(network).expect("supported network").fee_estimate = sat_per_kvb;
+    }
+
+    /// The User spends an output of the account from the wallet's own interface, paying `value` to a third
+    /// party; the transaction enters the pending projection.
+    pub fn spend_by_user(&self, account_id: &Id, outpoint: &OutPoint, value: u64) -> Txid {
+        let mut mem = self.lock();
+        let network = mem.account(account_id.as_str()).info.network.clone();
+        let input = TxIn { previous_output: *outpoint, script_sig: ScriptBuf::new(), sequence: Sequence::MAX, witness: Witness::new() };
+        let tx = Transaction {
+            version: transaction::Version::TWO,
+            lock_time: absolute::LockTime::ZERO,
+            input: vec![input],
+            output: vec![TxOut { value: Amount::from_sat(value), script_pubkey: ScriptBuf::new_op_return([]) }],
+        };
+        Self::add_tx(&mut mem, &network, tx, 0, false)
+    }
+
     pub fn tip(&self, network: &str) -> u32 {
         self.lock().chain(network).tip
     }
@@ -469,6 +491,139 @@ impl MemoryBackend {
 }
 
 impl WalletBackend for MemoryBackend {
+    fn owns_script(&self, account_id: &str, script: &bitcoin::Script) -> bool {
+        let mem = self.lock();
+        mem.owns(mem.account(account_id), script).is_some()
+    }
+
+    fn is_unspent(&self, account_id: &str, outpoint: &OutPoint) -> bool {
+        let mem = self.lock();
+        let account = mem.account(account_id);
+        self.coins(&mem, account, &Reserved::new()).is_ok_and(|(_, coins)| coins.iter().any(|c| &c.outpoint == outpoint))
+    }
+
+    fn fee_estimate(&self, network: &str, _target_blocks: u64) -> Option<u64> {
+        self.lock().chain(network).fee_estimate
+    }
+
+    fn create_psbt(&self, account_id: &str, request: &CreateRequest, excluded: &Reserved) -> Result<CreatedPsbt, PwcError> {
+        if request.fee_rate < MIN_FEE_RATE {
+            return Err(err(ErrorCode::PolicyViolation, "Fee rate below the wallet minimum of 1000 sat/kvB"));
+        }
+        let mem = self.lock();
+        let account = mem.account(account_id);
+        let (_, coins) = self.coins(&mem, account, excluded)?;
+        let selectable: Vec<&Coin> = coins.iter().filter(|c| c.class == Class::Spendable).collect();
+        let candidates: Vec<&Coin> = match &request.selected {
+            Some(chosen) => chosen
+                .iter()
+                .map(|o| selectable.iter().find(|c| &c.outpoint == o).copied())
+                .collect::<Option<Vec<_>>>()
+                .ok_or_else(|| err(ErrorCode::InvalidArgument, "A selected UTXO is not available"))?,
+            None => {
+                let mut all = selectable.clone();
+                all.sort_by(|a, b| b.txout.value.cmp(&a.txout.value));
+                all
+            }
+        };
+        let change = account.keys.iter().find(|k| k.role == Role::Change).expect("change key");
+        let pay: u64 = request.outputs.iter().map(|(_, v)| v).sum();
+        let mut lens: Vec<usize> = request.outputs.iter().map(|(s, _)| s.len()).collect();
+        let fee_for = |inputs: usize, lens: &[usize]| crate::types::min_fee(request.fee_rate, crate::psbt::estimate_vsize(inputs, lens));
+        let mut chosen: Vec<&Coin> = Vec::new();
+        let mut total = 0u64;
+        let mut plan = None;
+        for coin in &candidates {
+            chosen.push(coin);
+            total += coin.txout.value.to_sat();
+            if request.selected.is_some() && chosen.len() < candidates.len() {
+                continue;
+            }
+            let mut with_change = lens.clone();
+            with_change.push(change.script.len());
+            let fee_change = fee_for(chosen.len(), &with_change);
+            let fee_plain = fee_for(chosen.len(), &lens);
+            if total >= pay + fee_change + DUST {
+                plan = Some(Some(total - pay - fee_change));
+                break;
+            }
+            if total >= pay + fee_plain {
+                plan = Some(None);
+                break;
+            }
+        }
+        let Some(change_value) = plan else {
+            return Err(err(ErrorCode::InsufficientFunds, "Insufficient eligible value after fees"));
+        };
+        let sequence = if request.replaceable { Sequence::ENABLE_RBF_NO_LOCKTIME } else { Sequence::MAX };
+        let mut outputs: Vec<TxOut> =
+            request.outputs.iter().map(|(s, v)| TxOut { value: Amount::from_sat(*v), script_pubkey: s.clone() }).collect();
+        let mut change_output_indexes = Vec::new();
+        if let Some(v) = change_value {
+            change_output_indexes.push(outputs.len() as u32);
+            outputs.push(TxOut { value: Amount::from_sat(v), script_pubkey: change.script.clone() });
+            lens.push(change.script.len());
+        }
+        let tx = Transaction {
+            version: transaction::Version::TWO,
+            lock_time: absolute::LockTime::ZERO,
+            input: chosen
+                .iter()
+                .map(|c| TxIn { previous_output: c.outpoint, script_sig: ScriptBuf::new(), sequence, witness: Witness::new() })
+                .collect(),
+            output: outputs,
+        };
+        let fee = total - tx.output.iter().map(|o| o.value.to_sat()).sum::<u64>();
+        let mut psbt = bitcoin::Psbt::from_unsigned_tx(tx).expect("unsigned transaction");
+        for (input, coin) in psbt.inputs.iter_mut().zip(&chosen) {
+            input.witness_utxo = Some(coin.txout.clone());
+        }
+        Ok(CreatedPsbt {
+            psbt,
+            fee,
+            vsize: crate::psbt::estimate_vsize(chosen.len(), &lens),
+            change_output_indexes,
+            inputs: chosen.iter().map(|c| c.outpoint).collect(),
+        })
+    }
+
+    fn broadcast(&self, network: &str, tx: &Transaction) -> Result<Txid, PwcError> {
+        let mut mem = self.lock();
+        let chain = mem.chain(network);
+        let txid = tx.compute_txid();
+        let active = chain.active();
+        if active.iter().any(|&i| chain.txs[i].tx.compute_txid() == txid) {
+            return Ok(txid);
+        }
+        if chain.offline {
+            return Err(err(ErrorCode::NetworkUnavailable, "The network backend cannot be reached"));
+        }
+        let rejected = |m: &str| err(ErrorCode::TransactionRejected, m);
+        let spent: HashSet<OutPoint> =
+            active.iter().flat_map(|&i| chain.txs[i].tx.input.iter().map(|inp| inp.previous_output)).collect();
+        let mut input_value = 0u64;
+        for (index, inp) in tx.input.iter().enumerate() {
+            let prev = active
+                .iter()
+                .map(|&i| &chain.txs[i].tx)
+                .find(|t| t.compute_txid() == inp.previous_output.txid)
+                .and_then(|t| t.output.get(inp.previous_output.vout as usize))
+                .ok_or_else(|| rejected("An input does not exist on this network"))?;
+            if spent.contains(&inp.previous_output) {
+                return Err(rejected("An input is already spent"));
+            }
+            if !crate::psbt::verify_input(&self.secp, tx, index, prev) {
+                return Err(rejected("An input script does not verify"));
+            }
+            input_value += prev.value.to_sat();
+        }
+        if tx.input.is_empty() || tx.output.iter().map(|o| o.value.to_sat()).sum::<u64>() > input_value {
+            return Err(rejected("Outputs exceed inputs"));
+        }
+        Self::add_tx(&mut mem, network, tx.clone(), 0, false);
+        Ok(txid)
+    }
+
     fn wallets(&self) -> Vec<WalletInfo> {
         self.lock().wallets.clone()
     }

@@ -121,6 +121,25 @@ pub struct TransactionRecord {
 /// Outpoints reserved by PSBT requests; reported as `locked` (Core §8.3).
 pub type Reserved = HashSet<bitcoin::OutPoint>;
 
+/// A payment request for `psbt.create`, with addresses already checked against the account's network.
+#[derive(Debug, Clone)]
+pub struct CreateRequest {
+    pub outputs: Vec<(bitcoin::ScriptBuf, u64)>,
+    /// sat/kvB
+    pub fee_rate: u64,
+    pub selected: Option<Vec<bitcoin::OutPoint>>,
+    pub replaceable: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct CreatedPsbt {
+    pub psbt: bitcoin::Psbt,
+    pub fee: u64,
+    pub vsize: u64,
+    pub change_output_indexes: Vec<u32>,
+    pub inputs: Vec<bitcoin::OutPoint>,
+}
+
 /// Account data methods are called only for existing accounts of readable wallets (checks 7 and 8).
 pub trait WalletBackend: Send + Sync + 'static {
     fn wallets(&self) -> Vec<WalletInfo>;
@@ -133,6 +152,15 @@ pub trait WalletBackend: Send + Sync + 'static {
     fn utxos(&self, account_id: &str, reserved: &Reserved) -> Result<Vec<Utxo>, PwcError>;
     /// Newest first.
     fn transactions(&self, account_id: &str) -> Result<Vec<TransactionRecord>, PwcError>;
+    fn owns_script(&self, account_id: &str, script: &bitcoin::Script) -> bool;
+    /// Whether the outpoint is an effective unspent output of the account.
+    fn is_unspent(&self, account_id: &str, outpoint: &bitcoin::OutPoint) -> bool;
+    /// The wallet's fee estimate in sat/kvB, `None` if it cannot compute one now.
+    fn fee_estimate(&self, network: &str, target_blocks: u64) -> Option<u64>;
+    /// Selects coins and builds an unsigned PSBT; `excluded` outpoints are not selected.
+    fn create_psbt(&self, account_id: &str, request: &CreateRequest, excluded: &Reserved) -> Result<CreatedPsbt, PwcError>;
+    /// Submits a transaction to the network backend; `TRANSACTION_REJECTED` or `NETWORK_UNAVAILABLE` on failure.
+    fn broadcast(&self, network: &str, tx: &bitcoin::Transaction) -> Result<bitcoin::Txid, PwcError>;
 
     fn wallet(&self, wallet_id: &str) -> Option<WalletInfo> {
         self.wallets().into_iter().find(|w| w.wallet_id.as_str() == wallet_id)

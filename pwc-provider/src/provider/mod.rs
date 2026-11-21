@@ -21,7 +21,7 @@ use crate::types::{random_bytes, FeeRate, Id, Text, Timestamp};
 
 pub use grants::Grant;
 pub use operations::{OpState, Operation};
-use operations::{IdemRecord, OpRecord, Replay};
+use operations::{IdemRecord, OpRecord, Replay, Reservation};
 
 pub type PromptReceiver = mpsc::UnboundedReceiver<Prompt>;
 
@@ -136,6 +136,7 @@ struct State {
     grants: BTreeMap<Id, Grant>,
     operations: BTreeMap<Id, OpRecord>,
     idempotency: BTreeMap<String, IdemRecord>,
+    reservations: BTreeMap<Id, Reservation>,
 }
 
 /// Frames queued for one connection's writer.
@@ -218,6 +219,7 @@ impl Provider {
             grants: BTreeMap::new(),
             operations: BTreeMap::new(),
             idempotency: BTreeMap::new(),
+            reservations: BTreeMap::new(),
         };
         Self::from_state(backend, config, state)
     }
@@ -629,6 +631,7 @@ impl Provider {
         }
         let retention = Duration::from_secs(self.config.limits.operation_retention_seconds);
         inner.state.operations.retain(|_, o| o.finished_at.is_none_or(|f| f.after(retention) > now));
+        inner.state.reservations.retain(|_, r| r.until.after(retention) > now);
         let ops = &inner.state.operations;
         inner.state.idempotency.retain(|_, r| match &r.replay {
             Replay::Operation(id) => ops.contains_key(id),
@@ -690,9 +693,36 @@ impl Provider {
         }
     }
 
-    /// Outpoints of the account under an active reservation.
-    fn reserved(&self, _inner: &Inner, _account_id: &Id, _now: Timestamp) -> Reserved {
-        Reserved::new()
+    /// A reservation ends when it expires, is released, its grant ends or one of its inputs is spent (Core §8.3).
+    fn reservation_active(&self, inner: &Inner, r: &Reservation, now: Timestamp) -> bool {
+        !r.released
+            && now < r.until
+            && inner.state.grants.get(&r.grant_id).is_some_and(|g| g.active(now))
+            && r.outpoints.iter().all(|o| self.backend.is_unspent(r.account_id.as_str(), o))
+    }
+
+    /// Outpoints of the account under an active reservation of any Client.
+    fn reserved(&self, inner: &Inner, account_id: &Id, now: Timestamp) -> Reserved {
+        inner
+            .state
+            .reservations
+            .values()
+            .filter(|r| &r.account_id == account_id && self.reservation_active(inner, r, now))
+            .flat_map(|r| r.outpoints.iter().copied())
+            .collect()
+    }
+
+    /// An Operation that is already terminal when created, for methods that complete synchronously.
+    fn finished_operation(&self, inner: &mut Inner, ctx: &handlers::Ctx, method: &str, outcome: Result<Value, PwcError>) -> Id {
+        let id = self.new_operation(inner, ctx, method, OpState::Queued);
+        match outcome {
+            Ok(r) => self.transition(inner, &id, OpState::Completed, Some(r), None),
+            Err(e) => self.fail(inner, &id, e),
+        }
+        let op = &mut inner.state.operations.get_mut(&id).expect("just created").op;
+        op.expires_at = None;
+        op.updated_at = op.created_at;
+        id
     }
 
     fn requester(&self, inner: &Inner, client_id: &Id) -> Requester {

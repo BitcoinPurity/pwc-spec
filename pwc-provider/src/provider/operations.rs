@@ -70,3 +70,14 @@ pub struct IdemRecord {
     pub replay: Replay,
     pub created_at: Timestamp,
 }
+
+/// A PSBT input reservation (Core §8.3).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Reservation {
+    pub client_id: Id,
+    pub account_id: Id,
+    pub grant_id: Id,
+    pub outpoints: Vec<bitcoin::OutPoint>,
+    pub until: Timestamp,
+    pub released: bool,
+}

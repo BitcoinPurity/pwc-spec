@@ -263,3 +263,64 @@ pub fn finalize(bytes: &[u8]) -> Result<Finalized, PwcError> {
     let tx = psbt.extract(&secp).map_err(|e| invalid(&format!("Final scripts do not verify: {e}")))?;
     Ok(Finalized { psbt: psbt.serialize(), transaction: Some(tx) })
 }
+
+fn compact_len(n: usize) -> u64 {
+    match n {
+        0..=0xfc => 1,
+        0xfd..=0xffff => 3,
+        _ => 5,
+    }
+}
+
+/// BIP-141 virtual size of a transaction with `inputs` P2WPKH inputs once signed, and outputs with the given
+/// script lengths. A P2WPKH witness is at most 108 weight units with low-R signatures.
+pub fn estimate_vsize(inputs: usize, output_script_lens: &[usize]) -> u64 {
+    let outputs: u64 = output_script_lens.iter().map(|&l| 8 + compact_len(l) + l as u64).sum();
+    let base = 4 + compact_len(inputs) + 41 * inputs as u64 + compact_len(output_script_lens.len()) + outputs + 4;
+    let weight = 4 * base + 2 + 108 * inputs as u64;
+    weight.div_ceil(4)
+}
+
+/// Verifies that input `index` of `tx` validly spends `prevout`, for P2WPKH and P2PKH outputs only.
+pub fn verify_input<C: Verification>(secp: &Secp256k1<C>, tx: &Transaction, index: usize, prevout: &TxOut) -> bool {
+    let spk = &prevout.script_pubkey;
+    let txin = &tx.input[index];
+    let mut cache = SighashCache::new(tx);
+    let (sig, pk, digest) = if spk.is_p2wpkh() {
+        if !txin.script_sig.is_empty() || txin.witness.len() != 2 {
+            return false;
+        }
+        let (Ok(sig), Ok(pk)) = (ecdsa::Signature::from_slice(&txin.witness[0]), bitcoin::CompressedPublicKey::from_slice(&txin.witness[1]))
+        else {
+            return false;
+        };
+        if bitcoin::ScriptBuf::new_p2wpkh(&pk.wpubkey_hash()) != *spk {
+            return false;
+        }
+        let Ok(h) = cache.p2wpkh_signature_hash(index, spk, prevout.value, sig.sighash_type) else { return false };
+        (sig, pk.0, h.to_byte_array())
+    } else if spk.is_p2pkh() {
+        let pushes: Vec<Vec<u8>> = txin
+            .script_sig
+            .instructions()
+            .filter_map(|i| match i {
+                Ok(bitcoin::script::Instruction::PushBytes(b)) => Some(b.as_bytes().to_vec()),
+                _ => None,
+            })
+            .collect();
+        if pushes.len() != 2 || txin.script_sig.instructions().count() != 2 || !txin.witness.is_empty() {
+            return false;
+        }
+        let (Ok(sig), Ok(pk)) = (ecdsa::Signature::from_slice(&pushes[0]), PublicKey::from_slice(&pushes[1])) else {
+            return false;
+        };
+        if bitcoin::ScriptBuf::new_p2pkh(&pk.pubkey_hash()) != *spk {
+            return false;
+        }
+        let Ok(h) = cache.legacy_signature_hash(index, spk, sig.sighash_type.to_u32()) else { return false };
+        (sig, pk.inner, h.to_byte_array())
+    } else {
+        return false;
+    };
+    secp.verify_ecdsa(&Message::from_digest(digest), &sig.signature, &pk).is_ok()
+}
