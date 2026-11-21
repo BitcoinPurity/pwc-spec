@@ -9,6 +9,7 @@ pub mod methods;
 pub mod types;
 pub mod prompt;
 pub mod provider;
+pub mod psbt;
 
 /// LOCAL §3.1 provider identifier.
 pub const PROVIDER_ID: &str = "pwc-provider";

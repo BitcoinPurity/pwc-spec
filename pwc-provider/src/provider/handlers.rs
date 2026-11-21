@@ -11,7 +11,7 @@ use crate::backend::{AccountInfo, WalletInfo};
 use crate::error::{err, ErrorCode, PwcError};
 use crate::methods::{Listing, Request, RequestPermissions};
 use crate::prompt::{GrantChoice, PermissionRequest, Prompt};
-use crate::types::{Id, Timestamp};
+use crate::types::{Base64, Hex, Id, Timestamp};
 
 pub(super) struct Ctx<'a> {
     pub client_id: &'a Id,
@@ -162,6 +162,20 @@ impl Provider {
                     Some(t) => Ok(Outcome::AccountData(json!({ "transaction": t }))),
                     None => Err(err(ErrorCode::TransactionNotFound, "The account has no record of this transaction")),
                 }
+            }
+            Request::PsbtCombine(p) => {
+                let parts: Vec<Vec<u8>> = p.psbts.into_iter().map(|b| b.0).collect();
+                let merged = crate::psbt::combine(&parts)?;
+                Ok(Outcome::Value(json!({ "psbt": Base64(merged), "psbt_version": 0 })))
+            }
+            Request::PsbtFinalize(p) => {
+                let f = crate::psbt::finalize(&p.psbt.0)?;
+                let mut v = json!({ "psbt": Base64(f.psbt), "psbt_version": 0, "complete": f.transaction.is_some() });
+                if let Some(tx) = f.transaction {
+                    v["raw_transaction"] = json!(Hex(bitcoin::consensus::serialize(&tx)));
+                    v["txid"] = json!(tx.compute_txid().to_string());
+                }
+                Ok(Outcome::Value(v))
             }
             _ => Err(err(ErrorCode::InternalError, "not implemented")),
         }
