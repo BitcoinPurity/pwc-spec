@@ -1,54 +1,54 @@
-# API 契约：pwc-provider
+# API contract: pwc-provider
 
-本文写明本实现对外的接口，以及规范留给实现选择的地方取什么值。字段定义、类型和错误码含义以 `specs/PWC-Core-v0.2.1-EN.md`、`specs/PWC-Transport-Local-v0.1.0-EN.md` 和 `pwc-schema/` 为准，这里不再复制。
+This document states the interface of this implementation and the values it chooses where the specifications leave a choice. Field definitions, types and error-code meanings are those of `specs/PWC-Core-v0.2.1-EN.md`, `specs/PWC-Transport-Local-v0.1.0-EN.md` and `pwc-schema/`, and are not repeated here.
 
-## 1. 传输
+## 1. Transport
 
-| 项 | 取值 |
+| Item | Value |
 |---|---|
-| 传输 | LOCAL v0.1.0，协议 `pwc-local/1` |
+| Transport | LOCAL v0.1.0, protocol `pwc-local/1` |
 | `provider_id` | `pwc-provider` |
-| 端点 | `<端点目录>/pwc-provider.sock`，目录 0700，socket 0600 |
+| Endpoint | `<endpoint directory>/pwc-provider.sock`; directory 0700, socket 0600 |
 | `max_frame_bytes` | 1048576 |
 | `delegation` | `false` |
-| JSON-RPC 错误 | 解析失败 `-32700`；非法请求、批量、重复的未完成 id 为 `-32600`；其余一律 `1000`，`data` 为完整 `PwcError`，`message` 与 `data.message` 相同 |
+| JSON-RPC errors | `-32700` for a parse error; `-32600` for an invalid request, a batch or a duplicate outstanding id; `1000` for everything else, with the complete `PwcError` as `data` and `message` equal to `data.message` |
 
-### 1.1 `local.*` 方法
+### 1.1 `local.*` methods
 
-| 方法 | 允许的连接状态 | 说明 |
+| Method | Connection state | Notes |
 |---|---|---|
-| `local.hello` | 新连接 | 必须是第一个请求。没有共同协议时返回 `UNSUPPORTED_OPERATION` 并关闭。参数畸形时返回 `INVALID_ARGUMENT`，连接保持 |
-| `local.pair` | 已 hello | 每个连接只允许一次配对提示，第二次返回 `RATE_LIMITED`。`delegator: true` 返回 `UNSUPPORTED_OPERATION`，不弹提示 |
-| `local.authenticate` | 已 hello | 每个连接只允许一次尝试。失败返回固定内容的 `UNAUTHENTICATED` 并关闭；失败应答延迟 100 毫秒。参数畸形返回 `INVALID_ARGUMENT` 并关闭 |
-| `local.unpair` | 已认证 | 返回 `{"unpaired": true}` 后关闭该客户端的全部连接 |
-| `local.openDelegate`、`local.delegated`、`local.closeDelegate` | 已认证 | `UNSUPPORTED_OPERATION` |
+| `local.hello` | New | Must be the first request. Without a common protocol: `UNSUPPORTED_OPERATION`, then close. Malformed parameters: `INVALID_ARGUMENT`, connection kept |
+| `local.pair` | After hello | One pairing prompt per connection; a second request gets `RATE_LIMITED`. `delegator: true` gets `UNSUPPORTED_OPERATION` without a prompt |
+| `local.authenticate` | After hello | One attempt per connection. Failure: `UNAUTHENTICATED` with fixed content, answered after 100 ms, then close. Malformed parameters: `INVALID_ARGUMENT`, then close |
+| `local.unpair` | Authenticated | Answers `{"unpaired": true}`, then closes every connection of the Client |
+| `local.openDelegate`, `local.delegated`, `local.closeDelegate` | Authenticated | `UNSUPPORTED_OPERATION` |
 
-其他规则：
+Other rules:
 
-- 新连接的第一个请求不是 `local.hello`：返回 `UNAUTHENTICATED` 并关闭。
-- 已 hello、未认证时调用 Core 方法：返回 `UNAUTHENTICATED`，连接保持。
-- 再次调用 `local.hello`、或认证后调用 `local.pair` 与 `local.authenticate`：返回 `UNSUPPORTED_OPERATION`，连接保持。
-- 配对进行中调用 `local.authenticate`：返回 `UNSUPPORTED_OPERATION`。
-- 认证后调用未知的 `local.*` 方法：返回 `UNSUPPORTED_METHOD`。
-- 帧超长：返回 `id` 为 `null` 的 `PAYLOAD_TOO_LARGE`，然后关闭。
-- 限流：
-  - 配对提示按对端进程计，每 60 秒最多 10 次；
-  - 认证失败按对端进程计，每 60 秒最多 10 次；
-  - 超限返回 `RATE_LIMITED`；认证超限时同时关闭连接。
+- First request on a new connection is not `local.hello`: `UNAUTHENTICATED`, then close.
+- A Core method after hello but before authentication: `UNAUTHENTICATED`, connection kept.
+- `local.hello` again, or `local.pair` or `local.authenticate` after authentication: `UNSUPPORTED_OPERATION`, connection kept.
+- `local.authenticate` while pairing is in progress: `UNSUPPORTED_OPERATION`.
+- An unknown `local.*` method after authentication: `UNSUPPORTED_METHOD`.
+- A frame longer than `max_frame_bytes`: `PAYLOAD_TOO_LARGE` with `id` `null`, then close.
+- Rate limits:
+  - pairing prompts per peer process: at most 10 per 60 seconds;
+  - failed authentications per peer process: at most 10 per 60 seconds;
+  - over the limit: `RATE_LIMITED`; for authentication the connection is also closed.
 
-## 2. 能力（`pwc.getCapabilities`）
+## 2. Capabilities (`pwc.getCapabilities`)
 
-| 字段 | 取值 |
+| Field | Value |
 |---|---|
 | `pwc_version` | `0.2.1` |
-| `provider` | `{"name":"PWC Provider","version":"<crate 版本>","platform":"desktop"}` |
-| `profiles` | `pwc-core-read-v1`、`pwc-psbt-signer-v1` |
-| `supported_networks` | `mainnet`、`signet`、`regtest` |
-| `methods` | 第 3 节全部 24 个方法 |
-| `features` | `coin_control`、`watch_only`、`event_push` |
-| `scopes` | Core §6 全部 11 个 |
-| `script_types` | `p2wpkh`、`p2pkh` |
-| `message_formats` | `bip322-simple`、`legacy` |
+| `provider` | `{"name":"PWC Provider","version":"<crate version>","platform":"desktop"}` |
+| `profiles` | `pwc-core-read-v1`, `pwc-psbt-signer-v1` |
+| `supported_networks` | `mainnet`, `signet`, `regtest` |
+| `methods` | The 24 methods of section 3 |
+| `features` | `coin_control`, `watch_only`, `event_push` |
+| `scopes` | All 11 scopes of Core §6 |
+| `script_types` | `p2wpkh`, `p2pkh` |
+| `message_formats` | `bip322-simple`, `legacy` |
 | `limits.max_page_size` | 100 |
 | `limits.max_psbt_bytes` | 100000 |
 | `limits.max_combine_psbts` | 5 |
@@ -56,109 +56,109 @@
 | `limits.max_message_bytes` | 65536 |
 | `limits.max_concurrent_operations` | 8 |
 | `limits.operation_retention_seconds` | 86400 |
-| `limits.high_fee_rate` | `"500000"`（500 sat/vB） |
+| `limits.high_fee_rate` | `"500000"` (500 sat/vB) |
 
-## 3. 方法
+## 3. Methods
 
-| 方法 | scope | 返回 | 说明 |
+| Method | Scope | Returns | Notes |
 |---|---|---|---|
-| `pwc.getCapabilities` | — | 同步 | |
-| `session.getInfo` | — | 同步 | |
-| `session.requestPermissions` | — | Operation | 总是弹出审批提示，不走免提示捷径。不认识的钱包或账户 id 静默忽略 |
-| `session.getPermissions` | — | 同步 | 返回全部授权，含已撤销和已过期的 |
-| `session.revokePermissions` | — | 同步，幂等 | |
-| `wallet.list` | `wallets:read` | 同步 | |
-| `account.list` | `wallets:read` | 同步 | |
-| `account.getBalance` | `balances:read` | 同步 | |
-| `address.getReceiveAddress` | `addresses:read` | 同步 | 返回第一个未使用的接收地址 |
-| `address.create` | `addresses:create` | 同步，幂等 | |
-| `address.list` | `addresses:read` | 同步，分页 | |
-| `utxo.list` | `utxos:read` | 同步，分页 | |
-| `transaction.list` | `transactions:read` | 同步，分页 | 最新的在前 |
-| `transaction.get` | `transactions:read` | 同步 | |
-| `psbt.create` | `psbt:create` | Operation（同步完成） | 预留输入 10 分钟 |
-| `psbt.releaseReservation` | `psbt:create` | 同步，幂等 | |
-| `psbt.sign` | `psbt:sign` | Operation | 每笔交易单独审批 |
-| `psbt.combine` | — | 同步 | |
-| `psbt.finalize` | — | 同步 | |
-| `transaction.broadcast` | `transactions:broadcast` | Operation（同步完成） | |
-| `message.sign` | `messages:sign` | Operation | 每条消息单独审批 |
-| `message.verify` | — | 同步 | |
-| `operation.get` | — | 同步 | |
-| `operation.cancel` | — | 同步，幂等 | |
+| `pwc.getCapabilities` | — | Synchronous | |
+| `session.getInfo` | — | Synchronous | |
+| `session.requestPermissions` | — | Operation | Always prompts; no prompt-free shortcut. Unknown wallet or account ids are ignored silently |
+| `session.getPermissions` | — | Synchronous | Every grant, including revoked and expired ones |
+| `session.revokePermissions` | — | Synchronous, idempotent | |
+| `wallet.list` | `wallets:read` | Synchronous | |
+| `account.list` | `wallets:read` | Synchronous | |
+| `account.getBalance` | `balances:read` | Synchronous | |
+| `address.getReceiveAddress` | `addresses:read` | Synchronous | The first unused receive address |
+| `address.create` | `addresses:create` | Synchronous, idempotent | |
+| `address.list` | `addresses:read` | Synchronous, paginated | |
+| `utxo.list` | `utxos:read` | Synchronous, paginated | |
+| `transaction.list` | `transactions:read` | Synchronous, paginated | Newest first |
+| `transaction.get` | `transactions:read` | Synchronous | |
+| `psbt.create` | `psbt:create` | Operation, completed synchronously | Reserves the inputs for 10 minutes |
+| `psbt.releaseReservation` | `psbt:create` | Synchronous, idempotent | |
+| `psbt.sign` | `psbt:sign` | Operation | Approval of every transaction |
+| `psbt.combine` | — | Synchronous | |
+| `psbt.finalize` | — | Synchronous | |
+| `transaction.broadcast` | `transactions:broadcast` | Operation, completed synchronously | |
+| `message.sign` | `messages:sign` | Operation | Approval of every message |
+| `message.verify` | — | Synchronous | |
+| `operation.get` | — | Synchronous | |
+| `operation.cancel` | — | Synchronous, idempotent | |
 
-各账户在 `AccountSummary.methods` 中列出的方法：
+Methods in each account's `AccountSummary.methods`:
 
-| 账户 | 不支持的方法 |
+| Account | Unsupported methods |
 |---|---|
-| P2WPKH 签名账户 | 无 |
-| P2PKH 签名账户 | `psbt.create`、`psbt.releaseReservation`、`psbt.sign` |
-| P2WPKH 观察账户（`can_sign: false`） | `psbt.sign`、`message.sign` |
+| P2WPKH signing account | None |
+| P2PKH signing account | `psbt.create`, `psbt.releaseReservation`, `psbt.sign` |
+| P2WPKH watch-only account (`can_sign: false`) | `psbt.sign`, `message.sign` |
 
-对账户调用其不支持的方法，返回 `UNSUPPORTED_OPERATION`。
+A method an account does not support fails with `UNSUPPORTED_OPERATION`.
 
-## 4. 规范留白处的取值
+## 4. Choices left open by the specifications
 
-| 留白 | 取值 | 依据 |
+| Open point | Choice | Reference |
 |---|---|---|
-| 参数中的未知成员 | 拒绝，`INVALID_ARGUMENT` | Core §3.1 |
-| 锁定钱包上返回 Operation 的方法 | 直接 `WALLET_LOCKED`，不使用 `awaiting_unlock` | Core §8 |
-| 手续费率超过 `high_fee_rate`、手续费无法确定、非默认 sighash | `POLICY_VIOLATION` | Core §8.3 |
-| 低于最低费率 1000 sat/kvB | `POLICY_VIOLATION` | Core §3.4 |
-| `wallet_estimate` | 后端按 `target_blocks` 给出费率；后端未配置估算时返回 `STATE_UNAVAILABLE` | Core §8.3 |
-| 方法自身检查失败 | 直接返回错误，不创建 Operation。例外：广播被后端拒绝或后端不可达时，返回 `failed` 的 Operation；审批之后的失败也是 `failed` | Core §9.1 |
-| 审批提示频率 | 每个客户端每 60 秒最多 10 次，在检查 9 判断 | Core §12 第 13 项 |
-| 等待审批的时限 | 300 秒 | Core §9.1 |
-| 分页游标 | 无状态，偏移量加 HMAC，绑定方法、账户、客户端；用错返回 `INVALID_ARGUMENT` | Core §8 |
-| 已撤销和已过期的授权 | 一直保留，用于区分 `PERMISSION_REVOKED` | Core §8 检查 6 |
-| 预留 | 实现，有效期 10 分钟；预留期间这些 UTXO 显示为 `locked` | Core §8.3 |
-| 授权的 scope 为空 | 视为拒绝，Operation 进入 `rejected` | — |
-| 用户选择的网络与请求不同 | 视为拒绝 | Core §8.1 |
-| 加载快照时仍在等待审批的 Operation | `failed`，`INTERNAL_ERROR`，`retryable: true` | — |
-| 授权被撤销或过期时未结束的 Operation | 立即进入 `failed`，`PERMISSION_REVOKED`，并撤回提示 | Core §7 第 6 步 |
-| `local.unpair` 时未结束的 Operation | 同上，含 `session.requestPermissions` | LOCAL §5.7 |
+| Unknown parameter members | Rejected with `INVALID_ARGUMENT` | Core §3.1 |
+| Operation-returning methods on a locked wallet | `WALLET_LOCKED` directly; `awaiting_unlock` is not used | Core §8 |
+| Fee rate above `high_fee_rate`, undeterminable fee, nondefault sighash | `POLICY_VIOLATION` | Core §8.3 |
+| Fee rate below the minimum of 1000 sat/kvB | `POLICY_VIOLATION` | Core §3.4 |
+| `wallet_estimate` | The backend supplies a rate for `target_blocks`; `STATE_UNAVAILABLE` if it has no estimate | Core §8.3 |
+| Method-specific check failures | Direct error, no Operation. Exceptions: a broadcast refused by the backend or an unreachable backend gives a `failed` Operation, and so does a failure after approval | Core §9.1 |
+| Approval prompt rate | At most 10 per Client per 60 seconds, checked at check 9 | Core §12, item 13 |
+| Approval time limit | 300 seconds | Core §9.1 |
+| Pagination cursors | Stateless: an offset with an HMAC binding method, account and Client; misuse gives `INVALID_ARGUMENT` | Core §8 |
+| Revoked and expired grants | Retained, so that `PERMISSION_REVOKED` can be told apart | Core §8, check 6 |
+| Reservations | Implemented for 10 minutes; reserved UTXOs are reported as `locked` | Core §8.3 |
+| A grant choice with no scope | Treated as a refusal; the Operation becomes `rejected` | — |
+| A grant choice on another network than requested | Treated as a refusal | Core §8.1 |
+| Operations awaiting approval when a snapshot is loaded | `failed`, `INTERNAL_ERROR`, `retryable: true` | — |
+| Unfinished Operations when their grant is revoked or expires | `failed` with `PERMISSION_REVOKED` at once; the prompt is withdrawn | Core §7, step 6 |
+| Unfinished Operations at `local.unpair` | The same, including `session.requestPermissions` | LOCAL §5.7 |
 
-## 5. 签名与消息
+## 5. Signing and messages
 
-### 5.1 `psbt.sign` 的检查顺序
+### 5.1 Order of checks of `psbt.sign`
 
-在 Core §8.3 规定的顺序之前，先检查账户是否支持 `psbt.sign`：
+Before the order of Core §8.3, the account's support for `psbt.sign` is checked:
 
-1. 账户不支持 `psbt.sign`：`UNSUPPORTED_OPERATION`
-2. PSBT 版本不是 0：`UNSUPPORTED_PSBT_VERSION`；无法解析：`PSBT_VALIDATION_FAILED`
-3. `input_indexes` 有重复或越界：`INVALID_ARGUMENT`
-4. 目标输入不是本账户在本网络上的输出：`UNSUPPORTED_OPERATION`
-5. 脚本不是 P2WPKH，或 sighash 不是标准值：`UNSUPPORTED_SCRIPT`
-6. PSBT 中的前序输出与钱包记录不一致，或输出总额大于输入总额：`PSBT_VALIDATION_FAILED`
-7. 净流出超过 `max_amount_sats_per_request`：`GRANT_CONSTRAINT_VIOLATED`
-8. 费率过高、手续费无法确定、sighash 不是 `SIGHASH_ALL`：`POLICY_VIOLATION`
+1. The account does not support `psbt.sign`: `UNSUPPORTED_OPERATION`
+2. PSBT version other than 0: `UNSUPPORTED_PSBT_VERSION`; unparsable: `PSBT_VALIDATION_FAILED`
+3. `input_indexes` duplicated or out of range: `INVALID_ARGUMENT`
+4. A target input is not an output of the account on its network: `UNSUPPORTED_OPERATION`
+5. Script other than P2WPKH, or a nonstandard sighash value: `UNSUPPORTED_SCRIPT`
+6. Previous-output data in the PSBT differs from the wallet's, or outputs exceed inputs: `PSBT_VALIDATION_FAILED`
+7. Net outflow above `max_amount_sats_per_request`: `GRANT_CONSTRAINT_VIOLATED`
+8. Fee rate too high, undeterminable fee, or a sighash other than `SIGHASH_ALL`: `POLICY_VIOLATION`
 
-已带本账户签名的输入不再签名。只有这类输入时返回成功，`signed_input_indexes` 为空。
+Inputs that already carry the account's signature are not signed again. If only such inputs are targeted, the result is a success with an empty `signed_input_indexes`.
 
-### 5.2 消息签名
+### 5.2 Message signatures
 
-| 格式 | 地址类型 | 签名编码 |
+| Format | Address type | Signature encoding |
 |---|---|---|
-| `bip322-simple` | P2WPKH | BIP-322 simple：见证栈的共识编码，再做 base64 |
-| `legacy` | P2PKH | 65 字节紧凑签名的 base64，前缀为 `Bitcoin Signed Message:\n` |
+| `bip322-simple` | P2WPKH | BIP-322 simple: the consensus-encoded witness stack, in base64 |
+| `legacy` | P2PKH | The 65-byte compact signature in base64, with the prefix `Bitcoin Signed Message:\n` |
 
-`message.sign` 的检查顺序：账户支持 → 地址可解析（否则 `INVALID_ARGUMENT`）→ 地址网络（否则 `NETWORK_MISMATCH`）→ 格式受支持且与地址类型匹配（否则 `UNSUPPORTED_OPERATION`）→ 地址属于本账户（否则 `INVALID_ARGUMENT`）。
+Order of checks of `message.sign`: account support → address parses (else `INVALID_ARGUMENT`) → address network (else `NETWORK_MISMATCH`) → format supported and matching the address type (else `UNSUPPORTED_OPERATION`) → address owned by the account (else `INVALID_ARGUMENT`).
 
-`message.verify` 的检查顺序：网络受支持（否则 `UNSUPPORTED_OPERATION`）→ 地址可解析 → 地址网络 → 格式与地址类型 → 签名可解码（否则 `INVALID_ARGUMENT`）→ 返回 `valid`。
+Order of checks of `message.verify`: network supported (else `UNSUPPORTED_OPERATION`) → address parses → address network → format and address type → signature decodes (else `INVALID_ARGUMENT`) → `valid`.
 
-## 6. 演示数据
+## 6. Demo data
 
-`MemoryBackend::demo()` 为每个网络 `<net>`（`mainnet`、`signet`、`regtest`）建立：
+`MemoryBackend::demo()` creates, for each network `<net>` (`mainnet`, `signet`, `regtest`):
 
-| 钱包 | 账户 | 脚本 | 可签名 | 预置余额（已确认） |
+| Wallet | Account | Script | Can sign | Initial confirmed funds |
 |---|---|---|---|---|
-| `w-<net>-main`，软件钱包 | `a-<net>-wpkh` | P2WPKH | 是 | 1000000 sat 与 500000 sat 两个 UTXO |
-| | `a-<net>-pkh` | P2PKH | 是 | 200000 sat |
-| `w-<net>-watch`，观察钱包 | `a-<net>-watch` | P2WPKH | 否 | 300000 sat |
+| `w-<net>-main`, software | `a-<net>-wpkh` | P2WPKH | Yes | Two UTXOs of 1000000 and 500000 sat |
+| | `a-<net>-pkh` | P2PKH | Yes | 200000 sat |
+| `w-<net>-watch`, watch-only | `a-<net>-watch` | P2WPKH | No | 300000 sat |
 
-各网络的链高度为 1000，`wallet_estimate` 的费率估算为 2000 sat/kvB（可用 `MemoryBackend::set_fee_estimate` 修改）。密钥由固定种子派生，只用于测试。
+Each chain is at height 1000, and the `wallet_estimate` fee rate is 2000 sat/kvB (changed with `MemoryBackend::set_fee_estimate`). Keys derive from fixed seeds and are for testing only.
 
-## 7. 库接口
+## 7. Library interface
 
 ```rust
 let (provider, prompts) = Provider::new(backend, Config::default());
@@ -168,8 +168,8 @@ let snapshot: Vec<u8> = provider.save_state();
 let endpoint = local::bind(&dir, "pwc-provider")?;
 local::serve(provider.clone(), endpoint).await;
 
-provider.notify(BackendEvent::BalanceChanged { account_id });   // 宿主在钱包数据变化后调用
-provider.revoke_grant(&grant_id);                                // 用户在钱包界面撤销授权
-provider.unpair_client(&client_id);                              // 用户在钱包界面解除配对
-provider.paired_clients();                                       // 配对列表（LOCAL §5.7）
+provider.notify(BackendEvent::BalanceChanged { account_id });   // the host reports a wallet change
+provider.revoke_grant(&grant_id);                                // the User revokes a grant in the wallet
+provider.unpair_client(&client_id);                              // the User unpairs a Client in the wallet
+provider.paired_clients();                                       // the list of paired Clients (LOCAL §5.7)
 ```

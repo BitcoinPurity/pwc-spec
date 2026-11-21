@@ -1,36 +1,36 @@
-# TASK-005：后端 trait 与读方法
+# TASK-005: Backend trait and read methods
 
-里程碑：M4
+Milestone: M4
 
-## 目标
+## Goal
 
-定义 `WalletBackend`，实现内存后端的数据与读路径，以及全部读方法和分页。
+Define `WalletBackend`, implement the data and read paths of the in-memory backend, and every read method with pagination.
 
-## 先写的测试
+## Tests written first
 
-- `vectors/balance.json` BAL-01 到 BAL-05
-- 只返回已授权账户的数据
-- 锁定钱包与不可用钱包
-- 授权外与不存在的账户响应完全相同
-- 游标换账户使用得到 `INVALID_ARGUMENT`
-- 钱包新增账户自动被授权覆盖
-- 重组后确认数重新计算
-- 替换交易不重复计入
-- 未知 txid 得到 `TRANSACTION_NOT_FOUND`
-- 三个网络的钱包按授权网络隔离
-- `address.create` 幂等
+- BAL-01 to BAL-05 of `vectors/balance.json`
+- Only approved account data is returned
+- Locked and unavailable wallets
+- An account outside the grant and a nonexistent account give identical responses
+- A cursor reused with another account gives `INVALID_ARGUMENT`
+- A new account of a granted wallet is covered
+- Confirmations are recomputed after a reorganization
+- A replaced transaction is not counted twice
+- An unknown txid gives `TRANSACTION_NOT_FOUND`
+- Wallets of the three networks are isolated by the grant's network
+- `address.create` is idempotent
 
-## 实现内容
+## Implementation
 
 - `src/backend.rs`
 - `src/balance.rs`
-- `src/memory.rs` 的读路径
-- 读方法处理
+- The read paths of `src/memory.rs`
+- The read method handlers
 
-## 验收标准
+## Acceptance criteria
 
-- 上述测试通过
+- These tests pass
 
-## 覆盖的测试编号
+## Test identifiers covered
 
-C-02、C-16、C-17、C-24、C-25、C-34、C-35、C-36、C-38、C-57、C-58
+C-02, C-16, C-17, C-24, C-25, C-34, C-35, C-36, C-38, C-57, C-58

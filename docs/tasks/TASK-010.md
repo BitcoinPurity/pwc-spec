@@ -1,30 +1,30 @@
-# TASK-010：状态保存与加载
+# TASK-010: State save and load
 
-里程碑：M9
+Milestone: M9
 
-## 目标
+## Goal
 
-提供 `save_state` 与 `with_state`，由宿主钱包调用。
+Offer `save_state` and `with_state` for the host wallet to call.
 
-## 先写的测试
+## Tests written first
 
-- 保存后用新 Provider 加载：旧凭据可直接认证
-- 授权仍有效
-- 幂等重试返回原响应
-- 已完成 Operation 可查
-- 预留仍生效
-- 等待审批的 Operation 变为 `failed`/`INTERNAL_ERROR`
-- 损坏或版本不符的快照报错
+- After saving and loading into a new Provider: old credentials authenticate
+- Grants remain active
+- Idempotent retries get the original responses
+- Completed Operations remain readable
+- Reservations remain in effect
+- Operations awaiting approval become `failed` with `INTERNAL_ERROR`
+- A corrupt snapshot or an unknown version is refused
 
-## 实现内容
+## Implementation
 
 - `Provider::save_state`
 - `Provider::with_state`
 
-## 验收标准
+## Acceptance criteria
 
-- 上述测试通过
+- These tests pass
 
-## 覆盖的测试编号
+## Test identifiers covered
 
-Core §8.5、§9.3，LOCAL §5.5
+Core §8.5, §9.3; LOCAL §5.5

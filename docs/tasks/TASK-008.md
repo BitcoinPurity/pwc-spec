@@ -1,43 +1,43 @@
-# TASK-008：psbt.sign 与消息签名
+# TASK-008: psbt.sign and message signing
 
-里程碑：M7
+Milestone: M7
 
-## 目标
+## Goal
 
-实现签名前审查、审批后签名、BIP-322 simple 与 legacy 消息签名。
+Implement the review before signing, signing after approval, and BIP-322 simple and legacy message signatures.
 
-## 先写的测试
+## Tests written first
 
-- 签名等待中撤销授权得到 `failed`/`PERMISSION_REVOKED`
-- 观察账户签名得到 `UNSUPPORTED_OPERATION`
-- 改 PSBT 重用幂等键
-- 前序输出金额不一致得到 `PSBT_VALIDATION_FAILED`
-- 高费率或非默认 sighash 得到 `POLICY_VIOLATION`
-- 部分签名不最终化
-- 只签 `[0]`
-- `input_indexes` 为空、重复、越界
-- 指定不可签的输入
-- 已签过的输入
-- 净流出超限且不弹提示
-- 净流出为负不触发限额
-- 其他网络的输入
-- 非 ASCII 与尾随空白的消息签名后可验证
-- BIP-322 官方向量
-- 不支持的网络验证消息
-- 撤销授权后精确重试返回不带 result 的 Operation
-- 端到端：create → sign → finalize → broadcast，余额随之变化
+- Revoking the grant during pending signing gives `failed` with `PERMISSION_REVOKED`
+- A watch-only account asked to sign gives `UNSUPPORTED_OPERATION`
+- Reusing an idempotency key with another PSBT
+- Inconsistent previous-output values give `PSBT_VALIDATION_FAILED`
+- A high fee rate or a nondefault sighash gives `POLICY_VIOLATION`
+- Partial signing does not finalize
+- Only input `[0]` is signed when requested
+- Empty, duplicated or out-of-range `input_indexes`
+- An input the account cannot sign
+- Inputs already signed
+- Net outflow above the limit, without a prompt
+- A negative net outflow does not trigger the limit
+- Inputs from another network
+- A message with non-ASCII characters and trailing whitespace verifies after signing
+- The official BIP-322 vectors
+- Verifying on an unsupported network
+- An exact retry after revocation returns the Operation without `result`
+- End to end: create, sign, finalize and broadcast, with the balance following
 
-## 实现内容
+## Implementation
 
-- `psbt::review`
-- 后端签名
-- 审批任务
+- The signing review
+- Backend signing
+- The approval tasks
 - `src/message.rs`
 
-## 验收标准
+## Acceptance criteria
 
-- 上述测试通过
+- These tests pass
 
-## 覆盖的测试编号
+## Test identifiers covered
 
-C-03、C-04、C-06 到 C-10、C-32、C-41 到 C-43、C-45、C-59 到 C-61、C-63
+C-03, C-04, C-06 to C-10, C-32, C-41 to C-43, C-45, C-59 to C-61, C-63

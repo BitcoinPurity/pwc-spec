@@ -1,34 +1,34 @@
-# TASK-007：psbt.create、预留与广播
+# TASK-007: psbt.create, reservations and broadcast
 
-里程碑：M6
+Milestone: M6
 
-## 目标
+## Goal
 
-实现选币建 PSBT、输入预留、模拟链广播。
+Implement coin selection and PSBT construction, input reservations and broadcast on the simulated chain.
 
-## 先写的测试
+## Tests written first
 
-- 1 入 2 出得到 vsize 141，费率 1250 时手续费 177
-- 其他网络的地址得到 `NETWORK_MISMATCH`
-- PSBT 不含交易之外的数据
-- 预留期间 UTXO 显示 `locked`；到期后可再选
-- 释放两次：`true` 然后 `false`
-- 释放他人预留得到 `RESERVATION_NOT_FOUND`
-- 用户自行花费预留输出后预留结束
-- 广播被接受、被拒绝、重复提交
+- One input and two outputs give vsize 141, and a fee of 177 at 1250 sat/kvB
+- An address of another network gives `NETWORK_MISMATCH`
+- The PSBT carries no data beyond its transaction
+- Reserved UTXOs are reported as `locked` and become selectable after expiry
+- Releasing twice gives `true`, then `false`
+- Releasing another Client's reservation gives `RESERVATION_NOT_FOUND`
+- A User spend of a reserved output ends the reservation
+- Broadcast accepted, refused and repeated
 
-说明：广播被接受与重复提交需要已签名的交易，放在 TASK-008 的端到端测试（`tests/core_sign.rs`）中验证。
+Note: An accepted and a repeated broadcast need a signed transaction, so they are checked in the end-to-end test of TASK-008 (`tests/core_sign.rs`).
 
-## 实现内容
+## Implementation
 
-- `src/memory.rs` 的选币与模拟链
-- 预留表
-- 三个方法的处理
+- Coin selection and the simulated chain in `src/memory.rs`
+- The reservation table
+- The three method handlers
 
-## 验收标准
+## Acceptance criteria
 
-- 上述测试通过
+- These tests pass
 
-## 覆盖的测试编号
+## Test identifiers covered
 
-C-15、C-19、C-39、C-44、C-46 到 C-49、C-54、C-64
+C-15, C-19, C-39, C-44, C-46 to C-49, C-54, C-64

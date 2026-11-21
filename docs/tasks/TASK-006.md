@@ -1,26 +1,26 @@
-# TASK-006：psbt.combine 与 psbt.finalize
+# TASK-006: psbt.combine and psbt.finalize
 
-里程碑：M5
+Milestone: M5
 
-## 目标
+## Goal
 
-实现纯数据的 PSBT 合并与最终化。
+Implement the pure PSBT combination and finalization.
 
-## 先写的测试
+## Tests written first
 
-- `vectors/psbt.json` PSBT-01 到 PSBT-08（按键值集合比较）
-- 越界 vout 不崩溃
-- 超过 `max_psbt_bytes` 与 `max_combine_psbts`
+- PSBT-01 to PSBT-08 of `vectors/psbt.json`, comparing PSBTs as key-value sets
+- An out-of-range `vout` does not crash
+- `max_psbt_bytes` and `max_combine_psbts` exceeded
 
-## 实现内容
+## Implementation
 
-- `src/psbt.rs` 的原始解析、combine、finalize
-- 两个方法的处理
+- Raw parsing, combine and finalize in `src/psbt.rs`
+- Both method handlers
 
-## 验收标准
+## Acceptance criteria
 
-- 上述测试通过
+- These tests pass
 
-## 覆盖的测试编号
+## Test identifiers covered
 
-C-11 到 C-14、C-30、C-40、C-55
+C-11 to C-14, C-30, C-40, C-55

@@ -1,27 +1,27 @@
-# TASK-002：错误码、语义类型、手续费与认证证明
+# TASK-002: Error codes, semantic types, fee formula and authentication proofs
 
-里程碑：M1
+Milestone: M1
 
-## 目标
+## Goal
 
-实现 Core §3.2 的语义类型校验、§10 的错误码、§3.4 的手续费公式，以及 LOCAL §5.4 的 HMAC 证明。
+Implement the semantic types of Core §3.2, the error codes of §10, the fee formula of §3.4 and the HMAC proofs of LOCAL §5.4.
 
-## 先写的测试
+## Tests written first
 
-- `vectors/types.json` 中每个原子类型向量
-- `vectors/misc.json` 中 FEE-01 到 FEE-07
-- LAUTH-01 两个证明
+- Every primitive-type vector in `vectors/types.json`
+- FEE-01 to FEE-07 in `vectors/misc.json`
+- Both proofs of LAUTH-01
 
-## 实现内容
+## Implementation
 
 - `src/error.rs`
 - `src/types.rs`
-- `local::client_proof`、`local::server_proof`
+- `local::client_proof` and `local::server_proof`
 
-## 验收标准
+## Acceptance criteria
 
-- 上述向量全部通过；复合类型向量的跳过清单与预期一致
+- All these vectors pass; the list of skipped composite-type vectors is exactly the expected one
 
-## 覆盖的测试编号
+## Test identifiers covered
 
-C-22、C-23、C-26、C-29、L-12
+C-22, C-23, C-26, C-29, L-12

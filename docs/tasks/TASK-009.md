@@ -1,27 +1,27 @@
-# TASK-009：事件推送
+# TASK-009: Event push
 
-里程碑：M8
+Milestone: M8
 
-## 目标
+## Goal
 
-实现 `pwc.event` 推送与过滤，声明 `event_push`。
+Implement `pwc.event` delivery and filtering, and advertise `event_push`.
 
-## 先写的测试
+## Tests written first
 
-- 有无 `events:read` 时的投递差别
-- 未授权的监听者收不到受保护信息
-- 锁定或不可用钱包不发 `account.*` 与 `wallet.syncChanged`
-- 客户端不读导致缓冲超限时连接被关闭
+- Delivery with and without `events:read`
+- An unauthorized listener learns nothing protected
+- No `account.*` or `wallet.syncChanged` events for a locked or unavailable wallet
+- A Client that stops reading is disconnected when its buffer fills
 
-## 实现内容
+## Implementation
 
 - `Provider::notify`
-- 事件扇出与过滤
+- Event fan-out and filtering
 
-## 验收标准
+## Acceptance criteria
 
-- 上述测试通过
+- These tests pass
 
-## 覆盖的测试编号
+## Test identifiers covered
 
-C-27、C-53、L-21、L-22
+C-27, C-53, L-21, L-22

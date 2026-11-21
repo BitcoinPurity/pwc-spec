@@ -1,36 +1,36 @@
-# TASK-004：会话、授权、Operation、幂等与检查管线
+# TASK-004: Sessions, grants, Operations, idempotency and the order of checks
 
-里程碑：M3
+Milestone: M3
 
-## 目标
+## Goal
 
-实现方法表、十步检查管线、`pwc.getCapabilities`、`session.*`、`operation.*`、`local.unpair`、演示程序。
+Implement the method registry, the ten-step order of checks, `pwc.getCapabilities`, `session.*`, `operation.*`, `local.unpair` and the demo binary.
 
-## 先写的测试
+## Tests written first
 
-- 无授权枚举钱包得到 `PERMISSION_REQUIRED`
-- 幂等精确重试返回同一 Operation；改参数得到 `IDEMPOTENCY_CONFLICT`
-- 跨客户端访问 Operation 得到 `OPERATION_NOT_FOUND`
-- 终态 Operation 不再变化
-- 授权在 `valid_until` 过期
-- 授权结果不超出请求
-- 等待审批到期变为 `expired`
-- 超出并发上限得到 `RATE_LIMITED`
-- 被拒后频繁请求得到 `RATE_LIMITED`
-- 撤销他人授权得到 `GRANT_NOT_FOUND`
-- 检查顺序专项：同时触发多个错误时返回排在前面的
-- 启动演示程序跑 `local_runner.py --pair --allow-destructive`，无失败项
+- Enumerating wallets without a grant gives `PERMISSION_REQUIRED`
+- An exact idempotent retry returns the same Operation; changed parameters give `IDEMPOTENCY_CONFLICT`
+- Another Client's Operation gives `OPERATION_NOT_FOUND`
+- A terminal Operation never changes
+- A grant expires at `valid_until`
+- A grant never exceeds its request
+- An Operation still awaiting approval at its expiry becomes `expired`
+- Exceeding the concurrency limit gives `RATE_LIMITED`
+- Repeated requests after a refusal give `RATE_LIMITED`
+- Revoking another Client's grant gives `GRANT_NOT_FOUND`
+- Order of checks: a request failing several checks gets the error of the first
+- Run `local_runner.py --pair --allow-destructive` against the demo binary with no failure
 
-## 实现内容
+## Implementation
 
 - `src/methods.rs`
 - `src/provider/`
 - `src/main.rs`
 
-## 验收标准
+## Acceptance criteria
 
-- 上述测试通过；runner 无失败项
+- These tests pass; the runner reports no failure
 
-## 覆盖的测试编号
+## Test identifiers covered
 
-C-01、C-05、C-18、C-20、C-31、C-33、C-37、C-50、C-51、C-52、C-56、C-62、L-18、L-19、L-20、L-23
+C-01, C-05, C-18, C-20, C-31, C-33, C-37, C-50, C-51, C-52, C-56, C-62, L-18, L-19, L-20, L-23
