@@ -3,3 +3,8 @@
 pub mod error;
 pub mod local;
 pub mod types;
+pub mod prompt;
+pub mod provider;
+
+/// LOCAL §3.1 provider identifier.
+pub const PROVIDER_ID: &str = "pwc-provider";

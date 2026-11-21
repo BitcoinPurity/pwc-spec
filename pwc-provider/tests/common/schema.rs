@@ -11,14 +11,23 @@ fn load(name: &str) -> Value {
     serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap()
 }
 
-fn options() -> jsonschema::ValidationOptions {
+fn schemas() -> &'static Vec<(String, Value)> {
     static SCHEMAS: OnceLock<Vec<(String, Value)>> = OnceLock::new();
-    let schemas = SCHEMAS.get_or_init(|| {
+    SCHEMAS.get_or_init(|| {
         ["pwc-core-0.2.1.schema.json", CORE_STRICT, LOCAL]
             .iter()
             .map(|n| (format!("{BASE}{n}"), load(n)))
             .collect()
-    });
+    })
+}
+
+/// True if the strict Core schema has a `$defs` entry named `def`.
+pub fn core_defines(def: &str) -> bool {
+    schemas()[1].1["$defs"].get(def).is_some()
+}
+
+fn options() -> jsonschema::ValidationOptions {
+    let schemas = schemas();
     let mut opts = jsonschema::options().with_draft(jsonschema::Draft::Draft202012);
     for (uri, schema) in schemas {
         opts = opts.with_resource(uri.as_str(), jsonschema::Resource::from_contents(schema.clone()).unwrap());
