@@ -53,7 +53,8 @@ impl Grant {
     }
 
     pub fn covers_account(&self, a: &AccountInfo) -> bool {
-        self.network == a.network && (self.wallet_ids.contains(&a.wallet_id) || self.account_ids.contains(&a.account_id))
+        self.network == a.network
+            && (self.wallet_ids.contains(&a.wallet_id) || self.account_ids.contains(&a.account_id))
     }
 
     pub fn to_json(&self, now: Timestamp) -> Value {
@@ -86,8 +87,20 @@ fn earlier(a: Option<Timestamp>, b: Option<Timestamp>) -> Option<Timestamp> {
 
 /// Keeps only identifiers of existing wallets and accounts (Core §8.1: unknown ones are ignored silently).
 pub fn known_resources(backend: &dyn WalletBackend, p: &RequestPermissions) -> (Vec<Id>, Vec<Id>) {
-    let wallets = p.wallet_ids.iter().flatten().filter(|w| backend.wallet(w.as_str()).is_some()).cloned().collect();
-    let accounts = p.account_ids.iter().flatten().filter(|a| backend.account(a.as_str()).is_some()).cloned().collect();
+    let wallets = p
+        .wallet_ids
+        .iter()
+        .flatten()
+        .filter(|w| backend.wallet(w.as_str()).is_some())
+        .cloned()
+        .collect();
+    let accounts = p
+        .account_ids
+        .iter()
+        .flatten()
+        .filter(|a| backend.account(a.as_str()).is_some())
+        .cloned()
+        .collect();
     (wallets, accounts)
 }
 
@@ -125,7 +138,9 @@ pub fn narrow(
     }
     let mut account_ids: Vec<Id> = Vec::new();
     for a in choice.account_ids {
-        let Some(info) = backend.account(a.as_str()) else { continue };
+        let Some(info) = backend.account(a.as_str()) else {
+            continue;
+        };
         let requested = req_accounts.contains(&a) || req_wallets.contains(&info.wallet_id);
         if info.network == network
             && !wallet_ids.contains(&info.wallet_id)

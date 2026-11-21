@@ -21,7 +21,10 @@ async fn l01_endpoint_directory_and_socket_permissions() {
     let open_dir = tmp.path().join("open");
     std::fs::create_dir(&open_dir).unwrap();
     std::fs::set_permissions(&open_dir, std::fs::Permissions::from_mode(0o755)).unwrap();
-    assert!(matches!(local::bind(&open_dir, "pwc-provider"), Err(EndpointError::UnsafeDirectory(_))));
+    assert!(matches!(
+        local::bind(&open_dir, "pwc-provider"),
+        Err(EndpointError::UnsafeDirectory(_))
+    ));
     assert!(!open_dir.join("pwc-provider.sock").exists());
 
     let h = Harness::start(Config::default()).await;
@@ -34,7 +37,10 @@ async fn l01_endpoint_directory_and_socket_permissions() {
 async fn l25_endpoint_path_too_long() {
     let tmp = tempfile::tempdir().unwrap();
     let dir = tmp.path().join("d".repeat(120));
-    assert!(matches!(local::bind(&dir, "pwc-provider"), Err(EndpointError::PathTooLong(_))));
+    assert!(matches!(
+        local::bind(&dir, "pwc-provider"),
+        Err(EndpointError::PathTooLong(_))
+    ));
 }
 
 #[tokio::test]
@@ -45,7 +51,10 @@ async fn l26_stale_socket_replaced_running_instance_untouched() {
     std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700)).unwrap();
     drop(std::os::unix::net::UnixListener::bind(dir.join("pwc-provider.sock")).unwrap());
     let first = local::bind(&dir, "pwc-provider").expect("stale file replaced");
-    assert!(matches!(local::bind(&dir, "pwc-provider"), Err(EndpointError::AlreadyRunning(_))));
+    assert!(matches!(
+        local::bind(&dir, "pwc-provider"),
+        Err(EndpointError::AlreadyRunning(_))
+    ));
     assert!(std::os::unix::net::UnixStream::connect(first.path()).is_ok());
     let path = first.path().to_path_buf();
     drop(first);
@@ -67,14 +76,20 @@ async fn l04_core_method_before_authentication() {
     let mut c = h.connect().await;
     c.hello().await;
     assert_eq!(c.fails("wallet.list", json!({})).await, "UNAUTHENTICATED");
-    assert_eq!(c.fails("local.hello", json!({"protocols": ["pwc-local/1"]})).await, "UNSUPPORTED_OPERATION");
+    assert_eq!(
+        c.fails("local.hello", json!({"protocols": ["pwc-local/1"]})).await,
+        "UNSUPPORTED_OPERATION"
+    );
 }
 
 #[tokio::test]
 async fn l05_unknown_protocol() {
     let h = Harness::start(Config::default()).await;
     let mut c = h.connect().await;
-    assert_eq!(c.fails("local.hello", json!({"protocols": ["pwc-local/99"]})).await, "UNSUPPORTED_OPERATION");
+    assert_eq!(
+        c.fails("local.hello", json!({"protocols": ["pwc-local/99"]})).await,
+        "UNSUPPORTED_OPERATION"
+    );
     assert!(c.closed().await);
 }
 
@@ -94,7 +109,10 @@ async fn hello_result_and_fresh_nonces() {
 async fn malformed_hello_keeps_connection() {
     let h = Harness::start(Config::default()).await;
     let mut c = h.connect().await;
-    assert_eq!(c.fails("local.hello", json!({"protocols": "pwc-local/1"})).await, "INVALID_ARGUMENT");
+    assert_eq!(
+        c.fails("local.hello", json!({"protocols": "pwc-local/1"})).await,
+        "INVALID_ARGUMENT"
+    );
     c.hello().await;
 }
 
@@ -131,23 +149,34 @@ async fn l07_pairing_refused() {
     let mut h = Harness::start(Config::default()).await;
     let mut c = h.connect().await;
     c.hello().await;
-    let id = c.send_request("local.pair", json!({"client_name": "App", "pairing_code": "111111"})).await;
+    let id = c
+        .send_request("local.pair", json!({"client_name": "App", "pairing_code": "111111"}))
+        .await;
     match h.next_prompt().await {
         Prompt::Pairing { reply, .. } => reply.send(false).unwrap(),
         _ => panic!(),
     }
     assert_eq!(code(&c.response(id).await), "USER_REJECTED");
     assert!(h.provider.paired_clients().is_empty());
-    assert_eq!(c.fails("local.pair", json!({"client_name": "App", "pairing_code": "111111"})).await, "RATE_LIMITED");
+    assert_eq!(
+        c.fails("local.pair", json!({"client_name": "App", "pairing_code": "111111"}))
+            .await,
+        "RATE_LIMITED"
+    );
 }
 
 #[tokio::test]
 async fn l08_pairing_unanswered() {
-    let config = Config { pairing_timeout: Duration::from_millis(200), ..Config::default() };
+    let config = Config {
+        pairing_timeout: Duration::from_millis(200),
+        ..Config::default()
+    };
     let mut h = Harness::start(config).await;
     let mut c = h.connect().await;
     c.hello().await;
-    let id = c.send_request("local.pair", json!({"client_name": "App", "pairing_code": "111111"})).await;
+    let id = c
+        .send_request("local.pair", json!({"client_name": "App", "pairing_code": "111111"}))
+        .await;
     let prompt = h.next_prompt().await;
     assert_eq!(code(&c.response(id).await), "OPERATION_EXPIRED");
     if let Prompt::Pairing { reply, .. } = prompt {
@@ -161,8 +190,11 @@ async fn l09_connection_closed_during_pairing() {
     let mut h = Harness::start(Config::default()).await;
     let mut c = h.connect().await;
     c.hello().await;
-    c.send_request("local.pair", json!({"client_name": "App", "pairing_code": "111111"})).await;
-    let Prompt::Pairing { reply, .. } = h.next_prompt().await else { panic!() };
+    c.send_request("local.pair", json!({"client_name": "App", "pairing_code": "111111"}))
+        .await;
+    let Prompt::Pairing { reply, .. } = h.next_prompt().await else {
+        panic!()
+    };
     drop(c);
     tokio::time::timeout(common::WAIT, async {
         while !reply.is_closed() {
@@ -216,12 +248,21 @@ async fn reauthentication_with_stored_credential() {
     let (_c, client_id, secret) = h.pair().await;
     let mut c = h.login(&client_id, &secret).await;
     let hello = json!({"server_nonce": "00".repeat(32)});
-    assert_eq!(code(&c.authenticate(&hello, &client_id, &secret).await), "UNSUPPORTED_OPERATION");
+    assert_eq!(
+        code(&c.authenticate(&hello, &client_id, &secret).await),
+        "UNSUPPORTED_OPERATION"
+    );
 }
 
 #[tokio::test]
 async fn failed_authentications_rate_limited() {
-    let config = Config { auth_failure_limit: RateLimit { max: 2, window: Duration::from_secs(60) }, ..Config::default() };
+    let config = Config {
+        auth_failure_limit: RateLimit {
+            max: 2,
+            window: Duration::from_secs(60),
+        },
+        ..Config::default()
+    };
     let h = Harness::start(config).await;
     assert_eq!(code(&failed_auth(&h, "cl-x").await.0), "UNAUTHENTICATED");
     assert_eq!(code(&failed_auth(&h, "cl-x").await.0), "UNAUTHENTICATED");
@@ -232,12 +273,22 @@ async fn failed_authentications_rate_limited() {
 
 #[tokio::test]
 async fn pairing_prompts_rate_limited_per_peer() {
-    let config = Config { pairing_limit: RateLimit { max: 1, window: Duration::from_secs(60) }, ..Config::default() };
+    let config = Config {
+        pairing_limit: RateLimit {
+            max: 1,
+            window: Duration::from_secs(60),
+        },
+        ..Config::default()
+    };
     let mut h = Harness::start(config).await;
     h.pair().await;
     let mut c = h.connect().await;
     c.hello().await;
-    assert_eq!(c.fails("local.pair", json!({"client_name": "App", "pairing_code": "111111"})).await, "RATE_LIMITED");
+    assert_eq!(
+        c.fails("local.pair", json!({"client_name": "App", "pairing_code": "111111"}))
+            .await,
+        "RATE_LIMITED"
+    );
 }
 
 #[tokio::test]
@@ -274,17 +325,28 @@ async fn l15_l16_invalid_frames() {
     c.send_raw(b"{not json}\n").await;
     assert_eq!(c.recv().await.unwrap()["error"]["code"], -32700);
     assert_eq!(c.fails("wallet.list", json!({})).await, "UNAUTHENTICATED");
-    c.send(&json!([{"jsonrpc": "2.0", "id": 11, "method": "wallet.list", "params": {}}])).await;
+    c.send(&json!([{"jsonrpc": "2.0", "id": 11, "method": "wallet.list", "params": {}}]))
+        .await;
     let v = c.recv().await.unwrap();
     assert_eq!(v["error"]["code"], -32600);
     assert_eq!(v["id"], Value::Null);
-    c.send(&json!({"jsonrpc": "2.0", "id": 12, "method": "wallet.list"})).await;
+    c.send(&json!({"jsonrpc": "2.0", "id": 12, "method": "wallet.list"}))
+        .await;
     let v = c.recv().await.unwrap();
-    assert_eq!((v["error"]["code"].clone(), v["id"].clone()), (json!(-32600), json!(12)));
-    c.send(&json!({"jsonrpc": "2.0", "id": 1.5, "method": "wallet.list", "params": {}})).await;
+    assert_eq!(
+        (v["error"]["code"].clone(), v["id"].clone()),
+        (json!(-32600), json!(12))
+    );
+    c.send(&json!({"jsonrpc": "2.0", "id": 1.5, "method": "wallet.list", "params": {}}))
+        .await;
     assert_eq!(c.recv().await.unwrap()["id"], Value::Null);
-    c.send(&json!({"jsonrpc": "2.0", "method": "wallet.list", "params": {}})).await;
-    assert_eq!(c.fails("wallet.list", json!({})).await, "UNAUTHENTICATED", "notification discarded without a reply");
+    c.send(&json!({"jsonrpc": "2.0", "method": "wallet.list", "params": {}}))
+        .await;
+    assert_eq!(
+        c.fails("wallet.list", json!({})).await,
+        "UNAUTHENTICATED",
+        "notification discarded without a reply"
+    );
 }
 
 #[tokio::test]
@@ -297,8 +359,13 @@ async fn l17_duplicate_outstanding_id() {
     c.send(&pair).await;
     c.send(&pair).await;
     let v = c.recv().await.unwrap();
-    assert_eq!((v["error"]["code"].clone(), v["id"].clone()), (json!(-32600), json!(12)));
-    let Prompt::Pairing { reply, .. } = h.next_prompt().await else { panic!() };
+    assert_eq!(
+        (v["error"]["code"].clone(), v["id"].clone()),
+        (json!(-32600), json!(12))
+    );
+    let Prompt::Pairing { reply, .. } = h.next_prompt().await else {
+        panic!()
+    };
     h.no_prompt().await;
     reply.send(true).unwrap();
     assert!(c.recv().await.unwrap().get("result").is_some());
@@ -309,8 +376,14 @@ async fn l27_pairing_prompt_marks_claims_and_shows_peer() {
     let mut h = Harness::start(Config::default()).await;
     let mut c = h.connect().await;
     c.hello().await;
-    c.send_request("local.pair", json!({"client_name": "Example Trader", "pairing_code": "482913"})).await;
-    let Prompt::Pairing { request, .. } = h.next_prompt().await else { panic!() };
+    c.send_request(
+        "local.pair",
+        json!({"client_name": "Example Trader", "pairing_code": "482913"}),
+    )
+    .await;
+    let Prompt::Pairing { request, .. } = h.next_prompt().await else {
+        panic!()
+    };
     assert_eq!(request.peer.pid, Some(std::process::id() as i32));
     assert!(request.peer.executable.is_some());
     let shown = request.to_string();

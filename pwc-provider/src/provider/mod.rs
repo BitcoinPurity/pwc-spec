@@ -20,8 +20,8 @@ use crate::prompt::{PairingRequest, PeerInfo, Prompt, Requester};
 use crate::types::{random_bytes, FeeRate, Id, Text, Timestamp};
 
 pub use grants::Grant;
-pub use operations::{OpState, Operation};
 use operations::{IdemRecord, OpRecord, Replay, Reservation};
+pub use operations::{OpState, Operation};
 
 pub type PromptReceiver = mpsc::UnboundedReceiver<Prompt>;
 
@@ -89,10 +89,19 @@ impl Default for Config {
             pairing_timeout: Duration::from_secs(300),
             approval_timeout: Duration::from_secs(300),
             reservation_ttl: Duration::from_secs(600),
-            pairing_limit: RateLimit { max: 10, window: minute },
-            auth_failure_limit: RateLimit { max: 10, window: minute },
+            pairing_limit: RateLimit {
+                max: 10,
+                window: minute,
+            },
+            auth_failure_limit: RateLimit {
+                max: 10,
+                window: minute,
+            },
             auth_failure_delay: Duration::from_millis(100),
-            prompt_limit: RateLimit { max: 10, window: minute },
+            prompt_limit: RateLimit {
+                max: 10,
+                window: minute,
+            },
             event_buffer: 1024,
         }
     }
@@ -138,6 +147,38 @@ struct State {
     idempotency: BTreeMap<String, IdemRecord>,
     reservations: BTreeMap<Id, Reservation>,
 }
+
+const SNAPSHOT_VERSION: u64 = 1;
+
+#[derive(Serialize)]
+struct SnapshotRef<'a> {
+    version: u64,
+    #[serde(flatten)]
+    state: &'a State,
+}
+
+#[derive(Deserialize)]
+struct Snapshot {
+    #[serde(flatten)]
+    state: State,
+}
+
+#[derive(Debug)]
+pub enum StateError {
+    Corrupt(String),
+    UnsupportedVersion(u64),
+}
+
+impl std::fmt::Display for StateError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Corrupt(m) => write!(f, "corrupt Provider state: {m}"),
+            Self::UnsupportedVersion(v) => write!(f, "unsupported Provider state version {v}"),
+        }
+    }
+}
+
+impl std::error::Error for StateError {}
 
 /// Frames queued for one connection's writer.
 pub(crate) enum Outbound {
@@ -200,8 +241,14 @@ const AUTH_FAILED: &str = "Authentication failed";
 /// Who may receive an event.
 enum Audience<'a> {
     Client(&'a Id),
-    Wallet { wallet: &'a WalletInfo, readable_only: bool },
-    Account { account: &'a AccountInfo, scope: &'static str },
+    Wallet {
+        wallet: &'a WalletInfo,
+        readable_only: bool,
+    },
+    Account {
+        account: &'a AccountInfo,
+        scope: &'static str,
+    },
 }
 
 /// A request's resource after check 7.
@@ -241,7 +288,61 @@ impl Provider {
             prompt_log: RateLog::new(),
             pending: HashMap::new(),
         };
-        (Arc::new(Provider { config, backend, prompts: tx, inner: Mutex::new(inner) }), rx)
+        (
+            Arc::new(Provider {
+                config,
+                backend,
+                prompts: tx,
+                inner: Mutex::new(inner),
+            }),
+            rx,
+        )
+    }
+
+    /// Restores a Provider from a snapshot made by `save_state`. Operations that were waiting for the User
+    /// fail with a retryable `INTERNAL_ERROR`, because their prompts did not survive.
+    pub fn with_state(
+        backend: Arc<dyn WalletBackend>,
+        config: Config,
+        snapshot: &[u8],
+    ) -> Result<(Arc<Provider>, PromptReceiver), StateError> {
+        let value: Value = serde_json::from_slice(snapshot).map_err(|e| StateError::Corrupt(e.to_string()))?;
+        match value.get("version").and_then(Value::as_u64) {
+            Some(SNAPSHOT_VERSION) => {}
+            Some(v) => return Err(StateError::UnsupportedVersion(v)),
+            None => return Err(StateError::Corrupt("no version".into())),
+        }
+        let Snapshot { mut state } = serde_json::from_value(value).map_err(|e| StateError::Corrupt(e.to_string()))?;
+        let now = Timestamp::now();
+        for rec in state.operations.values_mut().filter(|o| !o.op.state.terminal()) {
+            let mut e = err(
+                ErrorCode::InternalError,
+                "The Provider restarted while the Operation was waiting",
+            );
+            e.retryable = Some(true);
+            rec.op.state = OpState::Failed;
+            rec.op.updated_at = now;
+            rec.op.error = Some(e);
+            rec.finished_at = Some(now);
+        }
+        let grants: Vec<Grant> = state.grants.values().cloned().collect();
+        let (provider, prompts) = Self::from_state(backend, config, state);
+        provider.housekeeping(&mut provider.lock(), now);
+        if tokio::runtime::Handle::try_current().is_ok() {
+            grants.iter().for_each(|g| provider.schedule_expiry(g));
+        }
+        Ok((provider, prompts))
+    }
+
+    /// A snapshot of the paired Clients and their secrets, grants, Operations, idempotency records and
+    /// reservations. It contains secrets: the host stores it at least as safely as its wallet files (LOCAL §7).
+    pub fn save_state(&self) -> Vec<u8> {
+        let inner = self.lock();
+        serde_json::to_vec(&SnapshotRef {
+            version: SNAPSHOT_VERSION,
+            state: &inner.state,
+        })
+        .expect("state serializes")
     }
 
     pub fn config(&self) -> &Config {
@@ -299,7 +400,10 @@ impl Provider {
         match tokio::time::timeout(self.config.pairing_timeout, answer).await {
             Ok(Ok(true)) => Ok(()),
             Ok(_) => Err(err(ErrorCode::UserRejected, "Pairing refused")),
-            Err(_) => Err(err(ErrorCode::OperationExpired, "Pairing prompt was not answered in time")),
+            Err(_) => Err(err(
+                ErrorCode::OperationExpired,
+                "Pairing prompt was not answered in time",
+            )),
         }
     }
 
@@ -316,7 +420,10 @@ impl Provider {
             last_connected_at: now,
             peer: request.peer.clone(),
         };
-        self.lock().state.clients.insert(client_id.clone(), ClientRecord { info, secret });
+        self.lock()
+            .state
+            .clients
+            .insert(client_id.clone(), ClientRecord { info, secret });
         (client_id, secret)
     }
 
@@ -340,7 +447,12 @@ impl Provider {
         match known {
             Some(c) if proof_ok => {
                 c.info.last_connected_at = Timestamp::now();
-                Ok(crate::local::server_proof(&secret, server_nonce, client_nonce, client_id))
+                Ok(crate::local::server_proof(
+                    &secret,
+                    server_nonce,
+                    client_nonce,
+                    client_id,
+                ))
             }
             _ => {
                 inner.auth_failures.record(pid);
@@ -351,7 +463,12 @@ impl Provider {
 
     pub(crate) fn open_session(&self, client_id: &Id, out: mpsc::Sender<Outbound>, kill: Arc<Notify>) -> Id {
         let session_id = Id::random("ss");
-        let handle = SessionHandle { client_id: client_id.clone(), created_at: Timestamp::now(), out, kill };
+        let handle = SessionHandle {
+            client_id: client_id.clone(),
+            created_at: Timestamp::now(),
+            out,
+            kill,
+        };
         self.lock().sessions.insert(session_id.clone(), handle);
         session_id
     }
@@ -371,8 +488,12 @@ impl Provider {
     /// Executes a Core method for an authenticated session in the order of checks of Core §8.
     pub(crate) fn handle(self: &Arc<Self>, session_id: &Id, method: &str, params: Value) -> Result<Value, PwcError> {
         // 3: method implemented
-        let spec = methods::lookup(method)
-            .ok_or_else(|| err(ErrorCode::UnsupportedMethod, format!("Method {method} is not implemented")))?;
+        let spec = methods::lookup(method).ok_or_else(|| {
+            err(
+                ErrorCode::UnsupportedMethod,
+                format!("Method {method} is not implemented"),
+            )
+        })?;
         // 4: parameter syntax and size limits
         let request = methods::parse(spec, params.clone(), &self.config.limits)?;
         let mut guard = self.lock();
@@ -390,7 +511,10 @@ impl Provider {
         });
         if let Some(record) = idem_key.as_ref().and_then(|k| inner.state.idempotency.get(k)) {
             if record.params != params {
-                return Err(err(ErrorCode::IdempotencyConflict, "Idempotency key reused with different parameters"));
+                return Err(err(
+                    ErrorCode::IdempotencyConflict,
+                    "Idempotency key reused with different parameters",
+                ));
             }
             return self.replay(inner, &record.replay.clone(), now);
         }
@@ -412,7 +536,12 @@ impl Provider {
         }
         // 9: concurrency and prompt rate
         if spec.operation {
-            let open = inner.state.operations.values().filter(|o| o.client_id == client_id && !o.op.state.terminal()).count();
+            let open = inner
+                .state
+                .operations
+                .values()
+                .filter(|o| o.client_id == client_id && !o.op.state.terminal())
+                .count();
             if open as u64 >= self.config.limits.max_concurrent_operations {
                 return Err(err(ErrorCode::RateLimited, "Too many unfinished Operations"));
             }
@@ -421,10 +550,21 @@ impl Provider {
             return Err(err(ErrorCode::RateLimited, "Too many approval requests"));
         }
         // 10: method-specific checks and execution
-        let ctx = handlers::Ctx { client_id: &client_id, session_id, now, target: target.as_ref() };
+        let ctx = handlers::Ctx {
+            client_id: &client_id,
+            session_id,
+            now,
+            target: target.as_ref(),
+        };
         let outcome = self.execute(inner, &ctx, request)?;
         let (response, replay) = match outcome {
-            Outcome::Value(v) => (v.clone(), Replay::Value { result: v, wallet_id: None }),
+            Outcome::Value(v) => (
+                v.clone(),
+                Replay::Value {
+                    result: v,
+                    wallet_id: None,
+                },
+            ),
             Outcome::AccountData(v) => {
                 let wallet_id = target.as_ref().map(|t| t.wallet.wallet_id.clone());
                 (v.clone(), Replay::Value { result: v, wallet_id })
@@ -432,7 +572,14 @@ impl Provider {
             Outcome::Operation(id) => (self.view(inner, &id, now), Replay::Operation(id)),
         };
         if let Some(key) = idem_key {
-            inner.state.idempotency.insert(key, IdemRecord { params, replay, created_at: now });
+            inner.state.idempotency.insert(
+                key,
+                IdemRecord {
+                    params,
+                    replay,
+                    created_at: now,
+                },
+            );
         }
         Ok(response)
     }
@@ -440,40 +587,85 @@ impl Provider {
     // -----------------------------------------------------------------------------------------------------
     // Checks
 
-    fn active_grants<'a>(&self, inner: &'a Inner, client_id: &'a Id, now: Timestamp) -> impl Iterator<Item = &'a Grant> + 'a {
-        inner.state.grants.values().filter(move |g| &g.client_id == client_id && g.active(now))
+    fn active_grants<'a>(
+        &self,
+        inner: &'a Inner,
+        client_id: &'a Id,
+        now: Timestamp,
+    ) -> impl Iterator<Item = &'a Grant> + 'a {
+        inner
+            .state
+            .grants
+            .values()
+            .filter(move |g| &g.client_id == client_id && g.active(now))
     }
 
     fn check_scope(&self, inner: &Inner, client_id: &Id, scope: &str, now: Timestamp) -> Result<(), PwcError> {
         if self.active_grants(inner, client_id, now).any(|g| g.has_scope(scope)) {
             return Ok(());
         }
-        let held_before = inner.state.grants.values().any(|g| &g.client_id == client_id && g.has_scope(scope));
+        let held_before = inner
+            .state
+            .grants
+            .values()
+            .any(|g| &g.client_id == client_id && g.has_scope(scope));
         if held_before {
-            Err(err(ErrorCode::PermissionRevoked, format!("Scope {scope} is no longer granted")))
+            Err(err(
+                ErrorCode::PermissionRevoked,
+                format!("Scope {scope} is no longer granted"),
+            ))
         } else {
             Err(err(ErrorCode::PermissionRequired, format!("Scope {scope} is required")))
         }
     }
 
-    fn covered_wallet(&self, inner: &Inner, client_id: &Id, scope: &str, params: &Value, now: Timestamp) -> Result<Target, PwcError> {
+    fn covered_wallet(
+        &self,
+        inner: &Inner,
+        client_id: &Id,
+        scope: &str,
+        params: &Value,
+        now: Timestamp,
+    ) -> Result<Target, PwcError> {
         let not_found = || err(ErrorCode::WalletNotFound, "Wallet not found");
-        let wallet = self.backend.wallet(params["wallet_id"].as_str().unwrap_or_default()).ok_or_else(not_found)?;
-        if self.active_grants(inner, client_id, now).any(|g| g.has_scope(scope) && g.covers_wallet(&wallet)) {
+        let wallet = self
+            .backend
+            .wallet(params["wallet_id"].as_str().unwrap_or_default())
+            .ok_or_else(not_found)?;
+        if self
+            .active_grants(inner, client_id, now)
+            .any(|g| g.has_scope(scope) && g.covers_wallet(&wallet))
+        {
             Ok(Target { wallet, account: None })
         } else {
             Err(not_found())
         }
     }
 
-    fn covered_account(&self, inner: &Inner, client_id: &Id, scope: &str, params: &Value, now: Timestamp) -> Result<Target, PwcError> {
+    fn covered_account(
+        &self,
+        inner: &Inner,
+        client_id: &Id,
+        scope: &str,
+        params: &Value,
+        now: Timestamp,
+    ) -> Result<Target, PwcError> {
         let not_found = || err(ErrorCode::AccountNotFound, "Account not found");
-        let account = self.backend.account(params["account_id"].as_str().unwrap_or_default()).ok_or_else(not_found)?;
-        if !self.active_grants(inner, client_id, now).any(|g| g.has_scope(scope) && g.covers_account(&account)) {
+        let account = self
+            .backend
+            .account(params["account_id"].as_str().unwrap_or_default())
+            .ok_or_else(not_found)?;
+        if !self
+            .active_grants(inner, client_id, now)
+            .any(|g| g.has_scope(scope) && g.covers_account(&account))
+        {
             return Err(not_found());
         }
         let wallet = self.backend.wallet(account.wallet_id.as_str()).ok_or_else(not_found)?;
-        Ok(Target { wallet, account: Some(account) })
+        Ok(Target {
+            wallet,
+            account: Some(account),
+        })
     }
 
     /// Whether the Client currently holds `scope` for the Operation's account (or at all, without one).
@@ -522,13 +714,7 @@ impl Provider {
     // -----------------------------------------------------------------------------------------------------
     // Operations
 
-    fn new_operation(
-        &self,
-        inner: &mut Inner,
-        ctx: &handlers::Ctx,
-        method: &str,
-        state: OpState,
-    ) -> Id {
+    fn new_operation(&self, inner: &mut Inner, ctx: &handlers::Ctx, method: &str, state: OpState) -> Id {
         let operation_id = Id::random("op");
         let spec = methods::lookup(method).expect("registered method");
         let account = ctx.target.and_then(|t| t.account.as_ref());
@@ -555,9 +741,18 @@ impl Provider {
     }
 
     /// Moves a nonterminal Operation to `state`. Terminal Operations never change (Core §9.1).
-    fn transition(&self, inner: &mut Inner, op_id: &Id, state: OpState, result: Option<Value>, error: Option<PwcError>) {
+    fn transition(
+        &self,
+        inner: &mut Inner,
+        op_id: &Id,
+        state: OpState,
+        result: Option<Value>,
+        error: Option<PwcError>,
+    ) {
         let now = Timestamp::now();
-        let Some(rec) = inner.state.operations.get_mut(op_id) else { return };
+        let Some(rec) = inner.state.operations.get_mut(op_id) else {
+            return;
+        };
         if rec.op.state.terminal() {
             return;
         }
@@ -570,7 +765,14 @@ impl Provider {
             inner.pending.remove(op_id);
         }
         let client_id = rec.client_id.clone();
-        self.emit(inner, "operation.stateChanged", None, Some(op_id), json!({ "state": state }), Audience::Client(&client_id));
+        self.emit(
+            inner,
+            "operation.stateChanged",
+            None,
+            Some(op_id),
+            json!({ "state": state }),
+            Audience::Client(&client_id),
+        );
     }
 
     fn fail(&self, inner: &mut Inner, op_id: &Id, e: PwcError) {
@@ -595,7 +797,10 @@ impl Provider {
         let (cancel_tx, cancel_rx) = oneshot::channel::<()>();
         inner.pending.insert(op_id.clone(), cancel_tx);
         let _ = self.prompts.send(prompt);
-        let expires_at = inner.state.operations[op_id].op.expires_at.expect("awaiting Operations expire");
+        let expires_at = inner.state.operations[op_id]
+            .op
+            .expires_at
+            .expect("awaiting Operations expire");
         let provider = self.clone();
         let op_id = op_id.clone();
         tokio::spawn(async move {
@@ -639,7 +844,10 @@ impl Provider {
             self.expire_operation(inner, &id);
         }
         let retention = Duration::from_secs(self.config.limits.operation_retention_seconds);
-        inner.state.operations.retain(|_, o| o.finished_at.is_none_or(|f| f.after(retention) > now));
+        inner
+            .state
+            .operations
+            .retain(|_, o| o.finished_at.is_none_or(|f| f.after(retention) > now));
         inner.state.reservations.retain(|_, r| r.until.after(retention) > now);
         let ops = &inner.state.operations;
         inner.state.idempotency.retain(|_, r| match &r.replay {
@@ -653,12 +861,21 @@ impl Provider {
 
     fn revoke(&self, inner: &mut Inner, grant_id: &str) -> bool {
         let now = Timestamp::now();
-        let Some(g) = inner.state.grants.get(grant_id) else { return false };
+        let Some(g) = inner.state.grants.get(grant_id) else {
+            return false;
+        };
         if !g.active(now) {
             return false;
         }
         let client_id = g.client_id.clone();
-        self.emit(inner, "grant.revoked", None, None, json!({ "grant_id": grant_id }), Audience::Client(&client_id));
+        self.emit(
+            inner,
+            "grant.revoked",
+            None,
+            None,
+            json!({ "grant_id": grant_id }),
+            Audience::Client(&client_id),
+        );
         inner.state.grants.get_mut(grant_id).expect("found above").revoked = true;
         self.reevaluate(inner, &client_id);
         true
@@ -673,7 +890,9 @@ impl Provider {
             .values()
             .filter(|o| &o.client_id == client_id && !o.op.state.terminal())
             .filter(|o| {
-                o.scope.as_deref().is_some_and(|s| !self.authorized(inner, client_id, s, o.op.account_id.as_ref(), now))
+                o.scope
+                    .as_deref()
+                    .is_some_and(|s| !self.authorized(inner, client_id, s, o.op.account_id.as_ref(), now))
             })
             .map(|o| o.op.operation_id.clone())
             .collect();
@@ -683,13 +902,27 @@ impl Provider {
     }
 
     fn unpair(&self, inner: &mut Inner, client_id: &str) {
-        let Some(client) = inner.state.clients.remove(client_id) else { return };
+        let Some(client) = inner.state.clients.remove(client_id) else {
+            return;
+        };
         let client_id = client.info.client_id;
         let now = Timestamp::now();
-        let active: Vec<Id> =
-            inner.state.grants.values().filter(|g| g.client_id == client_id && g.active(now)).map(|g| g.grant_id.clone()).collect();
+        let active: Vec<Id> = inner
+            .state
+            .grants
+            .values()
+            .filter(|g| g.client_id == client_id && g.active(now))
+            .map(|g| g.grant_id.clone())
+            .collect();
         for id in &active {
-            self.emit(inner, "grant.revoked", None, None, json!({ "grant_id": id }), Audience::Client(&client_id));
+            self.emit(
+                inner,
+                "grant.revoked",
+                None,
+                None,
+                json!({ "grant_id": id }),
+                Audience::Client(&client_id),
+            );
         }
         for g in inner.state.grants.values_mut().filter(|g| g.client_id == client_id) {
             g.revoked = true;
@@ -714,7 +947,9 @@ impl Provider {
         !r.released
             && now < r.until
             && inner.state.grants.get(&r.grant_id).is_some_and(|g| g.active(now))
-            && r.outpoints.iter().all(|o| self.backend.is_unspent(r.account_id.as_str(), o))
+            && r.outpoints
+                .iter()
+                .all(|o| self.backend.is_unspent(r.account_id.as_str(), o))
     }
 
     /// Outpoints of the account under an active reservation of any Client.
@@ -729,7 +964,13 @@ impl Provider {
     }
 
     /// An Operation that is already terminal when created, for methods that complete synchronously.
-    fn finished_operation(&self, inner: &mut Inner, ctx: &handlers::Ctx, method: &str, outcome: Result<Value, PwcError>) -> Id {
+    fn finished_operation(
+        &self,
+        inner: &mut Inner,
+        ctx: &handlers::Ctx,
+        method: &str,
+        outcome: Result<Value, PwcError>,
+    ) -> Id {
         let id = self.new_operation(inner, ctx, method, OpState::Completed);
         let rec = inner.state.operations.get_mut(&id).expect("just created");
         match outcome {
@@ -748,43 +989,106 @@ impl Provider {
         let inner = self.lock();
         match &event {
             BackendEvent::WalletLocked { wallet_id } | BackendEvent::WalletUnlocked { wallet_id } => {
-                let Some(wallet) = self.backend.wallet(wallet_id.as_str()) else { return };
-                let kind = if matches!(event, BackendEvent::WalletLocked { .. }) { "wallet.locked" } else { "wallet.unlocked" };
-                let audience = Audience::Wallet { wallet: &wallet, readable_only: false };
+                let Some(wallet) = self.backend.wallet(wallet_id.as_str()) else {
+                    return;
+                };
+                let kind = if matches!(event, BackendEvent::WalletLocked { .. }) {
+                    "wallet.locked"
+                } else {
+                    "wallet.unlocked"
+                };
+                let audience = Audience::Wallet {
+                    wallet: &wallet,
+                    readable_only: false,
+                };
                 self.emit(&inner, kind, None, None, json!({ "wallet_id": wallet_id }), audience);
             }
             BackendEvent::WalletSyncChanged { wallet_id } => {
-                let Some(wallet) = self.backend.wallet(wallet_id.as_str()) else { return };
-                let state = if wallet.state == WalletState::Syncing { "syncing" } else { "synced" };
+                let Some(wallet) = self.backend.wallet(wallet_id.as_str()) else {
+                    return;
+                };
+                let state = if wallet.state == WalletState::Syncing {
+                    "syncing"
+                } else {
+                    "synced"
+                };
                 let payload = json!({ "wallet_id": wallet_id, "sync": { "state": state } });
-                self.emit(&inner, "wallet.syncChanged", None, None, payload, Audience::Wallet { wallet: &wallet, readable_only: true });
+                self.emit(
+                    &inner,
+                    "wallet.syncChanged",
+                    None,
+                    None,
+                    payload,
+                    Audience::Wallet {
+                        wallet: &wallet,
+                        readable_only: true,
+                    },
+                );
             }
             BackendEvent::BalanceChanged { account_id } => {
-                let Some(account) = self.backend.account(account_id.as_str()) else { return };
-                let audience = Audience::Account { account: &account, scope: "balances:read" };
-                self.emit(&inner, "account.balanceChanged", Some(&account_id), None, json!({}), audience);
+                let Some(account) = self.backend.account(account_id.as_str()) else {
+                    return;
+                };
+                let audience = Audience::Account {
+                    account: &account,
+                    scope: "balances:read",
+                };
+                self.emit(
+                    &inner,
+                    "account.balanceChanged",
+                    Some(account_id),
+                    None,
+                    json!({}),
+                    audience,
+                );
             }
-            BackendEvent::TransactionChanged { account_id, txid, status } => {
-                let Some(account) = self.backend.account(account_id.as_str()) else { return };
-                let audience = Audience::Account { account: &account, scope: "transactions:read" };
+            BackendEvent::TransactionChanged {
+                account_id,
+                txid,
+                status,
+            } => {
+                let Some(account) = self.backend.account(account_id.as_str()) else {
+                    return;
+                };
+                let audience = Audience::Account {
+                    account: &account,
+                    scope: "transactions:read",
+                };
                 let payload = json!({ "txid": txid, "status": status });
-                self.emit(&inner, "account.transactionChanged", Some(&account_id), None, payload, audience);
+                self.emit(
+                    &inner,
+                    "account.transactionChanged",
+                    Some(account_id),
+                    None,
+                    payload,
+                    audience,
+                );
             }
         }
     }
 
     /// Delivers an event to every connection of a Client that holds `events:read` and could perform the
     /// equivalent read (Core §8.6, LOCAL §8). A connection whose output buffer is full is closed.
-    fn emit(&self, inner: &Inner, event_type: &str, account_id: Option<&Id>, operation_id: Option<&Id>, payload: Value, audience: Audience) {
+    fn emit(
+        &self,
+        inner: &Inner,
+        event_type: &str,
+        account_id: Option<&Id>,
+        operation_id: Option<&Id>,
+        payload: Value,
+        audience: Audience,
+    ) {
         let now = Timestamp::now();
-        let mut event = json!({ "event_id": Id::random("ev"), "event_type": event_type, "occurred_at": now, "payload": payload });
+        let mut event =
+            json!({ "event_id": Id::random("ev"), "event_type": event_type, "occurred_at": now, "payload": payload });
         if let Some(a) = account_id {
             event["account_id"] = json!(a);
         }
         if let Some(o) = operation_id {
             event["operation_id"] = json!(o);
         }
-        let mut frame = serde_json::to_vec(&json!({ "jsonrpc": "2.0", "method": "pwc.event", "params": event })).expect("event serializes");
+        let mut frame = serde_json::to_vec(&json!({ "jsonrpc": "2.0", "method": "pwc.event", "params": event }))
+            .expect("event serializes");
         frame.push(b'\n');
         let readable = |w: &WalletInfo| wallet_readable(w).is_ok();
         let wallet_of = |a: &AccountInfo| self.backend.wallet(a.wallet_id.as_str());
@@ -796,10 +1100,14 @@ impl Provider {
             let allowed = match &audience {
                 Audience::Client(c) => &s.client_id == *c,
                 Audience::Wallet { wallet, readable_only } => {
-                    (!readable_only || readable(wallet)) && grants.iter().any(|g| g.has_scope("wallets:read") && g.covers_wallet(wallet))
+                    (!readable_only || readable(wallet))
+                        && grants
+                            .iter()
+                            .any(|g| g.has_scope("wallets:read") && g.covers_wallet(wallet))
                 }
                 Audience::Account { account, scope } => {
-                    wallet_of(account).is_some_and(|w| readable(&w)) && grants.iter().any(|g| g.has_scope(scope) && g.covers_account(account))
+                    wallet_of(account).is_some_and(|w| readable(&w))
+                        && grants.iter().any(|g| g.has_scope(scope) && g.covers_account(account))
                 }
             };
             if allowed && s.out.try_send(Outbound::Frame(frame.clone())).is_err() {
@@ -810,7 +1118,11 @@ impl Provider {
 
     fn requester(&self, inner: &Inner, client_id: &Id) -> Requester {
         let info = &inner.state.clients[client_id].info;
-        Requester { client_id: client_id.clone(), claimed_name: info.claimed_name.clone(), peer: info.peer.clone() }
+        Requester {
+            client_id: client_id.clone(),
+            claimed_name: info.claimed_name.clone(),
+            peer: info.peer.clone(),
+        }
     }
 
     fn capabilities(&self) -> Value {

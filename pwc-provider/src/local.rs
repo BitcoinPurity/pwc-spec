@@ -65,7 +65,11 @@ impl fmt::Display for EndpointError {
                 "endpoint directory {} must belong to the current user and grant no permission to group or others",
                 p.display()
             ),
-            Self::PathTooLong(p) => write!(f, "endpoint path {} is longer than the operating system allows", p.display()),
+            Self::PathTooLong(p) => write!(
+                f,
+                "endpoint path {} is longer than the operating system allows",
+                p.display()
+            ),
             Self::AlreadyRunning(p) => write!(f, "another Provider instance is listening on {}", p.display()),
             Self::Io(p, e) => write!(f, "{}: {e}", p.display()),
         }
@@ -122,7 +126,11 @@ pub fn bind(dir: &Path, provider_id: &str) -> Result<Endpoint, EndpointError> {
             }
         }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            std::fs::DirBuilder::new().recursive(true).mode(0o700).create(dir).map_err(io)?;
+            std::fs::DirBuilder::new()
+                .recursive(true)
+                .mode(0o700)
+                .create(dir)
+                .map_err(io)?;
         }
         Err(e) => return Err(io(e)),
     }
@@ -166,7 +174,11 @@ enum Read {
 
 async fn read_frame(reader: &mut BufReader<OwnedReadHalf>) -> Read {
     let mut buf = Vec::new();
-    match (&mut *reader).take(MAX_FRAME_BYTES as u64).read_until(b'\n', &mut buf).await {
+    match (&mut *reader)
+        .take(MAX_FRAME_BYTES as u64)
+        .read_until(b'\n', &mut buf)
+        .await
+    {
         Ok(0) | Err(_) => Read::Eof,
         Ok(_) if buf.ends_with(b"\n") => Read::Frame(buf),
         Ok(n) if n == MAX_FRAME_BYTES => Read::TooLong,
@@ -267,13 +279,27 @@ fn params<T: serde::de::DeserializeOwned>(v: Value) -> Result<T, PwcError> {
 }
 
 fn bytes32(h: Hex) -> Result<[u8; 32], PwcError> {
-    h.0.try_into().map_err(|_| err(ErrorCode::InvalidArgument, "expected 32 bytes"))
+    h.0.try_into()
+        .map_err(|_| err(ErrorCode::InvalidArgument, "expected 32 bytes"))
+}
+
+/// A pairing prompt in progress on a connection.
+struct Pairing {
+    id: Value,
+    task: JoinHandle<Result<(), PwcError>>,
+    request: PairingRequest,
 }
 
 enum Stage {
     New,
-    Helloed { nonce: [u8; 32], pairing: Option<(Value, JoinHandle<Result<(), PwcError>>, PairingRequest)>, paired_once: bool },
-    Authenticated { session_id: Id },
+    Helloed {
+        nonce: [u8; 32],
+        pairing: Option<Pairing>,
+        paired_once: bool,
+    },
+    Authenticated {
+        session_id: Id,
+    },
 }
 
 struct Conn {
@@ -334,8 +360,8 @@ async fn connection(provider: Arc<Provider>, stream: UnixStream) {
     };
     let mut reader = BufReader::new(rd);
     let close_with_drain = conn.run(&mut reader).await;
-    if let Stage::Helloed { pairing: Some((_, task, _)), .. } = &conn.stage {
-        task.abort(); // LOCAL §5.3: withdraw the prompt; no credential is created
+    if let Stage::Helloed { pairing: Some(p), .. } = &conn.stage {
+        p.task.abort(); // LOCAL §5.3: withdraw the prompt; no credential is created
     }
     if let Stage::Authenticated { session_id, .. } = &conn.stage {
         conn.provider.close_session(session_id);
@@ -379,12 +405,14 @@ impl Conn {
                 let deadline = self.deadline();
                 let kill = self.kill.clone();
                 let task = match &mut self.stage {
-                    Stage::Helloed { pairing: Some((_, task, _)), .. } => Some(task),
+                    Stage::Helloed { pairing: Some(p), .. } => Some(&mut p.task),
                     _ => None,
                 };
                 let pairing = async move {
                     match task {
-                        Some(t) => t.await.unwrap_or_else(|_| Err(err(ErrorCode::InternalError, "pairing task failed"))),
+                        Some(t) => t
+                            .await
+                            .unwrap_or_else(|_| Err(err(ErrorCode::InternalError, "pairing task failed"))),
                         None => std::future::pending().await,
                     }
                 };
@@ -435,7 +463,16 @@ impl Conn {
             self.send(rpc_error(&id, -32600, "Invalid Request")).await;
             return Next::Continue;
         }
-        if method == "local.pair" && matches!(self.stage, Stage::Helloed { pairing: None, paired_once: false, .. }) {
+        if method == "local.pair"
+            && matches!(
+                self.stage,
+                Stage::Helloed {
+                    pairing: None,
+                    paired_once: false,
+                    ..
+                }
+            )
+        {
             return self.start_pairing(id, key, params).await;
         }
         let (result, next) = self.evaluate(&method, params).await;
@@ -449,13 +486,19 @@ impl Conn {
         match &self.stage {
             Stage::New => {
                 if method != "local.hello" {
-                    return (Err(err(ErrorCode::Unauthenticated, "local.hello must come first")), Next::Close);
+                    return (
+                        Err(err(ErrorCode::Unauthenticated, "local.hello must come first")),
+                        Next::Close,
+                    );
                 }
                 self.hello(params)
             }
             Stage::Helloed { pairing, nonce, .. } => match method {
                 "local.hello" => unsupported("local.hello was already received"),
-                "local.pair" => (Err(err(ErrorCode::RateLimited, "Only one pairing prompt per connection")), Next::Continue),
+                "local.pair" => (
+                    Err(err(ErrorCode::RateLimited, "Only one pairing prompt per connection")),
+                    Next::Continue,
+                ),
                 "local.authenticate" if pairing.is_some() => unsupported("Pairing is in progress"),
                 "local.authenticate" => {
                     let nonce = *nonce;
@@ -471,13 +514,19 @@ impl Conn {
                     self.provider.unpair_session(session_id);
                     (Ok(json!({"unpaired": true})), Next::Continue)
                 }
-                "local.hello" | "local.pair" | "local.authenticate" => unsupported("The connection is already authenticated"),
+                "local.hello" | "local.pair" | "local.authenticate" => {
+                    unsupported("The connection is already authenticated")
+                }
                 "local.openDelegate" | "local.delegated" | "local.closeDelegate" => {
                     unsupported("Delegated principals are not implemented")
                 }
-                _ if method.starts_with("local.") => {
-                    (Err(err(ErrorCode::UnsupportedMethod, format!("Method {method} is not implemented"))), Next::Continue)
-                }
+                _ if method.starts_with("local.") => (
+                    Err(err(
+                        ErrorCode::UnsupportedMethod,
+                        format!("Method {method} is not implemented"),
+                    )),
+                    Next::Continue,
+                ),
                 _ => {
                     let session_id = session_id.clone();
                     (self.provider.handle(&session_id, method, params), Next::Continue)
@@ -492,10 +541,17 @@ impl Conn {
             Err(e) => return (Err(e), Next::Continue),
         };
         if !p.protocols.iter().any(|x| x == PROTOCOL) {
-            return (Err(err(ErrorCode::UnsupportedOperation, "No common protocol")), Next::Close);
+            return (
+                Err(err(ErrorCode::UnsupportedOperation, "No common protocol")),
+                Next::Close,
+            );
         }
         let nonce = random_bytes::<32>();
-        self.stage = Stage::Helloed { nonce, pairing: None, paired_once: false };
+        self.stage = Stage::Helloed {
+            nonce,
+            pairing: None,
+            paired_once: false,
+        };
         self.hello_at = Some(Instant::now());
         let c = self.provider.config();
         let result = json!({
@@ -519,11 +575,18 @@ impl Conn {
             }
         };
         if p.pairing_code.len() != 6 || !p.pairing_code.bytes().all(|b| b.is_ascii_digit()) {
-            self.send(response(&id, Err(err(ErrorCode::InvalidArgument, "pairing_code must be 6 decimal digits")))).await;
+            self.send(response(
+                &id,
+                Err(err(ErrorCode::InvalidArgument, "pairing_code must be 6 decimal digits")),
+            ))
+            .await;
             return Next::Continue;
         }
         if p.delegator == Some(true) {
-            let e = err(ErrorCode::UnsupportedOperation, "Delegated principals are not implemented");
+            let e = err(
+                ErrorCode::UnsupportedOperation,
+                "Delegated principals are not implemented",
+            );
             self.send(response(&id, Err(e))).await;
             return Next::Continue;
         }
@@ -537,22 +600,30 @@ impl Conn {
         let prompt = request.clone();
         let task = tokio::spawn(async move { provider.pairing_prompt(prompt).await });
         self.outstanding.insert(key);
-        if let Stage::Helloed { pairing, paired_once, .. } = &mut self.stage {
-            *pairing = Some((id, task, request));
+        if let Stage::Helloed {
+            pairing, paired_once, ..
+        } = &mut self.stage
+        {
+            *pairing = Some(Pairing { id, task, request });
             *paired_once = true;
         }
         Next::Continue
     }
 
     async fn on_pairing_decision(&mut self, decision: Result<(), PwcError>) {
-        let Stage::Helloed { pairing, .. } = &mut self.stage else { return };
-        let (id, _, request) = pairing.take().expect("pairing in progress");
+        let Stage::Helloed { pairing, .. } = &mut self.stage else {
+            return;
+        };
+        let Pairing { id, request, .. } = pairing.take().expect("pairing in progress");
         self.outstanding.remove(&id.to_string());
         let result = match decision {
             Ok(()) => {
                 let (client_id, secret) = self.provider.register_client(&request);
-                let session_id = self.provider.open_session(&client_id, self.out.clone(), self.kill.clone());
-                let r = json!({"client_id": client_id, "client_secret": Hex(secret.to_vec()), "session_id": session_id});
+                let session_id = self
+                    .provider
+                    .open_session(&client_id, self.out.clone(), self.kill.clone());
+                let r =
+                    json!({"client_id": client_id, "client_secret": Hex(secret.to_vec()), "session_id": session_id});
                 self.stage = Stage::Authenticated { session_id };
                 Ok(r)
             }
@@ -571,9 +642,14 @@ impl Conn {
             (Err(e), _) | (_, Err(e)) => return (Err(e), Next::Close),
         };
         let pid = self.peer.pid.unwrap_or(-1);
-        match self.provider.authenticate(pid, p.client_id.as_str(), &server_nonce, &nonce, &proof) {
+        match self
+            .provider
+            .authenticate(pid, p.client_id.as_str(), &server_nonce, &nonce, &proof)
+        {
             Ok(server) => {
-                let session_id = self.provider.open_session(&p.client_id, self.out.clone(), self.kill.clone());
+                let session_id = self
+                    .provider
+                    .open_session(&p.client_id, self.out.clone(), self.kill.clone());
                 let r = json!({"session_id": session_id, "server_proof": Hex(server.to_vec())});
                 self.stage = Stage::Authenticated { session_id };
                 (Ok(r), Next::Continue)
@@ -587,4 +663,3 @@ impl Conn {
         }
     }
 }
-

@@ -29,9 +29,18 @@ async fn psbt_fixture_cases() {
     let (mut c, _, _) = h.pair().await;
     for case in f["cases"].as_array().unwrap() {
         let id = case["id"].as_str().unwrap();
-        let inputs: Vec<&str> = case["inputs"].as_array().unwrap().iter().map(|n| f["psbts"][n.as_str().unwrap()].as_str().unwrap()).collect();
+        let inputs: Vec<&str> = case["inputs"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|n| f["psbts"][n.as_str().unwrap()].as_str().unwrap())
+            .collect();
         let method = case["method"].as_str().unwrap();
-        let params = if method == "psbt.combine" { json!({"psbts": inputs}) } else { json!({"psbt": inputs[0]}) };
+        let params = if method == "psbt.combine" {
+            json!({"psbts": inputs})
+        } else {
+            json!({"psbt": inputs[0]})
+        };
         let expect = &case["expect"];
         match c.request(method, params).await {
             Err(e) => assert_eq!(e["code"], expect["error"], "{id}"),
@@ -39,7 +48,11 @@ async fn psbt_fixture_cases() {
                 assert!(expect.get("error").is_none(), "{id}: unexpected success");
                 assert_eq!(r["psbt_version"], 0);
                 if let Some(name) = expect["result_equals"].as_str() {
-                    assert_eq!(decode(r["psbt"].as_str().unwrap()), decode(f["psbts"][name].as_str().unwrap()), "{id}");
+                    assert_eq!(
+                        decode(r["psbt"].as_str().unwrap()),
+                        decode(f["psbts"][name].as_str().unwrap()),
+                        "{id}"
+                    );
                 }
                 if let Some(complete) = expect.get("complete") {
                     assert_eq!(&r["complete"], complete, "{id}");
@@ -64,7 +77,11 @@ async fn combine_and_finalize_are_deterministic() {
     assert_eq!(c.ok("psbt.combine", p.clone()).await, c.ok("psbt.combine", p).await);
     let partial = json!({"psbt": f["psbts"]["partial_k1"]});
     let r = c.ok("psbt.finalize", partial).await;
-    assert_eq!(decode(r["psbt"].as_str().unwrap()), decode(f["psbts"]["partial_k1"].as_str().unwrap()), "unchanged");
+    assert_eq!(
+        decode(r["psbt"].as_str().unwrap()),
+        decode(f["psbts"]["partial_k1"].as_str().unwrap()),
+        "unchanged"
+    );
 }
 
 #[tokio::test]
@@ -78,8 +95,14 @@ async fn c30_size_and_count_limits() {
     let k1 = f["psbts"]["partial_k1"].clone();
     assert_eq!(c.fails("psbt.finalize", json!({"psbt": k1})).await, "PAYLOAD_TOO_LARGE");
     let small = b64(b"psbt\xff\x00");
-    assert_eq!(c.fails("psbt.combine", json!({"psbts": [small, small, small]})).await, "PAYLOAD_TOO_LARGE");
-    assert_eq!(c.fails("psbt.combine", json!({"psbts": [small]})).await, "INVALID_ARGUMENT");
+    assert_eq!(
+        c.fails("psbt.combine", json!({"psbts": [small, small, small]})).await,
+        "PAYLOAD_TOO_LARGE"
+    );
+    assert_eq!(
+        c.fails("psbt.combine", json!({"psbts": [small]})).await,
+        "INVALID_ARGUMENT"
+    );
 }
 
 #[tokio::test]
@@ -88,14 +111,27 @@ async fn malformed_psbts() {
     let mut h = Harness::start(Config::default()).await;
     let (mut c, _, _) = h.pair().await;
     let garbage = b64(b"not a psbt");
-    assert_eq!(c.fails("psbt.finalize", json!({"psbt": garbage})).await, "PSBT_VALIDATION_FAILED");
-    assert_eq!(c.fails("psbt.combine", json!({"psbts": [garbage, garbage]})).await, "PSBT_VALIDATION_FAILED");
-    assert_eq!(c.fails("psbt.finalize", json!({"psbt": "cHNidP9="})).await, "INVALID_ARGUMENT", "non-canonical base64");
+    assert_eq!(
+        c.fails("psbt.finalize", json!({"psbt": garbage})).await,
+        "PSBT_VALIDATION_FAILED"
+    );
+    assert_eq!(
+        c.fails("psbt.combine", json!({"psbts": [garbage, garbage]})).await,
+        "PSBT_VALIDATION_FAILED"
+    );
+    assert_eq!(
+        c.fails("psbt.finalize", json!({"psbt": "cHNidP9="})).await,
+        "INVALID_ARGUMENT",
+        "non-canonical base64"
+    );
 
     // An input without previous-output data cannot be verified.
     let mut psbt = decode(f["psbts"]["unsigned"].as_str().unwrap());
     psbt.inputs[0].witness_utxo = None;
-    assert_eq!(c.fails("psbt.finalize", json!({"psbt": b64(&psbt.serialize())})).await, "PSBT_VALIDATION_FAILED");
+    assert_eq!(
+        c.fails("psbt.finalize", json!({"psbt": b64(&psbt.serialize())})).await,
+        "PSBT_VALIDATION_FAILED"
+    );
 }
 
 #[tokio::test]
@@ -104,20 +140,42 @@ async fn finalize_rejects_out_of_range_previous_output() {
     let prev = Transaction {
         version: transaction::Version::TWO,
         lock_time: absolute::LockTime::ZERO,
-        input: vec![TxIn { previous_output: OutPoint::null(), script_sig: ScriptBuf::new(), sequence: Sequence::MAX, witness: Witness::new() }],
-        output: vec![TxOut { value: Amount::from_sat(1000), script_pubkey: ScriptBuf::new_op_return([]) }],
+        input: vec![TxIn {
+            previous_output: OutPoint::null(),
+            script_sig: ScriptBuf::new(),
+            sequence: Sequence::MAX,
+            witness: Witness::new(),
+        }],
+        output: vec![TxOut {
+            value: Amount::from_sat(1000),
+            script_pubkey: ScriptBuf::new_op_return([]),
+        }],
     };
     let spend = Transaction {
         version: transaction::Version::TWO,
         lock_time: absolute::LockTime::ZERO,
-        input: vec![TxIn { previous_output: OutPoint { txid: prev.compute_txid(), vout: 5 }, script_sig: ScriptBuf::new(), sequence: Sequence::MAX, witness: Witness::new() }],
-        output: vec![TxOut { value: Amount::from_sat(500), script_pubkey: ScriptBuf::new_op_return([]) }],
+        input: vec![TxIn {
+            previous_output: OutPoint {
+                txid: prev.compute_txid(),
+                vout: 5,
+            },
+            script_sig: ScriptBuf::new(),
+            sequence: Sequence::MAX,
+            witness: Witness::new(),
+        }],
+        output: vec![TxOut {
+            value: Amount::from_sat(500),
+            script_pubkey: ScriptBuf::new_op_return([]),
+        }],
     };
     let mut psbt = Psbt::from_unsigned_tx(spend).unwrap();
     psbt.inputs[0].non_witness_utxo = Some(prev);
     let mut h = Harness::start(Config::default()).await;
     let (mut c, _, _) = h.pair().await;
-    assert_eq!(c.fails("psbt.finalize", json!({"psbt": b64(&psbt.serialize())})).await, "PSBT_VALIDATION_FAILED");
+    assert_eq!(
+        c.fails("psbt.finalize", json!({"psbt": b64(&psbt.serialize())})).await,
+        "PSBT_VALIDATION_FAILED"
+    );
     let other = c.ok("pwc.getCapabilities", json!({})).await;
     assert_eq!(other["pwc_version"], "0.2.1", "the Provider is still serving");
 }

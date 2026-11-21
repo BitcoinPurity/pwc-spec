@@ -42,12 +42,20 @@ pub struct PairingRequest {
 
 impl fmt::Display for PairingRequest {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "Pairing request from an application calling itself \"{}\" (claimed by the application, unverified)", self.claimed_name)?;
+        writeln!(
+            f,
+            "Pairing request from an application calling itself \"{}\" (claimed by the application, unverified)",
+            self.claimed_name
+        )?;
         if let Some(d) = &self.claimed_description {
             writeln!(f, "  description (unverified): {d}")?;
         }
         writeln!(f, "  peer: {}", self.peer)?;
-        write!(f, "  pairing code: {} (compare it with the code the application shows)", self.pairing_code)
+        write!(
+            f,
+            "  pairing code: {} (compare it with the code the application shows)",
+            self.pairing_code
+        )
     }
 }
 
@@ -61,7 +69,11 @@ pub struct Requester {
 
 impl fmt::Display for Requester {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "\"{}\" (claimed by the application, unverified; {}; {})", self.claimed_name, self.client_id, self.peer)
+        write!(
+            f,
+            "\"{}\" (claimed by the application, unverified; {}; {})",
+            self.claimed_name, self.client_id, self.peer
+        )
     }
 }
 
@@ -83,13 +95,20 @@ impl fmt::Display for PermissionRequest {
         let scopes: Vec<&str> = self.scopes.iter().map(|s| s.as_str()).collect();
         writeln!(f, "  scopes: {}", scopes.join(", "))?;
         if self.scopes.iter().any(|s| s.as_str() == "psbt:create") {
-            writeln!(f, "  note: PSBTs it creates disclose the selected coins and their key-origin data")?;
+            writeln!(
+                f,
+                "  note: PSBTs it creates disclose the selected coins and their key-origin data"
+            )?;
         }
         if let Some(n) = &self.network {
             writeln!(f, "  network: {n}")?;
         }
         if !self.wallet_ids.is_empty() || !self.account_ids.is_empty() {
-            writeln!(f, "  requested wallets: {:?}, accounts: {:?}", self.wallet_ids, self.account_ids)?;
+            writeln!(
+                f,
+                "  requested wallets: {:?}, accounts: {:?}",
+                self.wallet_ids, self.account_ids
+            )?;
         }
         if let Some(t) = &self.expires_at {
             writeln!(f, "  requested expiry: {}", serde_json::to_string(t).unwrap())?;
@@ -144,8 +163,15 @@ impl fmt::Display for PsbtSignRequest {
         writeln!(f, "  account {} on {}", self.account_id, self.network)?;
         writeln!(f, "  sign inputs {:?} of {}", self.inputs_to_sign, self.input_count)?;
         for o in &self.outputs {
-            let dest = o.address.clone().unwrap_or_else(|| format!("script {}", o.script_pub_key));
-            let own = if o.to_this_account { " (back to this account)" } else { "" };
+            let dest = o
+                .address
+                .clone()
+                .unwrap_or_else(|| format!("script {}", o.script_pub_key));
+            let own = if o.to_this_account {
+                " (back to this account)"
+            } else {
+                ""
+            };
             writeln!(f, "  pay {} sat to {dest}{own}", o.amount_sats)?;
         }
         write!(f, "  fee {} sat ({} sat/kvB)", self.fee_sats, self.fee_rate_sat_per_kvb)
@@ -166,16 +192,38 @@ pub struct MessageSignRequest {
 impl fmt::Display for MessageSignRequest {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "Message signing request from {}", self.requester)?;
-        writeln!(f, "  address {} ({}) on {}", self.address, serde_json::to_string(&self.format).unwrap(), self.network)?;
-        write!(f, "  message (exact bytes, JSON-escaped): {}", serde_json::to_string(&self.message).unwrap())
+        writeln!(
+            f,
+            "  address {} ({}) on {}",
+            self.address,
+            serde_json::to_string(&self.format).unwrap(),
+            self.network
+        )?;
+        write!(
+            f,
+            "  message (exact bytes, JSON-escaped): {}",
+            serde_json::to_string(&self.message).unwrap()
+        )
     }
 }
 
 pub enum Prompt {
-    Pairing { request: PairingRequest, reply: oneshot::Sender<bool> },
-    Permissions { request: PermissionRequest, reply: oneshot::Sender<Option<GrantChoice>> },
-    SignPsbt { request: PsbtSignRequest, reply: oneshot::Sender<bool> },
-    SignMessage { request: MessageSignRequest, reply: oneshot::Sender<bool> },
+    Pairing {
+        request: PairingRequest,
+        reply: oneshot::Sender<bool>,
+    },
+    Permissions {
+        request: PermissionRequest,
+        reply: oneshot::Sender<Option<GrantChoice>>,
+    },
+    SignPsbt {
+        request: PsbtSignRequest,
+        reply: oneshot::Sender<bool>,
+    },
+    SignMessage {
+        request: MessageSignRequest,
+        reply: oneshot::Sender<bool>,
+    },
 }
 
 impl fmt::Display for Prompt {

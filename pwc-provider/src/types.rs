@@ -89,15 +89,21 @@ string_type!(
 impl Id {
     /// A fresh random identifier `<prefix>-<32 hex>`.
     pub fn random(prefix: &str) -> Id {
-        Id(format!("{prefix}-{}", bitcoin::hex::DisplayHex::to_lower_hex_string(&random_bytes::<16>()[..])))
+        Id(format!(
+            "{prefix}-{}",
+            bitcoin::hex::DisplayHex::to_lower_hex_string(&random_bytes::<16>()[..])
+        ))
     }
 }
 
 impl Text {
     /// Builds display text from a trusted constant or truncates and cleans arbitrary text.
     pub fn lossy(s: &str) -> Text {
-        let cleaned: String =
-            s.chars().filter(|c| !matches!(*c as u32, 0x00..=0x1f | 0x7f..=0x9f)).take(256).collect();
+        let cleaned: String = s
+            .chars()
+            .filter(|c| !matches!(*c as u32, 0x00..=0x1f | 0x7f..=0x9f))
+            .take(256)
+            .collect();
         Text(if cleaned.is_empty() { "?".into() } else { cleaned })
     }
 }
@@ -113,7 +119,8 @@ pub fn random_bytes<const N: usize>() -> [u8; N] {
 }
 
 fn parse_canonical(s: &str) -> Option<u64> {
-    let canonical = s == "0" || (s.starts_with(|c: char| c.is_ascii_digit() && c != '0') && s.bytes().all(|b| b.is_ascii_digit()));
+    let canonical =
+        s == "0" || (s.starts_with(|c: char| c.is_ascii_digit() && c != '0') && s.bytes().all(|b| b.is_ascii_digit()));
     if canonical && s.len() <= 19 {
         s.parse().ok()
     } else {
@@ -231,7 +238,9 @@ impl<'de> Deserialize<'de> for Hex {
         if s.is_empty() || s.len() % 2 != 0 || !is_lower_hex(&s) {
             return Err(D::Error::custom("invalid Hex"));
         }
-        bitcoin::hex::FromHex::from_hex(&s).map(Hex).map_err(|_| D::Error::custom("invalid Hex"))
+        bitcoin::hex::FromHex::from_hex(&s)
+            .map(Hex)
+            .map_err(|_| D::Error::custom("invalid Hex"))
     }
 }
 
@@ -277,7 +286,8 @@ impl Timestamp {
 
 impl Serialize for Timestamp {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        let f = time::macros::format_description!("[year]-[month]-[day]T[hour]:[minute]:[second].[subsecond digits:3]Z");
+        let f =
+            time::macros::format_description!("[year]-[month]-[day]T[hour]:[minute]:[second].[subsecond digits:3]Z");
         s.serialize_str(&self.0.format(f).map_err(serde::ser::Error::custom)?)
     }
 }
@@ -308,13 +318,21 @@ pub fn min_fee(sat_per_kvb: u64, vsize: u64) -> u64 {
 }
 
 fn vendor_name(s: &str) -> bool {
-    let Some(rest) = s.strip_prefix("vendor.") else { return false };
+    let Some(rest) = s.strip_prefix("vendor.") else {
+        return false;
+    };
     let parts: Vec<&str> = rest.split('.').collect();
     let (last, domain) = parts.split_last().unwrap();
     !domain.is_empty()
-        && domain.iter().all(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-'))
+        && domain.iter().all(|p| {
+            !p.is_empty()
+                && p.bytes()
+                    .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+        })
         && last.starts_with(|c: char| c.is_ascii_alphabetic())
-        && last.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+        && last
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
 }
 
 /// Core §6 scopes this Provider can grant.

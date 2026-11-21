@@ -121,12 +121,24 @@ pub struct TransactionRecord {
 /// A change in the wallet that the host reports to the Provider with `Provider::notify` (Core §8.6).
 #[derive(Debug, Clone)]
 pub enum BackendEvent {
-    WalletLocked { wallet_id: Id },
-    WalletUnlocked { wallet_id: Id },
-    WalletSyncChanged { wallet_id: Id },
-    BalanceChanged { account_id: Id },
+    WalletLocked {
+        wallet_id: Id,
+    },
+    WalletUnlocked {
+        wallet_id: Id,
+    },
+    WalletSyncChanged {
+        wallet_id: Id,
+    },
+    BalanceChanged {
+        account_id: Id,
+    },
     /// `status` as in `TransactionRecord`.
-    TransactionChanged { account_id: Id, txid: String, status: &'static str },
+    TransactionChanged {
+        account_id: Id,
+        txid: String,
+        status: &'static str,
+    },
 }
 
 /// Outpoints reserved by PSBT requests; reported as `locked` (Core §8.3).
@@ -169,14 +181,25 @@ pub trait WalletBackend: Send + Sync + 'static {
     /// The wallet's fee estimate in sat/kvB, `None` if it cannot compute one now.
     fn fee_estimate(&self, network: &str, target_blocks: u64) -> Option<u64>;
     /// Selects coins and builds an unsigned PSBT; `excluded` outpoints are not selected.
-    fn create_psbt(&self, account_id: &str, request: &CreateRequest, excluded: &Reserved) -> Result<CreatedPsbt, PwcError>;
+    fn create_psbt(
+        &self,
+        account_id: &str,
+        request: &CreateRequest,
+        excluded: &Reserved,
+    ) -> Result<CreatedPsbt, PwcError>;
     /// The account's output at `outpoint` on the account's network, if the account owns it.
     fn owned_output(&self, account_id: &str, outpoint: &bitcoin::OutPoint) -> Option<bitcoin::TxOut>;
     /// Adds the account's `SIGHASH_ALL` signatures to the given inputs, whose `witness_utxo` is set; returns the
     /// indexes that gained a signature.
     fn sign_psbt(&self, account_id: &str, psbt: &mut bitcoin::Psbt, inputs: &[usize]) -> Result<Vec<u32>, PwcError>;
     /// Signs the exact UTF-8 bytes of `message` with the account key of `script`.
-    fn sign_message(&self, account_id: &str, script: &bitcoin::Script, message: &str, format: MessageFormat) -> Result<Vec<u8>, PwcError>;
+    fn sign_message(
+        &self,
+        account_id: &str,
+        script: &bitcoin::Script,
+        message: &str,
+        format: MessageFormat,
+    ) -> Result<Vec<u8>, PwcError>;
     /// Submits a transaction to the network backend; `TRANSACTION_REJECTED` or `NETWORK_UNAVAILABLE` on failure.
     fn broadcast(&self, network: &str, tx: &bitcoin::Transaction) -> Result<bitcoin::Txid, PwcError>;
 

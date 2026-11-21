@@ -156,7 +156,7 @@
 | | `a-<net>-pkh` | P2PKH | 是 | 200000 sat |
 | `w-<net>-watch`，观察钱包 | `a-<net>-watch` | P2WPKH | 否 | 300000 sat |
 
-各网络的链高度为 1000。密钥由固定种子派生，只用于测试。
+各网络的链高度为 1000，`wallet_estimate` 的费率估算为 2000 sat/kvB（可用 `MemoryBackend::set_fee_estimate` 修改）。密钥由固定种子派生，只用于测试。
 
 ## 7. 库接口
 

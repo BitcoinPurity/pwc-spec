@@ -31,7 +31,10 @@ fn options() -> jsonschema::ValidationOptions {
     let schemas = schemas();
     let mut opts = jsonschema::options().with_draft(jsonschema::Draft::Draft202012);
     for (uri, schema) in schemas {
-        opts = opts.with_resource(uri.as_str(), jsonschema::Resource::from_contents(schema.clone()).unwrap());
+        opts = opts.with_resource(
+            uri.as_str(),
+            jsonschema::Resource::from_contents(schema.clone()).unwrap(),
+        );
     }
     opts
 }
@@ -43,12 +46,19 @@ fn check(file: &str, def: &str, instance: &Value) -> Result<(), String> {
     let validator = match cached {
         Some(v) => v,
         None => {
-            let v = Arc::new(options().build(&json!({ "$ref": uri })).map_err(|e| format!("schema build: {e}"))?);
+            let v = Arc::new(
+                options()
+                    .build(&json!({ "$ref": uri }))
+                    .map_err(|e| format!("schema build: {e}"))?,
+            );
             CACHE.get().unwrap().lock().unwrap().insert(uri, v.clone());
             v
         }
     };
-    let errors: Vec<String> = validator.iter_errors(instance).map(|e| format!("{} at {}", e, e.instance_path)).collect();
+    let errors: Vec<String> = validator
+        .iter_errors(instance)
+        .map(|e| format!("{} at {}", e, e.instance_path))
+        .collect();
     if errors.is_empty() {
         Ok(())
     } else {

@@ -98,7 +98,10 @@ impl Raw {
     }
 
     fn unsigned_tx(&self) -> Option<&[u8]> {
-        self.global.iter().find(|(k, _)| k == &[GLOBAL_UNSIGNED_TX]).map(|(_, v)| v.as_slice())
+        self.global
+            .iter()
+            .find(|(k, _)| k == &[GLOBAL_UNSIGNED_TX])
+            .map(|(_, v)| v.as_slice())
     }
 }
 
@@ -112,7 +115,10 @@ pub fn check_version(bytes: &[u8]) -> Result<(), PwcError> {
     match global.iter().find(|(k, _)| k == &[GLOBAL_VERSION]) {
         None => Ok(()),
         Some((_, v)) if v.as_slice() == [0, 0, 0, 0] => Ok(()),
-        Some(_) => Err(err(ErrorCode::UnsupportedPsbtVersion, "Only PSBT version 0 is supported")),
+        Some(_) => Err(err(
+            ErrorCode::UnsupportedPsbtVersion,
+            "Only PSBT version 0 is supported",
+        )),
     }
 }
 
@@ -124,7 +130,14 @@ fn parse_raw(bytes: &[u8]) -> Result<(Psbt, Raw), PwcError> {
     let mut maps = |n: usize| (0..n).map(|_| read_map(bytes, &mut pos)).collect::<Option<Vec<Map>>>();
     let inputs = maps(psbt.inputs.len()).ok_or_else(|| invalid("Malformed PSBT"))?;
     let outputs = maps(psbt.outputs.len()).ok_or_else(|| invalid("Malformed PSBT"))?;
-    Ok((psbt, Raw { global, inputs, outputs }))
+    Ok((
+        psbt,
+        Raw {
+            global,
+            inputs,
+            outputs,
+        },
+    ))
 }
 
 /// Parses a PSBT under BIP-174 after the version check.
@@ -142,7 +155,12 @@ pub fn previous_output(psbt: &Psbt, index: usize) -> Result<Option<TxOut>, PwcEr
             if tx.compute_txid() != outpoint.txid {
                 return Err(invalid("non_witness_utxo does not match the input"));
             }
-            Some(tx.output.get(outpoint.vout as usize).cloned().ok_or_else(|| invalid("Previous output index out of range"))?)
+            Some(
+                tx.output
+                    .get(outpoint.vout as usize)
+                    .cloned()
+                    .ok_or_else(|| invalid("Previous output index out of range"))?,
+            )
         }
         None => None,
     };
@@ -155,8 +173,12 @@ pub fn previous_output(psbt: &Psbt, index: usize) -> Result<Option<TxOut>, PwcEr
 
 /// Verifies one ECDSA partial signature of input `index` against the PSBT's previous-output data.
 fn verify_partial_sig<C: Verification>(secp: &Secp256k1<C>, psbt: &Psbt, index: usize, key: &[u8], sig: &[u8]) -> bool {
-    let (Ok(pk), Ok(sig)) = (PublicKey::from_slice(key), ecdsa::Signature::from_slice(sig)) else { return false };
-    let Ok(Some(prev)) = previous_output(psbt, index) else { return false };
+    let (Ok(pk), Ok(sig)) = (PublicKey::from_slice(key), ecdsa::Signature::from_slice(sig)) else {
+        return false;
+    };
+    let Ok(Some(prev)) = previous_output(psbt, index) else {
+        return false;
+    };
     let input = &psbt.inputs[index];
     let mut cache = SighashCache::new(&psbt.unsigned_tx);
     let spk = &prev.script_pubkey;
@@ -168,24 +190,38 @@ fn verify_partial_sig<C: Verification>(secp: &Secp256k1<C>, psbt: &Psbt, index: 
         None
     };
     let digest = match segwit_script {
-        Some(s) if s.is_p2wpkh() => cache.p2wpkh_signature_hash(index, &s, prev.value, sig.sighash_type).ok().map(|h| h.to_byte_array()),
+        Some(s) if s.is_p2wpkh() => cache
+            .p2wpkh_signature_hash(index, &s, prev.value, sig.sighash_type)
+            .ok()
+            .map(|h| h.to_byte_array()),
         Some(_) => input
             .witness_script
             .as_ref()
             .and_then(|ws| cache.p2wsh_signature_hash(index, ws, prev.value, sig.sighash_type).ok())
             .map(|h| h.to_byte_array()),
         None => {
-            let code = if spk.is_p2sh() { input.redeem_script.clone() } else { Some(spk.clone()) };
-            code.and_then(|c| cache.legacy_signature_hash(index, &c, sig.sighash_type.to_u32()).ok()).map(|h| h.to_byte_array())
+            let code = if spk.is_p2sh() {
+                input.redeem_script.clone()
+            } else {
+                Some(spk.clone())
+            };
+            code.and_then(|c| cache.legacy_signature_hash(index, &c, sig.sighash_type.to_u32()).ok())
+                .map(|h| h.to_byte_array())
         }
     };
     match digest {
-        Some(d) => secp.verify_ecdsa(&Message::from_digest(d), &sig.signature, &pk.inner).is_ok(),
+        Some(d) => secp
+            .verify_ecdsa(&Message::from_digest(d), &sig.signature, &pk.inner)
+            .is_ok(),
         None => false,
     }
 }
 
-fn merge(into: &mut Map, from: &Map, mut resolve: impl FnMut(&[u8], &[u8], &[u8]) -> Result<(), PwcError>) -> Result<(), PwcError> {
+fn merge(
+    into: &mut Map,
+    from: &Map,
+    mut resolve: impl FnMut(&[u8], &[u8], &[u8]) -> Result<(), PwcError>,
+) -> Result<(), PwcError> {
     for (k, v) in from {
         match into.iter().find(|(ik, _)| ik == k) {
             None => into.push((k.clone(), v.clone())),
@@ -207,7 +243,9 @@ pub fn combine(psbts: &[Vec<u8>]) -> Result<Vec<u8>, PwcError> {
     let secp = Secp256k1::verification_only();
     let mut merged = parsed[0].1.clone();
     for (psbt, raw) in &parsed[1..] {
-        merge(&mut merged.global, &raw.global, |_, _, _| Err(conflict("Conflicting global values")))?;
+        merge(&mut merged.global, &raw.global, |_, _, _| {
+            Err(conflict("Conflicting global values"))
+        })?;
         for (i, map) in raw.inputs.iter().enumerate() {
             merge(&mut merged.inputs[i], map, |k, kept, new| {
                 let both_verify = k[0] == IN_PARTIAL_SIG
@@ -221,7 +259,9 @@ pub fn combine(psbts: &[Vec<u8>]) -> Result<Vec<u8>, PwcError> {
             })?;
         }
         for (i, map) in raw.outputs.iter().enumerate() {
-            merge(&mut merged.outputs[i], map, |_, _, _| Err(conflict("Conflicting values for the same output key")))?;
+            merge(&mut merged.outputs[i], map, |_, _, _| {
+                Err(conflict("Conflicting values for the same output key"))
+            })?;
         }
     }
     let bytes = merged.serialize();
@@ -258,10 +298,18 @@ pub fn finalize(bytes: &[u8]) -> Result<Finalized, PwcError> {
         }
     }
     if !complete {
-        return Ok(Finalized { psbt: psbt.serialize(), transaction: None });
+        return Ok(Finalized {
+            psbt: psbt.serialize(),
+            transaction: None,
+        });
     }
-    let tx = psbt.extract(&secp).map_err(|e| invalid(&format!("Final scripts do not verify: {e}")))?;
-    Ok(Finalized { psbt: psbt.serialize(), transaction: Some(tx) })
+    let tx = psbt
+        .extract(&secp)
+        .map_err(|e| invalid(&format!("Final scripts do not verify: {e}")))?;
+    Ok(Finalized {
+        psbt: psbt.serialize(),
+        transaction: Some(tx),
+    })
 }
 
 fn compact_len(n: usize) -> u64 {
@@ -290,14 +338,18 @@ pub fn verify_input<C: Verification>(secp: &Secp256k1<C>, tx: &Transaction, inde
         if !txin.script_sig.is_empty() || txin.witness.len() != 2 {
             return false;
         }
-        let (Ok(sig), Ok(pk)) = (ecdsa::Signature::from_slice(&txin.witness[0]), bitcoin::CompressedPublicKey::from_slice(&txin.witness[1]))
-        else {
+        let (Ok(sig), Ok(pk)) = (
+            ecdsa::Signature::from_slice(&txin.witness[0]),
+            bitcoin::CompressedPublicKey::from_slice(&txin.witness[1]),
+        ) else {
             return false;
         };
         if bitcoin::ScriptBuf::new_p2wpkh(&pk.wpubkey_hash()) != *spk {
             return false;
         }
-        let Ok(h) = cache.p2wpkh_signature_hash(index, spk, prevout.value, sig.sighash_type) else { return false };
+        let Ok(h) = cache.p2wpkh_signature_hash(index, spk, prevout.value, sig.sighash_type) else {
+            return false;
+        };
         (sig, pk.0, h.to_byte_array())
     } else if spk.is_p2pkh() {
         let pushes: Vec<Vec<u8>> = txin
@@ -311,18 +363,24 @@ pub fn verify_input<C: Verification>(secp: &Secp256k1<C>, tx: &Transaction, inde
         if pushes.len() != 2 || txin.script_sig.instructions().count() != 2 || !txin.witness.is_empty() {
             return false;
         }
-        let (Ok(sig), Ok(pk)) = (ecdsa::Signature::from_slice(&pushes[0]), PublicKey::from_slice(&pushes[1])) else {
+        let (Ok(sig), Ok(pk)) = (
+            ecdsa::Signature::from_slice(&pushes[0]),
+            PublicKey::from_slice(&pushes[1]),
+        ) else {
             return false;
         };
         if bitcoin::ScriptBuf::new_p2pkh(&pk.pubkey_hash()) != *spk {
             return false;
         }
-        let Ok(h) = cache.legacy_signature_hash(index, spk, sig.sighash_type.to_u32()) else { return false };
+        let Ok(h) = cache.legacy_signature_hash(index, spk, sig.sighash_type.to_u32()) else {
+            return false;
+        };
         (sig, pk.inner, h.to_byte_array())
     } else {
         return false;
     };
-    secp.verify_ecdsa(&Message::from_digest(digest), &sig.signature, &pk).is_ok()
+    secp.verify_ecdsa(&Message::from_digest(digest), &sig.signature, &pk)
+        .is_ok()
 }
 
 /// Core §4.7 `signing_status` for P2WPKH and P2PKH inputs; other scripts make completeness unknown.
@@ -337,9 +395,14 @@ pub fn signing_status(psbt: &Psbt) -> &'static str {
             continue;
         };
         let spk = &prev.script_pubkey;
-        let signed_by = |f: &dyn Fn(&PublicKey) -> bitcoin::ScriptBuf| input.partial_sigs.keys().any(|pk| f(pk) == *spk);
+        let signed_by =
+            |f: &dyn Fn(&PublicKey) -> bitcoin::ScriptBuf| input.partial_sigs.keys().any(|pk| f(pk) == *spk);
         let satisfied = if spk.is_p2wpkh() {
-            signed_by(&|pk| pk.wpubkey_hash().map(|h| bitcoin::ScriptBuf::new_p2wpkh(&h)).unwrap_or_default())
+            signed_by(&|pk| {
+                pk.wpubkey_hash()
+                    .map(|h| bitcoin::ScriptBuf::new_p2wpkh(&h))
+                    .unwrap_or_default()
+            })
         } else if spk.is_p2pkh() {
             signed_by(&|pk| bitcoin::ScriptBuf::new_p2pkh(&pk.pubkey_hash()))
         } else {

@@ -26,7 +26,11 @@ fn usage() -> ! {
 }
 
 fn args() -> Args {
-    let mut a = Args { dir: None, auto: false, delay: Duration::from_millis(300) };
+    let mut a = Args {
+        dir: None,
+        auto: false,
+        delay: Duration::from_millis(300),
+    };
     let mut it = std::env::args().skip(1);
     while let Some(flag) = it.next() {
         let value = it.next().unwrap_or_else(|| usage());
@@ -49,7 +53,12 @@ fn args() -> Args {
 fn as_requested(backend: &dyn WalletBackend, r: &PermissionRequest) -> GrantChoice {
     let network = r.network.clone().unwrap_or_else(|| Network("regtest".into()));
     let (wallet_ids, account_ids) = if r.wallet_ids.is_empty() && r.account_ids.is_empty() {
-        let all = backend.wallets().into_iter().filter(|w| w.network == network.as_str()).map(|w| w.wallet_id).collect();
+        let all = backend
+            .wallets()
+            .into_iter()
+            .filter(|w| w.network == network.as_str())
+            .map(|w| w.wallet_id)
+            .collect();
         (all, Vec::new())
     } else {
         (r.wallet_ids.clone(), r.account_ids.clone())

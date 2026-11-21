@@ -97,7 +97,12 @@ pub struct PwcError {
 
 impl PwcError {
     pub fn new(code: ErrorCode, message: impl Into<String>) -> Self {
-        Self { code, message: message.into(), details: None, retryable: None }
+        Self {
+            code,
+            message: message.into(),
+            details: None,
+            retryable: None,
+        }
     }
 }
 

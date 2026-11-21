@@ -43,7 +43,12 @@ async fn granted_inventory_and_session_info() {
     assert_eq!(grant["network"], "regtest");
     assert_eq!(grant["client_id"], json!(client_id));
     let wallets = c.ok("wallet.list", json!({})).await;
-    let ids: Vec<&str> = wallets["wallets"].as_array().unwrap().iter().map(|w| w["wallet_id"].as_str().unwrap()).collect();
+    let ids: Vec<&str> = wallets["wallets"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|w| w["wallet_id"].as_str().unwrap())
+        .collect();
     assert_eq!(ids, ["w-regtest-main", "w-regtest-watch"]);
     let accounts = c.ok("account.list", json!({"wallet_id": "w-regtest-main"})).await;
     assert_eq!(accounts["accounts"].as_array().unwrap().len(), 2);
@@ -56,12 +61,18 @@ async fn order_of_checks() {
     let mut h = Harness::start(Config::default()).await;
     let (mut c, _, _) = h.pair().await;
     // 3 before 4
-    assert_eq!(c.fails("vendor.example.nothing", json!({"x": 1})).await, "UNSUPPORTED_METHOD");
+    assert_eq!(
+        c.fails("vendor.example.nothing", json!({"x": 1})).await,
+        "UNSUPPORTED_METHOD"
+    );
     // 4 before 6
     assert_eq!(c.fails("account.getBalance", json!({})).await, "INVALID_ARGUMENT");
     assert_eq!(c.fails("wallet.list", json!({"extra": true})).await, "INVALID_ARGUMENT");
     // 6 before 7
-    assert_eq!(c.fails("account.getBalance", json!({"account_id": "nope"})).await, "PERMISSION_REQUIRED");
+    assert_eq!(
+        c.fails("account.getBalance", json!({"account_id": "nope"})).await,
+        "PERMISSION_REQUIRED"
+    );
     h.grant(&mut c, json!({"scopes": ["wallets:read"]})).await;
     // 7: outside the grant (mainnet) and nonexistent give the same error
     let a = c.call("account.list", json!({"wallet_id": "w-mainnet-main"})).await;
@@ -70,13 +81,25 @@ async fn order_of_checks() {
     assert_eq!(a["error"], b["error"]);
     // 8 after 7
     h.backend.set_wallet_state("w-regtest-main", WalletState::Locked);
-    assert_eq!(c.fails("account.list", json!({"wallet_id": "w-regtest-main"})).await, "WALLET_LOCKED");
-    assert_eq!(c.fails("account.list", json!({"wallet_id": "w-mainnet-main"})).await, "WALLET_NOT_FOUND");
+    assert_eq!(
+        c.fails("account.list", json!({"wallet_id": "w-regtest-main"})).await,
+        "WALLET_LOCKED"
+    );
+    assert_eq!(
+        c.fails("account.list", json!({"wallet_id": "w-mainnet-main"})).await,
+        "WALLET_NOT_FOUND"
+    );
     let wallets = c.ok("wallet.list", json!({})).await;
     let main = &wallets["wallets"][0];
-    assert_eq!((main["state"].clone(), main["account_ids"].clone()), (json!("locked"), json!([])));
+    assert_eq!(
+        (main["state"].clone(), main["account_ids"].clone()),
+        (json!("locked"), json!([]))
+    );
     h.backend.set_wallet_state("w-regtest-main", WalletState::Unavailable);
-    assert_eq!(c.fails("account.list", json!({"wallet_id": "w-regtest-main"})).await, "STATE_UNAVAILABLE");
+    assert_eq!(
+        c.fails("account.list", json!({"wallet_id": "w-regtest-main"})).await,
+        "STATE_UNAVAILABLE"
+    );
 }
 
 #[tokio::test]
@@ -91,9 +114,15 @@ async fn c05_c37_idempotent_permission_request() {
     let again = c.ok("session.requestPermissions", params).await;
     assert_eq!(again["operation_id"], op["operation_id"]);
     let changed = json!({"scopes": ["balances:read"], "idempotency_key": "grant-1"});
-    assert_eq!(c.fails("session.requestPermissions", changed).await, "IDEMPOTENCY_CONFLICT");
+    assert_eq!(
+        c.fails("session.requestPermissions", changed).await,
+        "IDEMPOTENCY_CONFLICT"
+    );
     let id = op["operation_id"].clone();
-    assert_eq!(other.fails("operation.get", json!({"operation_id": id})).await, "OPERATION_NOT_FOUND");
+    assert_eq!(
+        other.fails("operation.get", json!({"operation_id": id})).await,
+        "OPERATION_NOT_FOUND"
+    );
     let backend = h.backend.clone();
     h.answer_permissions(|r| Some(as_requested(&backend, r))).await;
     h.no_prompt().await;
@@ -112,7 +141,13 @@ async fn c18_cross_client_operation_access() {
     let missing = b.call("operation.get", json!({"operation_id": "op-none"})).await;
     assert_eq!(code(&foreign), "OPERATION_NOT_FOUND");
     assert_eq!(foreign["error"], missing["error"]);
-    assert_eq!(code(&b.call("operation.cancel", json!({"operation_id": id, "idempotency_key": "x"})).await), "OPERATION_NOT_FOUND");
+    assert_eq!(
+        code(
+            &b.call("operation.cancel", json!({"operation_id": id, "idempotency_key": "x"}))
+                .await
+        ),
+        "OPERATION_NOT_FOUND"
+    );
 }
 
 #[tokio::test]
@@ -121,7 +156,9 @@ async fn c31_terminal_operation_never_changes() {
     let (mut c, _, _) = h.pair().await;
     let done = h.grant(&mut c, json!({"scopes": ["wallets:read"]})).await;
     let id = done["operation_id"].clone();
-    let canceled = c.ok("operation.cancel", json!({"operation_id": id, "idempotency_key": "c1"})).await;
+    let canceled = c
+        .ok("operation.cancel", json!({"operation_id": id, "idempotency_key": "c1"}))
+        .await;
     assert_eq!(canceled, done);
     assert_eq!(c.ok("operation.get", json!({"operation_id": id})).await, done);
 }
@@ -130,10 +167,19 @@ async fn c31_terminal_operation_never_changes() {
 async fn cancel_withdraws_the_prompt() {
     let mut h = Harness::start(Config::default()).await;
     let (mut c, _, _) = h.pair().await;
-    let op = c.ok("session.requestPermissions", json!({"scopes": ["wallets:read"], "idempotency_key": "k"})).await;
-    let Prompt::Permissions { reply, .. } = h.next_prompt().await else { panic!() };
+    let op = c
+        .ok(
+            "session.requestPermissions",
+            json!({"scopes": ["wallets:read"], "idempotency_key": "k"}),
+        )
+        .await;
+    let Prompt::Permissions { reply, .. } = h.next_prompt().await else {
+        panic!()
+    };
     let id = op["operation_id"].clone();
-    let canceled = c.ok("operation.cancel", json!({"operation_id": id, "idempotency_key": "c"})).await;
+    let canceled = c
+        .ok("operation.cancel", json!({"operation_id": id, "idempotency_key": "c"}))
+        .await;
     assert_eq!(canceled["state"], "canceled");
     assert_eq!(canceled["error"]["code"], "OPERATION_CANCELED");
     tokio::time::sleep(Duration::from_millis(50)).await;
@@ -165,11 +211,30 @@ async fn c50_revoke_permissions() {
     let grant_id = done["result"]["grants"][0]["grant_id"].clone();
     let foreign = json!({"grant_id": grant_id, "idempotency_key": "r1"});
     assert_eq!(b.fails("session.revokePermissions", foreign).await, "GRANT_NOT_FOUND");
-    let r = a.ok("session.revokePermissions", json!({"grant_id": grant_id, "idempotency_key": "r1"})).await;
+    let r = a
+        .ok(
+            "session.revokePermissions",
+            json!({"grant_id": grant_id, "idempotency_key": "r1"}),
+        )
+        .await;
     assert_eq!(r, json!({"revoked": true}));
-    let retry = a.ok("session.revokePermissions", json!({"grant_id": grant_id, "idempotency_key": "r1"})).await;
-    assert_eq!(retry, json!({"revoked": true}), "exact retry answers the original response");
-    let r = a.ok("session.revokePermissions", json!({"grant_id": grant_id, "idempotency_key": "r2"})).await;
+    let retry = a
+        .ok(
+            "session.revokePermissions",
+            json!({"grant_id": grant_id, "idempotency_key": "r1"}),
+        )
+        .await;
+    assert_eq!(
+        retry,
+        json!({"revoked": true}),
+        "exact retry answers the original response"
+    );
+    let r = a
+        .ok(
+            "session.revokePermissions",
+            json!({"grant_id": grant_id, "idempotency_key": "r2"}),
+        )
+        .await;
     assert_eq!(r, json!({"revoked": false}));
     assert_eq!(a.fails("wallet.list", json!({})).await, "PERMISSION_REVOKED");
 }
@@ -182,13 +247,24 @@ async fn c51_concurrency_limit() {
     let (mut c, _, _) = h.pair().await;
     let mut open = Vec::new();
     for k in ["a", "b"] {
-        c.ok("session.requestPermissions", json!({"scopes": ["wallets:read"], "idempotency_key": k})).await;
+        c.ok(
+            "session.requestPermissions",
+            json!({"scopes": ["wallets:read"], "idempotency_key": k}),
+        )
+        .await;
         open.push(h.next_prompt().await);
     }
     let third = json!({"scopes": ["wallets:read"], "idempotency_key": "c"});
-    assert_eq!(c.fails("session.requestPermissions", third.clone()).await, "RATE_LIMITED");
+    assert_eq!(
+        c.fails("session.requestPermissions", third.clone()).await,
+        "RATE_LIMITED"
+    );
     h.no_prompt().await;
-    assert_eq!(c.fails("session.requestPermissions", third).await, "RATE_LIMITED", "no record was created");
+    assert_eq!(
+        c.fails("session.requestPermissions", third).await,
+        "RATE_LIMITED",
+        "no record was created"
+    );
 }
 
 #[tokio::test]
@@ -205,7 +281,9 @@ async fn c52_grant_never_exceeds_request() {
         .answer_permissions(|r| {
             let mut choice = as_requested(&h_backend(), r);
             choice.scopes.push(pwc_provider::types::Scope("psbt:sign".into()));
-            choice.wallet_ids.push(pwc_provider::types::Id("w-regtest-watch".into()));
+            choice
+                .wallet_ids
+                .push(pwc_provider::types::Id("w-regtest-watch".into()));
             choice.wallet_ids.push(pwc_provider::types::Id("w-mainnet-main".into()));
             choice.expires_at = Some(now.after(Duration::from_secs(7200)));
             choice.constraints = Some(pwc_provider::types::GrantConstraints {
@@ -224,7 +302,12 @@ async fn c52_grant_never_exceeds_request() {
     assert_eq!(g["constraints"]["max_amount_sats_per_request"], "1000");
     assert_eq!(g["constraints"]["valid_until"], ts(now.after(Duration::from_secs(60))));
 
-    let op = c.ok("session.requestPermissions", json!({"scopes": ["wallets:read"], "network": "signet", "idempotency_key": "n"})).await;
+    let op = c
+        .ok(
+            "session.requestPermissions",
+            json!({"scopes": ["wallets:read"], "network": "signet", "idempotency_key": "n"}),
+        )
+        .await;
     h.answer_permissions(|r| {
         let mut choice = as_requested(&h_backend(), r);
         choice.network = pwc_provider::types::Network("regtest".into());
@@ -240,27 +323,58 @@ fn h_backend() -> pwc_provider::memory::MemoryBackend {
 
 #[tokio::test]
 async fn c56_operation_expires_while_awaiting_approval() {
-    let config = Config { approval_timeout: Duration::from_millis(200), ..Config::default() };
+    let config = Config {
+        approval_timeout: Duration::from_millis(200),
+        ..Config::default()
+    };
     let mut h = Harness::start(config).await;
     let (mut c, _, _) = h.pair().await;
-    let op = c.ok("session.requestPermissions", json!({"scopes": ["wallets:read"], "idempotency_key": "k"})).await;
-    let Prompt::Permissions { reply, .. } = h.next_prompt().await else { panic!() };
+    let op = c
+        .ok(
+            "session.requestPermissions",
+            json!({"scopes": ["wallets:read"], "idempotency_key": "k"}),
+        )
+        .await;
+    let Prompt::Permissions { reply, .. } = h.next_prompt().await else {
+        panic!()
+    };
     let done = c.wait(op["operation_id"].as_str().unwrap()).await;
-    assert_eq!((done["state"].clone(), done["error"]["code"].clone()), (json!("expired"), json!("OPERATION_EXPIRED")));
+    assert_eq!(
+        (done["state"].clone(), done["error"]["code"].clone()),
+        (json!("expired"), json!("OPERATION_EXPIRED"))
+    );
     assert!(reply.is_closed());
 }
 
 #[tokio::test]
 async fn c62_prompt_flooding_rate_limited() {
-    let config = Config { prompt_limit: RateLimit { max: 2, window: Duration::from_secs(60) }, ..Config::default() };
+    let config = Config {
+        prompt_limit: RateLimit {
+            max: 2,
+            window: Duration::from_secs(60),
+        },
+        ..Config::default()
+    };
     let mut h = Harness::start(config).await;
     let (mut c, _, _) = h.pair().await;
     for k in ["a", "b"] {
-        let op = c.ok("session.requestPermissions", json!({"scopes": ["wallets:read"], "idempotency_key": k})).await;
+        let op = c
+            .ok(
+                "session.requestPermissions",
+                json!({"scopes": ["wallets:read"], "idempotency_key": k}),
+            )
+            .await;
         h.answer_permissions(|_| None).await;
         assert_eq!(c.wait(op["operation_id"].as_str().unwrap()).await["state"], "rejected");
     }
-    assert_eq!(c.fails("session.requestPermissions", json!({"scopes": ["wallets:read"], "idempotency_key": "c"})).await, "RATE_LIMITED");
+    assert_eq!(
+        c.fails(
+            "session.requestPermissions",
+            json!({"scopes": ["wallets:read"], "idempotency_key": "c"})
+        )
+        .await,
+        "RATE_LIMITED"
+    );
 }
 
 #[tokio::test]
@@ -268,12 +382,21 @@ async fn l18_l19_error_mapping() {
     let mut h = Harness::start(Config::default()).await;
     let (mut c, _, _) = h.pair().await;
     let v = c.call("vendor.example.nothing", json!({})).await;
-    assert_eq!((v["error"]["code"].clone(), code(&v)), (json!(1000), "UNSUPPORTED_METHOD"));
+    assert_eq!(
+        (v["error"]["code"].clone(), code(&v)),
+        (json!(1000), "UNSUPPORTED_METHOD")
+    );
     let v = c.call("local.nothing", json!({})).await;
     assert_eq!(code(&v), "UNSUPPORTED_METHOD");
     let v = c.call("utxo.list", json!({"account_id": "acct-01"})).await;
-    assert_eq!(v["error"]["data"], json!({"code": "PERMISSION_REQUIRED", "message": "Scope utxos:read is required"}));
-    assert_eq!(code(&c.call("local.openDelegate", json!({})).await), "UNSUPPORTED_OPERATION");
+    assert_eq!(
+        v["error"]["data"],
+        json!({"code": "PERMISSION_REQUIRED", "message": "Scope utxos:read is required"})
+    );
+    assert_eq!(
+        code(&c.call("local.openDelegate", json!({})).await),
+        "UNSUPPORTED_OPERATION"
+    );
 }
 
 #[tokio::test]
@@ -297,8 +420,14 @@ async fn l23_unpair() {
     let (mut c, client_id, secret) = h.pair().await;
     h.grant(&mut c, json!({"scopes": ["wallets:read"]})).await;
     let mut second = h.login(&client_id, &secret).await;
-    c.ok("session.requestPermissions", json!({"scopes": ["balances:read"], "idempotency_key": "p"})).await;
-    let Prompt::Permissions { reply, .. } = h.next_prompt().await else { panic!() };
+    c.ok(
+        "session.requestPermissions",
+        json!({"scopes": ["balances:read"], "idempotency_key": "p"}),
+    )
+    .await;
+    let Prompt::Permissions { reply, .. } = h.next_prompt().await else {
+        panic!()
+    };
     assert_eq!(c.ok("local.unpair", json!({})).await, json!({"unpaired": true}));
     assert!(c.closed().await);
     assert!(second.closed().await);
@@ -308,7 +437,10 @@ async fn l23_unpair() {
     assert!(h.provider.paired_clients().is_empty());
     let mut c = h.connect().await;
     let hello = c.hello().await;
-    assert_eq!(code(&c.authenticate(&hello, &client_id, &secret).await), "UNAUTHENTICATED");
+    assert_eq!(
+        code(&c.authenticate(&hello, &client_id, &secret).await),
+        "UNAUTHENTICATED"
+    );
 }
 
 #[tokio::test]

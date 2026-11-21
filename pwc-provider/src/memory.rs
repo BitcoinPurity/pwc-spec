@@ -5,12 +5,17 @@ use std::sync::{Mutex, MutexGuard};
 
 use bitcoin::hashes::{sha256, Hash};
 use bitcoin::secp256k1::{All, Secp256k1, SecretKey};
-use bitcoin::{absolute, transaction, Address, Amount, CompressedPublicKey, OutPoint, ScriptBuf, Sequence, Transaction, TxIn, TxOut, Txid, Witness};
+use bitcoin::{
+    absolute, transaction, Address, Amount, CompressedPublicKey, OutPoint, ScriptBuf, Sequence, Transaction, TxIn,
+    TxOut, Txid, Witness,
+};
 
 use crate::backend::*;
 use crate::balance::{self, Class, ConfirmedOutput, PendingOutput, PendingTx, Policy, Scenario};
 use crate::error::{err, ErrorCode, PwcError};
-use crate::types::{chain_network, Hash256, Hex, Id, MessageFormat, Sats, ScriptType, SignedSats, Text, Timestamp, SUPPORTED_NETWORKS};
+use crate::types::{
+    chain_network, Hash256, Hex, Id, MessageFormat, Sats, ScriptType, SignedSats, Text, Timestamp, SUPPORTED_NETWORKS,
+};
 
 /// Account-scoped methods (Core §4.2) by account kind.
 const SIGNING_WPKH: &[&str] = &[
@@ -54,7 +59,10 @@ const WATCH_WPKH: &[&str] = &[
 const COINBASE_MATURITY: u32 = 100;
 const MIN_FEE_RATE: u64 = 1000;
 const DUST: u64 = 294;
-const POLICY: Policy = Policy { spend_unconfirmed_self: true, spend_unconfirmed_external: false };
+const POLICY: Policy = Policy {
+    spend_unconfirmed_self: true,
+    spend_unconfirmed_external: false,
+};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Role {
@@ -111,7 +119,14 @@ pub struct MemoryBackend {
     secp: Secp256k1<All>,
 }
 
-fn derive_key(secp: &Secp256k1<All>, account_id: &str, role: Role, index: usize, script_type: ScriptType, network: &str) -> Key {
+fn derive_key(
+    secp: &Secp256k1<All>,
+    account_id: &str,
+    role: Role,
+    index: usize,
+    script_type: ScriptType,
+    network: &str,
+) -> Key {
     let tag = if role == Role::Receive { "receive" } else { "change" };
     let seed = sha256::Hash::hash(format!("pwc-provider demo key|{account_id}|{tag}|{index}").as_bytes());
     let secret = SecretKey::from_slice(seed.as_byte_array()).expect("valid demo key");
@@ -121,7 +136,14 @@ fn derive_key(secp: &Secp256k1<All>, account_id: &str, role: Role, index: usize,
         ScriptType::P2wpkh => Address::p2wpkh(&public, net),
         ScriptType::P2pkh => Address::p2pkh(public, net),
     };
-    Key { secret, public, script: address.script_pubkey(), address, role, label: None }
+    Key {
+        secret,
+        public,
+        script: address.script_pubkey(),
+        address,
+        role,
+        label: None,
+    }
 }
 
 fn hash256(txid: &Txid) -> Hash256 {
@@ -181,7 +203,10 @@ impl Chain {
     }
 
     fn output(&self, o: &OutPoint) -> Option<&TxOut> {
-        self.txs.iter().find(|t| t.tx.compute_txid() == o.txid).and_then(|t| t.tx.output.get(o.vout as usize))
+        self.txs
+            .iter()
+            .find(|t| t.tx.compute_txid() == o.txid)
+            .and_then(|t| t.tx.output.get(o.vout as usize))
     }
 }
 
@@ -199,16 +224,40 @@ impl MemoryBackend {
     /// The demo data of `docs/api-contract.md` §6.
     pub fn demo() -> MemoryBackend {
         let backend = MemoryBackend {
-            mem: Mutex::new(Mem { wallets: Vec::new(), accounts: BTreeMap::new(), chains: HashMap::new(), foreign: 0 }),
+            mem: Mutex::new(Mem {
+                wallets: Vec::new(),
+                accounts: BTreeMap::new(),
+                chains: HashMap::new(),
+                foreign: 0,
+            }),
             secp: Secp256k1::new(),
         };
         for net in SUPPORTED_NETWORKS {
-            backend.lock().chains.insert(net.to_string(), Chain { tip: 1000, txs: Vec::new(), offline: false, fee_estimate: Some(2000) });
+            backend.lock().chains.insert(
+                net.to_string(),
+                Chain {
+                    tip: 1000,
+                    txs: Vec::new(),
+                    offline: false,
+                    fee_estimate: Some(2000),
+                },
+            );
             let main = backend.add_wallet(&format!("w-{net}-main"), "Main wallet", net, WalletKind::Software);
             let wpkh = backend.add_account(&main, &format!("a-{net}-wpkh"), "Savings", ScriptType::P2wpkh, true);
             let pkh = backend.add_account(&main, &format!("a-{net}-pkh"), "Legacy", ScriptType::P2pkh, true);
-            let watch = backend.add_wallet(&format!("w-{net}-watch"), "Watch-only wallet", net, WalletKind::WatchOnly);
-            let cold = backend.add_account(&watch, &format!("a-{net}-watch"), "Cold storage", ScriptType::P2wpkh, false);
+            let watch = backend.add_wallet(
+                &format!("w-{net}-watch"),
+                "Watch-only wallet",
+                net,
+                WalletKind::WatchOnly,
+            );
+            let cold = backend.add_account(
+                &watch,
+                &format!("a-{net}-watch"),
+                "Cold storage",
+                ScriptType::P2wpkh,
+                false,
+            );
             backend.receive(&wpkh, 1_000_000, 6);
             backend.receive(&wpkh, 500_000, 6);
             backend.receive(&pkh, 200_000, 6);
@@ -234,9 +283,20 @@ impl MemoryBackend {
         id
     }
 
-    pub fn add_account(&self, wallet_id: &Id, account_id: &str, name: &str, script_type: ScriptType, can_sign: bool) -> Id {
+    pub fn add_account(
+        &self,
+        wallet_id: &Id,
+        account_id: &str,
+        name: &str,
+        script_type: ScriptType,
+        can_sign: bool,
+    ) -> Id {
         let mut mem = self.lock();
-        let wallet = mem.wallets.iter_mut().find(|w| &w.wallet_id == wallet_id).expect("known wallet");
+        let wallet = mem
+            .wallets
+            .iter_mut()
+            .find(|w| &w.wallet_id == wallet_id)
+            .expect("known wallet");
         let id = Id(account_id.into());
         wallet.account_ids.push(id.clone());
         let network = wallet.network.clone();
@@ -246,9 +306,17 @@ impl MemoryBackend {
             (ScriptType::P2wpkh, false) => WATCH_WPKH,
             (ScriptType::P2pkh, false) => &SIGNING_PKH[..7],
         };
-        let mut keys: Vec<Key> =
-            (0..3).map(|i| derive_key(&self.secp, account_id, Role::Receive, i, script_type, &network)).collect();
-        keys.push(derive_key(&self.secp, account_id, Role::Change, 0, script_type, &network));
+        let mut keys: Vec<Key> = (0..3)
+            .map(|i| derive_key(&self.secp, account_id, Role::Receive, i, script_type, &network))
+            .collect();
+        keys.push(derive_key(
+            &self.secp,
+            account_id,
+            Role::Change,
+            0,
+            script_type,
+            &network,
+        ));
         let info = AccountInfo {
             account_id: id.clone(),
             wallet_id: wallet_id.clone(),
@@ -264,14 +332,24 @@ impl MemoryBackend {
 
     pub fn set_wallet_state(&self, wallet_id: &str, state: WalletState) {
         let mut mem = self.lock();
-        let wallet = mem.wallets.iter_mut().find(|w| w.wallet_id.as_str() == wallet_id).expect("known wallet");
+        let wallet = mem
+            .wallets
+            .iter_mut()
+            .find(|w| w.wallet_id.as_str() == wallet_id)
+            .expect("known wallet");
         wallet.state = state;
     }
 
     fn foreign_input(mem: &mut Mem) -> TxIn {
         mem.foreign += 1;
-        let txid = Txid::from_byte_array(sha256::Hash::hash(format!("foreign {}", mem.foreign).as_bytes()).to_byte_array());
-        TxIn { previous_output: OutPoint { txid, vout: 0 }, script_sig: ScriptBuf::new(), sequence: Sequence::MAX, witness: Witness::new() }
+        let txid =
+            Txid::from_byte_array(sha256::Hash::hash(format!("foreign {}", mem.foreign).as_bytes()).to_byte_array());
+        TxIn {
+            previous_output: OutPoint { txid, vout: 0 },
+            script_sig: ScriptBuf::new(),
+            sequence: Sequence::MAX,
+            witness: Witness::new(),
+        }
     }
 
     fn add_tx(mem: &mut Mem, network: &str, tx: Transaction, confirmations: u32, coinbase: bool) -> Txid {
@@ -281,10 +359,18 @@ impl MemoryBackend {
         let status = if confirmations == 0 {
             TxStatus::Pending
         } else {
-            TxStatus::Confirmed { height: chain.tip + 1 - confirmations }
+            TxStatus::Confirmed {
+                height: chain.tip + 1 - confirmations,
+            }
         };
         let confirmed_at = (confirmations > 0).then_some(now);
-        chain.txs.push(ChainTx { tx, status, coinbase, first_seen: now, confirmed_at });
+        chain.txs.push(ChainTx {
+            tx,
+            status,
+            coinbase,
+            first_seen: now,
+            confirmed_at,
+        });
         txid
     }
 
@@ -296,7 +382,10 @@ impl MemoryBackend {
             version: transaction::Version::TWO,
             lock_time: absolute::LockTime::ZERO,
             input: vec![input],
-            output: vec![TxOut { value: Amount::from_sat(value), script_pubkey: script }],
+            output: vec![TxOut {
+                value: Amount::from_sat(value),
+                script_pubkey: script,
+            }],
         };
         (network, tx)
     }
@@ -312,7 +401,10 @@ impl MemoryBackend {
     /// A coinbase output to the account.
     pub fn receive_coinbase(&self, account_id: &Id, value: u64, confirmations: u32) -> Txid {
         let mut mem = self.lock();
-        let input = TxIn { previous_output: OutPoint::null(), ..Self::foreign_input(&mut mem) };
+        let input = TxIn {
+            previous_output: OutPoint::null(),
+            ..Self::foreign_input(&mut mem)
+        };
         let (network, tx) = Self::payment(&mut mem, account_id.as_str(), value, input);
         Self::add_tx(&mut mem, &network, tx, confirmations, true)
     }
@@ -321,7 +413,15 @@ impl MemoryBackend {
     pub fn receive_conflicting(&self, account_id: &Id, txid: &Txid, value: u64) -> Txid {
         let mut mem = self.lock();
         let network = mem.account(account_id.as_str()).info.network.clone();
-        let input = mem.chain(&network).txs.iter().find(|t| &t.tx.compute_txid() == txid).expect("known tx").tx.input[0].clone();
+        let input = mem
+            .chain(&network)
+            .txs
+            .iter()
+            .find(|t| &t.tx.compute_txid() == txid)
+            .expect("known tx")
+            .tx
+            .input[0]
+            .clone();
         let (network, tx) = Self::payment(&mut mem, account_id.as_str(), value, input);
         Self::add_tx(&mut mem, &network, tx, 0, false)
     }
@@ -329,7 +429,11 @@ impl MemoryBackend {
     fn with_tx(&self, network: &str, txid: &Txid, f: impl FnOnce(&mut ChainTx)) {
         let mut mem = self.lock();
         let chain = mem.chains.get_mut(network).expect("supported network");
-        f(chain.txs.iter_mut().find(|t| &t.tx.compute_txid() == txid).expect("known tx"));
+        f(chain
+            .txs
+            .iter_mut()
+            .find(|t| &t.tx.compute_txid() == txid)
+            .expect("known tx"));
     }
 
     /// The wallet accepts `by` as replacement of the pending transaction `txid`.
@@ -377,7 +481,11 @@ impl MemoryBackend {
     }
 
     pub fn set_fee_estimate(&self, network: &str, sat_per_kvb: Option<u64>) {
-        self.lock().chains.get_mut(network).expect("supported network").fee_estimate = sat_per_kvb;
+        self.lock()
+            .chains
+            .get_mut(network)
+            .expect("supported network")
+            .fee_estimate = sat_per_kvb;
     }
 
     /// The User spends an output of the account from the wallet's own interface, paying `value` to a third
@@ -385,12 +493,20 @@ impl MemoryBackend {
     pub fn spend_by_user(&self, account_id: &Id, outpoint: &OutPoint, value: u64) -> Txid {
         let mut mem = self.lock();
         let network = mem.account(account_id.as_str()).info.network.clone();
-        let input = TxIn { previous_output: *outpoint, script_sig: ScriptBuf::new(), sequence: Sequence::MAX, witness: Witness::new() };
+        let input = TxIn {
+            previous_output: *outpoint,
+            script_sig: ScriptBuf::new(),
+            sequence: Sequence::MAX,
+            witness: Witness::new(),
+        };
         let tx = Transaction {
             version: transaction::Version::TWO,
             lock_time: absolute::LockTime::ZERO,
             input: vec![input],
-            output: vec![TxOut { value: Amount::from_sat(value), script_pubkey: ScriptBuf::new_op_return([]) }],
+            output: vec![TxOut {
+                value: Amount::from_sat(value),
+                script_pubkey: ScriptBuf::new_op_return([]),
+            }],
         };
         Self::add_tx(&mut mem, &network, tx, 0, false)
     }
@@ -400,7 +516,12 @@ impl MemoryBackend {
     }
 
     /// The snapshot of Core §4.3 for one account, and its effective unspent outputs.
-    fn coins(&self, mem: &Mem, account: &Account, reserved: &Reserved) -> Result<(balance::Snapshot, Vec<Coin>), PwcError> {
+    fn coins(
+        &self,
+        mem: &Mem,
+        account: &Account,
+        reserved: &Reserved,
+    ) -> Result<(balance::Snapshot, Vec<Coin>), PwcError> {
         let chain = mem.chain(&account.info.network);
         let active = chain.active();
         let mut spends: HashMap<OutPoint, usize> = HashMap::new();
@@ -412,7 +533,10 @@ impl MemoryBackend {
             }
         }
         if spends.values().any(|n| *n > 1) {
-            return Err(err(ErrorCode::StateUnavailable, "Unresolved conflict between pending transactions"));
+            return Err(err(
+                ErrorCode::StateUnavailable,
+                "Unresolved conflict between pending transactions",
+            ));
         }
         let confirmed_spent: HashSet<OutPoint> = active
             .iter()
@@ -420,13 +544,20 @@ impl MemoryBackend {
             .flat_map(|&i| chain.txs[i].tx.input.iter().map(|inp| inp.previous_output))
             .collect();
         let mut by_key: HashMap<String, (OutPoint, TxOut, usize, TxStatus, bool)> = HashMap::new();
-        let mut scenario = Scenario { confirmed_outputs: Vec::new(), pending_transactions: Vec::new(), policy: POLICY };
+        let mut scenario = Scenario {
+            confirmed_outputs: Vec::new(),
+            pending_transactions: Vec::new(),
+            policy: POLICY,
+        };
         for &i in &active {
             let t = &chain.txs[i];
             let txid = t.tx.compute_txid();
             let mut pending_outputs = Vec::new();
             for (vout, out) in t.tx.output.iter().enumerate() {
-                let op = OutPoint { txid, vout: vout as u32 };
+                let op = OutPoint {
+                    txid,
+                    vout: vout as u32,
+                };
                 let owner = mem.owns(account, &out.script_pubkey);
                 if let Some(k) = owner {
                     by_key.insert(outpoint_key(&op), (op, out.clone(), k, t.status, t.coinbase));
@@ -452,7 +583,12 @@ impl MemoryBackend {
             if t.status == TxStatus::Pending {
                 scenario.pending_transactions.push(PendingTx {
                     txid: txid.to_string(),
-                    inputs: t.tx.input.iter().map(|inp| outpoint_key(&inp.previous_output)).collect(),
+                    inputs: t
+                        .tx
+                        .input
+                        .iter()
+                        .map(|inp| outpoint_key(&inp.previous_output))
+                        .collect(),
                     outputs: pending_outputs,
                 });
             }
@@ -467,7 +603,14 @@ impl MemoryBackend {
                     TxStatus::Confirmed { height } => Some(height),
                     _ => None,
                 };
-                Coin { outpoint: op, txout, key, confirmations: chain.confirmations(status), height, class: e.class }
+                Coin {
+                    outpoint: op,
+                    txout,
+                    key,
+                    confirmations: chain.confirmations(status),
+                    height,
+                    class: e.class,
+                }
             })
             .collect();
         Ok((snapshot, coins))
@@ -486,7 +629,11 @@ impl MemoryBackend {
 
     fn used_scripts(mem: &Mem, network: &str) -> HashSet<ScriptBuf> {
         let chain = mem.chain(network);
-        chain.active().iter().flat_map(|&i| chain.txs[i].tx.output.iter().map(|o| o.script_pubkey.clone())).collect()
+        chain
+            .active()
+            .iter()
+            .flat_map(|&i| chain.txs[i].tx.output.iter().map(|o| o.script_pubkey.clone()))
+            .collect()
     }
 }
 
@@ -499,16 +646,25 @@ impl WalletBackend for MemoryBackend {
     fn is_unspent(&self, account_id: &str, outpoint: &OutPoint) -> bool {
         let mem = self.lock();
         let account = mem.account(account_id);
-        self.coins(&mem, account, &Reserved::new()).is_ok_and(|(_, coins)| coins.iter().any(|c| &c.outpoint == outpoint))
+        self.coins(&mem, account, &Reserved::new())
+            .is_ok_and(|(_, coins)| coins.iter().any(|c| &c.outpoint == outpoint))
     }
 
     fn fee_estimate(&self, network: &str, _target_blocks: u64) -> Option<u64> {
         self.lock().chain(network).fee_estimate
     }
 
-    fn create_psbt(&self, account_id: &str, request: &CreateRequest, excluded: &Reserved) -> Result<CreatedPsbt, PwcError> {
+    fn create_psbt(
+        &self,
+        account_id: &str,
+        request: &CreateRequest,
+        excluded: &Reserved,
+    ) -> Result<CreatedPsbt, PwcError> {
         if request.fee_rate < MIN_FEE_RATE {
-            return Err(err(ErrorCode::PolicyViolation, "Fee rate below the wallet minimum of 1000 sat/kvB"));
+            return Err(err(
+                ErrorCode::PolicyViolation,
+                "Fee rate below the wallet minimum of 1000 sat/kvB",
+            ));
         }
         let mem = self.lock();
         let account = mem.account(account_id);
@@ -522,14 +678,20 @@ impl WalletBackend for MemoryBackend {
                 .ok_or_else(|| err(ErrorCode::InvalidArgument, "A selected UTXO is not available"))?,
             None => {
                 let mut all = selectable.clone();
-                all.sort_by(|a, b| b.txout.value.cmp(&a.txout.value));
+                all.sort_by_key(|c| std::cmp::Reverse(c.txout.value));
                 all
             }
         };
-        let change = account.keys.iter().find(|k| k.role == Role::Change).expect("change key");
+        let change = account
+            .keys
+            .iter()
+            .find(|k| k.role == Role::Change)
+            .expect("change key");
         let pay: u64 = request.outputs.iter().map(|(_, v)| v).sum();
         let mut lens: Vec<usize> = request.outputs.iter().map(|(s, _)| s.len()).collect();
-        let fee_for = |inputs: usize, lens: &[usize]| crate::types::min_fee(request.fee_rate, crate::psbt::estimate_vsize(inputs, lens));
+        let fee_for = |inputs: usize, lens: &[usize]| {
+            crate::types::min_fee(request.fee_rate, crate::psbt::estimate_vsize(inputs, lens))
+        };
         let mut chosen: Vec<&Coin> = Vec::new();
         let mut total = 0u64;
         let mut plan = None;
@@ -553,15 +715,31 @@ impl WalletBackend for MemoryBackend {
             }
         }
         let Some(change_value) = plan else {
-            return Err(err(ErrorCode::InsufficientFunds, "Insufficient eligible value after fees"));
+            return Err(err(
+                ErrorCode::InsufficientFunds,
+                "Insufficient eligible value after fees",
+            ));
         };
-        let sequence = if request.replaceable { Sequence::ENABLE_RBF_NO_LOCKTIME } else { Sequence::MAX };
-        let mut outputs: Vec<TxOut> =
-            request.outputs.iter().map(|(s, v)| TxOut { value: Amount::from_sat(*v), script_pubkey: s.clone() }).collect();
+        let sequence = if request.replaceable {
+            Sequence::ENABLE_RBF_NO_LOCKTIME
+        } else {
+            Sequence::MAX
+        };
+        let mut outputs: Vec<TxOut> = request
+            .outputs
+            .iter()
+            .map(|(s, v)| TxOut {
+                value: Amount::from_sat(*v),
+                script_pubkey: s.clone(),
+            })
+            .collect();
         let mut change_output_indexes = Vec::new();
         if let Some(v) = change_value {
             change_output_indexes.push(outputs.len() as u32);
-            outputs.push(TxOut { value: Amount::from_sat(v), script_pubkey: change.script.clone() });
+            outputs.push(TxOut {
+                value: Amount::from_sat(v),
+                script_pubkey: change.script.clone(),
+            });
             lens.push(change.script.len());
         }
         let tx = Transaction {
@@ -569,7 +747,12 @@ impl WalletBackend for MemoryBackend {
             lock_time: absolute::LockTime::ZERO,
             input: chosen
                 .iter()
-                .map(|c| TxIn { previous_output: c.outpoint, script_sig: ScriptBuf::new(), sequence, witness: Witness::new() })
+                .map(|c| TxIn {
+                    previous_output: c.outpoint,
+                    script_sig: ScriptBuf::new(),
+                    sequence,
+                    witness: Witness::new(),
+                })
                 .collect(),
             output: outputs,
         };
@@ -592,7 +775,10 @@ impl WalletBackend for MemoryBackend {
         let account = mem.account(account_id);
         let chain = mem.chain(&account.info.network);
         let active = chain.active();
-        let tx = active.iter().map(|&i| &chain.txs[i].tx).find(|t| t.compute_txid() == outpoint.txid)?;
+        let tx = active
+            .iter()
+            .map(|&i| &chain.txs[i].tx)
+            .find(|t| t.compute_txid() == outpoint.txid)?;
         let out = tx.output.get(outpoint.vout as usize)?;
         mem.owns(account, &out.script_pubkey).map(|_| out.clone())
     }
@@ -603,7 +789,10 @@ impl WalletBackend for MemoryBackend {
         let account = mem.account(account_id);
         let mut signed = Vec::new();
         for &i in inputs {
-            let prev = psbt.inputs[i].witness_utxo.clone().expect("witness_utxo set for signed inputs");
+            let prev = psbt.inputs[i]
+                .witness_utxo
+                .clone()
+                .expect("witness_utxo set for signed inputs");
             let key = &account.keys[mem.owns(account, &prev.script_pubkey).expect("owned input")];
             let public = bitcoin::PublicKey::new(key.public.0);
             if psbt.inputs[i].partial_sigs.contains_key(&public) {
@@ -612,22 +801,37 @@ impl WalletBackend for MemoryBackend {
             let sighash = bitcoin::sighash::SighashCache::new(&psbt.unsigned_tx)
                 .p2wpkh_signature_hash(i, &prev.script_pubkey, prev.value, bitcoin::EcdsaSighashType::All)
                 .map_err(|_| err(ErrorCode::PsbtValidationFailed, "Cannot compute the signature hash"))?;
-            let signature = self.secp.sign_ecdsa_low_r(&Message::from_digest(sighash.to_byte_array()), &key.secret);
-            let sig = bitcoin::ecdsa::Signature { signature, sighash_type: bitcoin::EcdsaSighashType::All };
+            let signature = self
+                .secp
+                .sign_ecdsa_low_r(&Message::from_digest(sighash.to_byte_array()), &key.secret);
+            let sig = bitcoin::ecdsa::Signature {
+                signature,
+                sighash_type: bitcoin::EcdsaSighashType::All,
+            };
             psbt.inputs[i].partial_sigs.insert(public, sig);
             signed.push(i as u32);
         }
         Ok(signed)
     }
 
-    fn sign_message(&self, account_id: &str, script: &bitcoin::Script, message: &str, format: MessageFormat) -> Result<Vec<u8>, PwcError> {
+    fn sign_message(
+        &self,
+        account_id: &str,
+        script: &bitcoin::Script,
+        message: &str,
+        format: MessageFormat,
+    ) -> Result<Vec<u8>, PwcError> {
         let mem = self.lock();
         let account = mem.account(account_id);
         let key = &account.keys[mem.owns(account, script).expect("owned address")];
         Ok(match format {
-            MessageFormat::Bip322Simple => crate::message::sign_bip322_simple(&self.secp, &key.secret, message.as_bytes()),
+            MessageFormat::Bip322Simple => {
+                crate::message::sign_bip322_simple(&self.secp, &key.secret, message.as_bytes())
+            }
             MessageFormat::Legacy => crate::message::sign_legacy(&self.secp, &key.secret, message),
-            MessageFormat::Bip322Full => return Err(err(ErrorCode::UnsupportedOperation, "bip322-full is not supported")),
+            MessageFormat::Bip322Full => {
+                return Err(err(ErrorCode::UnsupportedOperation, "bip322-full is not supported"))
+            }
         })
     }
 
@@ -640,11 +844,16 @@ impl WalletBackend for MemoryBackend {
             return Ok(txid);
         }
         if chain.offline {
-            return Err(err(ErrorCode::NetworkUnavailable, "The network backend cannot be reached"));
+            return Err(err(
+                ErrorCode::NetworkUnavailable,
+                "The network backend cannot be reached",
+            ));
         }
         let rejected = |m: &str| err(ErrorCode::TransactionRejected, m);
-        let spent: HashSet<OutPoint> =
-            active.iter().flat_map(|&i| chain.txs[i].tx.input.iter().map(|inp| inp.previous_output)).collect();
+        let spent: HashSet<OutPoint> = active
+            .iter()
+            .flat_map(|&i| chain.txs[i].tx.input.iter().map(|inp| inp.previous_output))
+            .collect();
         let mut input_value = 0u64;
         for (index, inp) in tx.input.iter().enumerate() {
             let prev = active
@@ -681,7 +890,11 @@ impl WalletBackend for MemoryBackend {
         let account = mem.account(account_id);
         let (snapshot, _) = self.coins(&mem, account, reserved)?;
         let chain = mem.chain(&account.info.network);
-        let wallet = mem.wallets.iter().find(|w| w.wallet_id == account.info.wallet_id).expect("account's wallet");
+        let wallet = mem
+            .wallets
+            .iter()
+            .find(|w| w.wallet_id == account.info.wallet_id)
+            .expect("account's wallet");
         let state = if chain.offline {
             "offline"
         } else if wallet.state == WalletState::Syncing {
@@ -694,7 +907,10 @@ impl WalletBackend for MemoryBackend {
             network: account.info.network.clone(),
             components: snapshot.components,
             updated_at: Timestamp::now(),
-            sync: SyncStatus { state, tip_height: Some(chain.tip) },
+            sync: SyncStatus {
+                state,
+                tip_height: Some(chain.tip),
+            },
         })
     }
 
@@ -703,7 +919,10 @@ impl WalletBackend for MemoryBackend {
         let account = mem.account(account_id);
         let used = Self::used_scripts(&mem, &account.info.network);
         let receive: Vec<&Key> = account.keys.iter().filter(|k| k.role == Role::Receive).collect();
-        let key = receive.iter().find(|k| !used.contains(&k.script)).unwrap_or(receive.last().unwrap());
+        let key = receive
+            .iter()
+            .find(|k| !used.contains(&k.script))
+            .unwrap_or(receive.last().unwrap());
         Ok(Self::address_record(account, key, used.contains(&key.script)))
     }
 
@@ -711,7 +930,14 @@ impl WalletBackend for MemoryBackend {
         let mut mem = self.lock();
         let account = mem.accounts.get_mut(account_id).expect("existing account");
         let index = account.keys.iter().filter(|k| k.role == Role::Receive).count();
-        let mut key = derive_key(&self.secp, account_id, Role::Receive, index, account.info.script_type, &account.info.network);
+        let mut key = derive_key(
+            &self.secp,
+            account_id,
+            Role::Receive,
+            index,
+            account.info.script_type,
+            &account.info.network,
+        );
         key.label = label.cloned();
         let record = Self::address_record(account, &key, false);
         account.keys.push(key);
@@ -722,7 +948,11 @@ impl WalletBackend for MemoryBackend {
         let mem = self.lock();
         let account = mem.account(account_id);
         let used = Self::used_scripts(&mem, &account.info.network);
-        account.keys.iter().map(|k| Self::address_record(account, k, used.contains(&k.script))).collect()
+        account
+            .keys
+            .iter()
+            .map(|k| Self::address_record(account, k, used.contains(&k.script)))
+            .collect()
     }
 
     fn utxos(&self, account_id: &str, reserved: &Reserved) -> Result<Vec<Utxo>, PwcError> {
@@ -763,24 +993,34 @@ impl WalletBackend for MemoryBackend {
         let chain = mem.chain(&account.info.network);
         let mut records = Vec::new();
         for t in chain.txs.iter().rev() {
-            let spent_owned: u64 = t
-                .tx
-                .input
-                .iter()
-                .filter_map(|inp| chain.output(&inp.previous_output))
-                .filter(|o| mem.owns(account, &o.script_pubkey).is_some())
-                .map(|o| o.value.to_sat())
-                .sum();
+            let spent_owned: u64 =
+                t.tx.input
+                    .iter()
+                    .filter_map(|inp| chain.output(&inp.previous_output))
+                    .filter(|o| mem.owns(account, &o.script_pubkey).is_some())
+                    .map(|o| o.value.to_sat())
+                    .sum();
             let received: u64 =
-                t.tx.output.iter().filter(|o| mem.owns(account, &o.script_pubkey).is_some()).map(|o| o.value.to_sat()).sum();
+                t.tx.output
+                    .iter()
+                    .filter(|o| mem.owns(account, &o.script_pubkey).is_some())
+                    .map(|o| o.value.to_sat())
+                    .sum();
             if spent_owned == 0 && received == 0 {
                 continue;
             }
-            let all_known = t.tx.input.iter().all(|inp| chain.output(&inp.previous_output).is_some());
+            let all_known =
+                t.tx.input
+                    .iter()
+                    .all(|inp| chain.output(&inp.previous_output).is_some());
             let fee = if t.coinbase || !all_known {
                 None
             } else {
-                let inputs: u64 = t.tx.input.iter().map(|inp| chain.output(&inp.previous_output).unwrap().value.to_sat()).sum();
+                let inputs: u64 =
+                    t.tx.input
+                        .iter()
+                        .map(|inp| chain.output(&inp.previous_output).unwrap().value.to_sat())
+                        .sum();
                 let outputs: u64 = t.tx.output.iter().map(|o| o.value.to_sat()).sum();
                 Some(Sats(inputs - outputs))
             };

@@ -92,12 +92,16 @@ pub fn compute(s: &Scenario) -> Snapshot {
             producer.insert(out.outpoint.as_str(), i);
         }
     }
-    let spent: HashSet<&str> = s.pending_transactions.iter().flat_map(|t| t.inputs.iter().map(String::as_str)).collect();
+    let spent: HashSet<&str> = s
+        .pending_transactions
+        .iter()
+        .flat_map(|t| t.inputs.iter().map(String::as_str))
+        .collect();
 
     let mut memo: HashMap<usize, bool> = HashMap::new();
-    fn self_funded<'a>(
+    fn self_funded(
         i: usize,
-        s: &'a Scenario,
+        s: &Scenario,
         confirmed: &HashSet<&str>,
         producer: &HashMap<&str, usize>,
         memo: &mut HashMap<usize, bool>,
@@ -108,7 +112,9 @@ pub fn compute(s: &Scenario) -> Snapshot {
         memo.insert(i, false);
         let v = s.pending_transactions[i].inputs.iter().all(|input| {
             confirmed.contains(input.as_str())
-                || producer.get(input.as_str()).is_some_and(|p| self_funded(*p, s, confirmed, producer, memo))
+                || producer
+                    .get(input.as_str())
+                    .is_some_and(|p| self_funded(*p, s, confirmed, producer, memo))
         });
         memo.insert(i, v);
         v
@@ -135,17 +141,30 @@ pub fn compute(s: &Scenario) -> Snapshot {
             spendable += o.value;
             Class::Spendable
         };
-        outputs.push(Effective { outpoint: o.outpoint.clone(), value: o.value, confirmed: true, class });
+        outputs.push(Effective {
+            outpoint: o.outpoint.clone(),
+            value: o.value,
+            confirmed: true,
+            class,
+        });
     }
     for (i, tx) in s.pending_transactions.iter().enumerate() {
-        for out in tx.outputs.iter().filter(|o| o.owned && !spent.contains(o.outpoint.as_str())) {
+        for out in tx
+            .outputs
+            .iter()
+            .filter(|o| o.owned && !spent.contains(o.outpoint.as_str()))
+        {
             let is_self = self_funded(i, s, &confirmed, &producer, &mut memo);
             if is_self {
                 p_self += out.value;
             } else {
                 p_ext += out.value;
             }
-            let allowed = if is_self { s.policy.spend_unconfirmed_self } else { s.policy.spend_unconfirmed_external };
+            let allowed = if is_self {
+                s.policy.spend_unconfirmed_self
+            } else {
+                s.policy.spend_unconfirmed_external
+            };
             let class = if out.locked {
                 locked += out.value;
                 Class::Locked
@@ -155,7 +174,12 @@ pub fn compute(s: &Scenario) -> Snapshot {
             } else {
                 Class::Unconfirmed
             };
-            outputs.push(Effective { outpoint: out.outpoint.clone(), value: out.value, confirmed: false, class });
+            outputs.push(Effective {
+                outpoint: out.outpoint.clone(),
+                value: out.value,
+                confirmed: false,
+                class,
+            });
         }
     }
     let delta = p_self as i64 + p_ext as i64 - d as i64;

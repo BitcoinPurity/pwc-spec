@@ -42,6 +42,13 @@ python3 pwc-testkit/run_vectors.py
 python3 pwc-testkit/check_family.py specs
 ```
 
+The Rust Provider needs a Rust toolchain; its tests include a run of the LOCAL runner against the demo binary:
+
+```text
+cd pwc-provider && cargo test
+cargo run -- --dir /tmp/pwc/run --approve auto
+```
+
 The LOCAL runner, the mock Provider and the PSBT fixture checker are described in [`pwc-testkit/README.md`](pwc-testkit/README.md) and in PWC-CONFORMANCE-001 §4.
 
 ## Contributing and security

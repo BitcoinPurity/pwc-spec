@@ -23,7 +23,10 @@ pub enum OpState {
 
 impl OpState {
     pub fn terminal(self) -> bool {
-        matches!(self, Self::Completed | Self::Rejected | Self::Expired | Self::Canceled | Self::Failed)
+        matches!(
+            self,
+            Self::Completed | Self::Rejected | Self::Expired | Self::Canceled | Self::Failed
+        )
     }
 }
 
@@ -61,7 +64,10 @@ pub struct OpRecord {
 pub enum Replay {
     Operation(Id),
     /// A synchronous result; `wallet_id` is set when it contains that wallet's account data.
-    Value { result: Value, wallet_id: Option<Id> },
+    Value {
+        result: Value,
+        wallet_id: Option<Id>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

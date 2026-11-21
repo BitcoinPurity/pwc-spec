@@ -9,8 +9,8 @@ use std::time::Duration;
 use pwc_provider::local;
 use pwc_provider::memory::MemoryBackend;
 use pwc_provider::prompt::{GrantChoice, PermissionRequest, Prompt};
-use pwc_provider::types::Network;
 use pwc_provider::provider::{Config, PromptReceiver, Provider};
+use pwc_provider::types::Network;
 use serde_json::{json, Value};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::unix::{OwnedReadHalf, OwnedWriteHalf};
@@ -46,20 +46,42 @@ impl Harness {
         h
     }
 
+    /// Serves an existing Provider whose wallet is `backend`.
+    pub async fn restart(backend: Arc<MemoryBackend>, provider: Arc<Provider>, prompts: PromptReceiver) -> Harness {
+        let mut h = Self::serve(provider, prompts).await;
+        h.backend = backend;
+        h
+    }
+
     pub async fn serve(provider: Arc<Provider>, prompts: PromptReceiver) -> Harness {
         let dir = tempfile::tempdir().unwrap();
         let endpoint = local::bind(&dir.path().join("run"), pwc_provider::PROVIDER_ID).unwrap();
         let path = endpoint.path().to_path_buf();
         let server = tokio::spawn(local::serve(provider.clone(), endpoint));
-        Harness { dir, path, provider, prompts, backend: Arc::new(MemoryBackend::demo()), server }
+        Harness {
+            dir,
+            path,
+            provider,
+            prompts,
+            backend: Arc::new(MemoryBackend::demo()),
+            server,
+        }
     }
 
     pub async fn next_prompt(&mut self) -> Prompt {
-        tokio::time::timeout(WAIT, self.prompts.recv()).await.expect("a prompt").expect("prompt channel open")
+        tokio::time::timeout(WAIT, self.prompts.recv())
+            .await
+            .expect("a prompt")
+            .expect("prompt channel open")
     }
 
     pub async fn no_prompt(&mut self) {
-        assert!(tokio::time::timeout(Duration::from_millis(200), self.prompts.recv()).await.is_err(), "unexpected prompt");
+        assert!(
+            tokio::time::timeout(Duration::from_millis(200), self.prompts.recv())
+                .await
+                .is_err(),
+            "unexpected prompt"
+        );
     }
 
     pub async fn connect(&self) -> Conn {
@@ -70,7 +92,12 @@ impl Harness {
     pub async fn pair(&mut self) -> (Conn, String, [u8; 32]) {
         let mut c = self.connect().await;
         c.hello().await;
-        let id = c.send_request("local.pair", json!({"client_name": "Test client", "pairing_code": "123456"})).await;
+        let id = c
+            .send_request(
+                "local.pair",
+                json!({"client_name": "Test client", "pairing_code": "123456"}),
+            )
+            .await;
         match self.next_prompt().await {
             Prompt::Pairing { reply, .. } => reply.send(true).unwrap(),
             _ => panic!("expected a pairing prompt"),
@@ -123,7 +150,12 @@ impl Conn {
     pub async fn connect(path: &std::path::Path) -> Conn {
         let stream = UnixStream::connect(path).await.unwrap();
         let (r, w) = stream.into_split();
-        Conn { reader: BufReader::new(r), writer: w, next_id: 1, events: Vec::new() }
+        Conn {
+            reader: BufReader::new(r),
+            writer: w,
+            next_id: 1,
+            events: Vec::new(),
+        }
     }
 
     pub async fn send_raw(&mut self, bytes: &[u8]) {
@@ -139,7 +171,9 @@ impl Conn {
     /// Reads one frame; `None` at end of stream.
     pub async fn recv(&mut self) -> Option<Value> {
         let mut line = Vec::new();
-        let n = tokio::time::timeout(WAIT, self.reader.read_until(b'\n', &mut line)).await.expect("a frame in time");
+        let n = tokio::time::timeout(WAIT, self.reader.read_until(b'\n', &mut line))
+            .await
+            .expect("a frame in time");
         match n {
             Ok(0) | Err(_) => None,
             Ok(_) => {
@@ -158,7 +192,8 @@ impl Conn {
     pub async fn send_request(&mut self, method: &str, params: Value) -> u64 {
         let id = self.next_id;
         self.next_id += 1;
-        self.send(&json!({"jsonrpc": "2.0", "id": id, "method": method, "params": params})).await;
+        self.send(&json!({"jsonrpc": "2.0", "id": id, "method": method, "params": params}))
+            .await;
         id
     }
 
@@ -245,7 +280,10 @@ impl Conn {
         let proof = local::client_proof(secret, &sn, &cn, client_id);
         let hex = |b: &[u8]| bitcoin::hex::DisplayHex::to_lower_hex_string(b);
         let v = self
-            .call("local.authenticate", json!({"client_id": client_id, "client_nonce": hex(&cn), "client_proof": hex(&proof)}))
+            .call(
+                "local.authenticate",
+                json!({"client_id": client_id, "client_nonce": hex(&cn), "client_proof": hex(&proof)}),
+            )
             .await;
         if let Some(r) = v.get("result") {
             let expected = local::server_proof(secret, &sn, &cn, client_id);
@@ -261,16 +299,34 @@ pub fn as_requested(backend: &MemoryBackend, r: &PermissionRequest) -> GrantChoi
     use pwc_provider::backend::WalletBackend;
     let network = r.network.clone().unwrap_or_else(|| Network("regtest".into()));
     let (wallet_ids, account_ids) = if r.wallet_ids.is_empty() && r.account_ids.is_empty() {
-        (backend.wallets().into_iter().filter(|w| w.network == network.as_str()).map(|w| w.wallet_id).collect(), vec![])
+        (
+            backend
+                .wallets()
+                .into_iter()
+                .filter(|w| w.network == network.as_str())
+                .map(|w| w.wallet_id)
+                .collect(),
+            vec![],
+        )
     } else {
         (r.wallet_ids.clone(), r.account_ids.clone())
     };
-    GrantChoice { network, scopes: r.scopes.clone(), wallet_ids, account_ids, expires_at: r.expires_at, constraints: r.constraints.clone() }
+    GrantChoice {
+        network,
+        scopes: r.scopes.clone(),
+        wallet_ids,
+        account_ids,
+        expires_at: r.expires_at,
+        constraints: r.constraints.clone(),
+    }
 }
 
 impl Harness {
     /// Answers the next prompt, which must be a permission request, with `choose`.
-    pub async fn answer_permissions(&mut self, choose: impl FnOnce(&PermissionRequest) -> Option<GrantChoice>) -> PermissionRequest {
+    pub async fn answer_permissions(
+        &mut self,
+        choose: impl FnOnce(&PermissionRequest) -> Option<GrantChoice>,
+    ) -> PermissionRequest {
         match self.next_prompt().await {
             Prompt::Permissions { request, reply } => {
                 let _ = reply.send(choose(&request));
