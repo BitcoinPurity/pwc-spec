@@ -306,3 +306,87 @@ pub fn min_fee(sat_per_kvb: u64, vsize: u64) -> u64 {
     let product = sat_per_kvb as u128 * vsize as u128;
     product.div_ceil(1000) as u64
 }
+
+fn vendor_name(s: &str) -> bool {
+    let Some(rest) = s.strip_prefix("vendor.") else { return false };
+    let parts: Vec<&str> = rest.split('.').collect();
+    let (last, domain) = parts.split_last().unwrap();
+    !domain.is_empty()
+        && domain.iter().all(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-'))
+        && last.starts_with(|c: char| c.is_ascii_alphabetic())
+        && last.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+}
+
+/// Core §6 scopes this Provider can grant.
+pub const SCOPES: [&str; 11] = [
+    "wallets:read",
+    "balances:read",
+    "addresses:read",
+    "addresses:create",
+    "transactions:read",
+    "utxos:read",
+    "psbt:create",
+    "psbt:sign",
+    "transactions:broadcast",
+    "messages:sign",
+    "events:read",
+];
+
+string_type!(
+    /// A Core scope or a vendor extension scope.
+    Scope,
+    |s| SCOPES.contains(&s) || vendor_name(s)
+);
+
+/// Networks this Provider can handle. Purity uses the Bitcoin Core address formats.
+pub const SUPPORTED_NETWORKS: [&str; 3] = ["mainnet", "signet", "regtest"];
+
+/// The address-encoding network of a supported PWC network name.
+pub fn chain_network(network: &str) -> Option<bitcoin::Network> {
+    match network {
+        "mainnet" => Some(bitcoin::Network::Bitcoin),
+        "signet" => Some(bitcoin::Network::Signet),
+        "regtest" => Some(bitcoin::Network::Regtest),
+        _ => None,
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ScriptType {
+    P2wpkh,
+    P2pkh,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum MessageFormat {
+    #[serde(rename = "bip322-simple")]
+    Bip322Simple,
+    #[serde(rename = "bip322-full")]
+    Bip322Full,
+    #[serde(rename = "legacy")]
+    Legacy,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OutPoint {
+    pub txid: Hash256,
+    pub vout: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
+pub enum FeePolicy {
+    Rate { sat_per_kvb: FeeRate },
+    WalletEstimate { target_blocks: PositiveInteger },
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GrantConstraints {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_amount_sats_per_request: Option<PositiveSats>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub valid_until: Option<Timestamp>,
+}

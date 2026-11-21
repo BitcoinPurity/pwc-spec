@@ -252,6 +252,10 @@ struct PairParams {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct EmptyParams {}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct AuthenticateParams {
     client_id: Id,
     client_nonce: Hex,
@@ -269,7 +273,7 @@ fn bytes32(h: Hex) -> Result<[u8; 32], PwcError> {
 enum Stage {
     New,
     Helloed { nonce: [u8; 32], pairing: Option<(Value, JoinHandle<Result<(), PwcError>>, PairingRequest)>, paired_once: bool },
-    Authenticated { client_id: Id, session_id: Id },
+    Authenticated { session_id: Id },
 }
 
 struct Conn {
@@ -457,6 +461,13 @@ impl Conn {
                 _ => unauthenticated("Not authenticated"),
             },
             Stage::Authenticated { session_id, .. } => match method {
+                "local.unpair" => {
+                    if let Err(e) = self::params::<EmptyParams>(params) {
+                        return (Err(e), Next::Continue);
+                    }
+                    self.provider.unpair_session(session_id);
+                    (Ok(json!({"unpaired": true})), Next::Continue)
+                }
                 "local.hello" | "local.pair" | "local.authenticate" => unsupported("The connection is already authenticated"),
                 "local.openDelegate" | "local.delegated" | "local.closeDelegate" => {
                     unsupported("Delegated principals are not implemented")
@@ -539,7 +550,7 @@ impl Conn {
                 let (client_id, secret) = self.provider.register_client(&request);
                 let session_id = self.provider.open_session(&client_id, self.out.clone(), self.kill.clone());
                 let r = json!({"client_id": client_id, "client_secret": Hex(secret.to_vec()), "session_id": session_id});
-                self.stage = Stage::Authenticated { client_id, session_id };
+                self.stage = Stage::Authenticated { session_id };
                 Ok(r)
             }
             Err(e) => Err(e),
@@ -561,7 +572,7 @@ impl Conn {
             Ok(server) => {
                 let session_id = self.provider.open_session(&p.client_id, self.out.clone(), self.kill.clone());
                 let r = json!({"session_id": session_id, "server_proof": Hex(server.to_vec())});
-                self.stage = Stage::Authenticated { client_id: p.client_id, session_id };
+                self.stage = Stage::Authenticated { session_id };
                 (Ok(r), Next::Continue)
             }
             Err(e) => {

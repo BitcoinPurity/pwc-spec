@@ -7,7 +7,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use pwc_provider::local;
-use pwc_provider::prompt::Prompt;
+use pwc_provider::memory::MemoryBackend;
+use pwc_provider::prompt::{GrantChoice, PermissionRequest, Prompt};
+use pwc_provider::types::Network;
 use pwc_provider::provider::{Config, PromptReceiver, Provider};
 use serde_json::{json, Value};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -22,6 +24,7 @@ pub struct Harness {
     pub path: PathBuf,
     pub provider: Arc<Provider>,
     pub prompts: PromptReceiver,
+    pub backend: Arc<MemoryBackend>,
     server: JoinHandle<()>,
 }
 
@@ -33,8 +36,14 @@ impl Drop for Harness {
 
 impl Harness {
     pub async fn start(config: Config) -> Harness {
-        let (provider, prompts) = Provider::new(config);
-        Self::serve(provider, prompts).await
+        Self::with_backend(Arc::new(MemoryBackend::demo()), config).await
+    }
+
+    pub async fn with_backend(backend: Arc<MemoryBackend>, config: Config) -> Harness {
+        let (provider, prompts) = Provider::new(backend.clone(), config);
+        let mut h = Self::serve(provider, prompts).await;
+        h.backend = backend;
+        h
     }
 
     pub async fn serve(provider: Arc<Provider>, prompts: PromptReceiver) -> Harness {
@@ -42,7 +51,7 @@ impl Harness {
         let endpoint = local::bind(&dir.path().join("run"), pwc_provider::PROVIDER_ID).unwrap();
         let path = endpoint.path().to_path_buf();
         let server = tokio::spawn(local::serve(provider.clone(), endpoint));
-        Harness { dir, path, provider, prompts, server }
+        Harness { dir, path, provider, prompts, backend: Arc::new(MemoryBackend::demo()), server }
     }
 
     pub async fn next_prompt(&mut self) -> Prompt {
@@ -104,7 +113,8 @@ fn check_result(method: &str, result: &Value) {
     if schema::core_defines(&format!("{method}.result")) {
         schema::core(&format!("{method}.result"), result).unwrap();
         if result["state"] == "completed" && result.get("result").is_some() {
-            schema::core(&format!("{method}.operationResult"), &result["result"]).unwrap();
+            let op_method = result["method"].as_str().unwrap();
+            schema::core(&format!("{op_method}.operationResult"), &result["result"]).unwrap();
         }
     }
 }
@@ -221,6 +231,76 @@ impl Conn {
             assert_eq!(r["server_proof"], json!(hex(&expected)));
         }
         v
+    }
+}
+
+/// The choice a User makes when approving exactly what was asked: requested network or regtest, and the
+/// requested resources or every wallet of the network.
+pub fn as_requested(backend: &MemoryBackend, r: &PermissionRequest) -> GrantChoice {
+    use pwc_provider::backend::WalletBackend;
+    let network = r.network.clone().unwrap_or_else(|| Network("regtest".into()));
+    let (wallet_ids, account_ids) = if r.wallet_ids.is_empty() && r.account_ids.is_empty() {
+        (backend.wallets().into_iter().filter(|w| w.network == network.as_str()).map(|w| w.wallet_id).collect(), vec![])
+    } else {
+        (r.wallet_ids.clone(), r.account_ids.clone())
+    };
+    GrantChoice { network, scopes: r.scopes.clone(), wallet_ids, account_ids, expires_at: r.expires_at, constraints: r.constraints.clone() }
+}
+
+impl Harness {
+    /// Answers the next prompt, which must be a permission request, with `choose`.
+    pub async fn answer_permissions(&mut self, choose: impl FnOnce(&PermissionRequest) -> Option<GrantChoice>) -> PermissionRequest {
+        match self.next_prompt().await {
+            Prompt::Permissions { request, reply } => {
+                let _ = reply.send(choose(&request));
+                request
+            }
+            _ => panic!("expected a permission prompt"),
+        }
+    }
+
+    /// Requests `params` (scopes and so on) and approves them as requested; returns the completed Operation.
+    pub async fn grant(&mut self, c: &mut Conn, mut params: Value) -> Value {
+        if params.get("idempotency_key").is_none() {
+            params["idempotency_key"] = json!(format!("k-{}", rand_suffix()));
+        }
+        let op = c.ok("session.requestPermissions", params).await;
+        let backend = self.backend.clone();
+        self.answer_permissions(|r| Some(as_requested(&backend, r))).await;
+        let done = c.wait(op["operation_id"].as_str().unwrap()).await;
+        assert_eq!(done["state"], "completed", "{done}");
+        done
+    }
+
+    /// Pairs a Client and grants it `scopes` on every regtest wallet.
+    pub async fn client(&mut self, scopes: &[&str]) -> (Conn, String, [u8; 32]) {
+        let (mut c, id, secret) = self.pair().await;
+        if !scopes.is_empty() {
+            self.grant(&mut c, json!({"scopes": scopes})).await;
+        }
+        (c, id, secret)
+    }
+}
+
+pub fn rand_suffix() -> String {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static N: AtomicU64 = AtomicU64::new(0);
+    format!("{}-{}", std::process::id(), N.fetch_add(1, Ordering::Relaxed))
+}
+
+impl Conn {
+    /// Polls `operation.get` until the Operation is terminal.
+    pub async fn wait(&mut self, op_id: &str) -> Value {
+        let deadline = tokio::time::Instant::now() + WAIT;
+        loop {
+            let op = self.ok("operation.get", json!({"operation_id": op_id})).await;
+            let s = op["state"].as_str().unwrap();
+            if ["completed", "rejected", "expired", "canceled", "failed"].contains(&s) {
+                return op;
+            }
+            assert!(tokio::time::Instant::now() < deadline, "Operation {op_id} still {s}");
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
     }
 }
 

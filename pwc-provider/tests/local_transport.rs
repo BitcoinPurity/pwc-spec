@@ -118,7 +118,8 @@ async fn l06_pairing_approved() {
     let mut h = Harness::start(Config::default()).await;
     let (mut c, client_id, _) = h.pair().await;
     assert!(client_id.starts_with("cl-"));
-    assert_ne!(c.fails("session.getInfo", json!({})).await, "UNAUTHENTICATED");
+    let info = c.ok("session.getInfo", json!({})).await;
+    assert_eq!(info["client_id"], json!(client_id));
     let clients = h.provider.paired_clients();
     assert_eq!(clients.len(), 1);
     assert_eq!(clients[0].client_id.as_str(), client_id);
