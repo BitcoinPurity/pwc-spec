@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tokio::sync::{mpsc, oneshot, Notify};
 
-use crate::backend::{AccountInfo, Reserved, WalletBackend, WalletInfo, WalletState};
+use crate::backend::{AccountInfo, BackendEvent, Reserved, WalletBackend, WalletInfo, WalletState};
 use crate::error::{err, ErrorCode, PwcError};
 use crate::methods::{self, Resource};
 use crate::prompt::{PairingRequest, PeerInfo, Prompt, Requester};
@@ -196,6 +196,13 @@ pub struct Provider {
 }
 
 const AUTH_FAILED: &str = "Authentication failed";
+
+/// Who may receive an event.
+enum Audience<'a> {
+    Client(&'a Id),
+    Wallet { wallet: &'a WalletInfo, readable_only: bool },
+    Account { account: &'a AccountInfo, scope: &'static str },
+}
 
 /// A request's resource after check 7.
 struct Target {
@@ -562,6 +569,8 @@ impl Provider {
             rec.finished_at = Some(now);
             inner.pending.remove(op_id);
         }
+        let client_id = rec.client_id.clone();
+        self.emit(inner, "operation.stateChanged", None, Some(op_id), json!({ "state": state }), Audience::Client(&client_id));
     }
 
     fn fail(&self, inner: &mut Inner, op_id: &Id, e: PwcError) {
@@ -644,12 +653,13 @@ impl Provider {
 
     fn revoke(&self, inner: &mut Inner, grant_id: &str) -> bool {
         let now = Timestamp::now();
-        let Some(g) = inner.state.grants.get_mut(grant_id) else { return false };
+        let Some(g) = inner.state.grants.get(grant_id) else { return false };
         if !g.active(now) {
             return false;
         }
-        g.revoked = true;
         let client_id = g.client_id.clone();
+        self.emit(inner, "grant.revoked", None, None, json!({ "grant_id": grant_id }), Audience::Client(&client_id));
+        inner.state.grants.get_mut(grant_id).expect("found above").revoked = true;
         self.reevaluate(inner, &client_id);
         true
     }
@@ -675,6 +685,12 @@ impl Provider {
     fn unpair(&self, inner: &mut Inner, client_id: &str) {
         let Some(client) = inner.state.clients.remove(client_id) else { return };
         let client_id = client.info.client_id;
+        let now = Timestamp::now();
+        let active: Vec<Id> =
+            inner.state.grants.values().filter(|g| g.client_id == client_id && g.active(now)).map(|g| g.grant_id.clone()).collect();
+        for id in &active {
+            self.emit(inner, "grant.revoked", None, None, json!({ "grant_id": id }), Audience::Client(&client_id));
+        }
         for g in inner.state.grants.values_mut().filter(|g| g.client_id == client_id) {
             g.revoked = true;
         }
@@ -714,15 +730,82 @@ impl Provider {
 
     /// An Operation that is already terminal when created, for methods that complete synchronously.
     fn finished_operation(&self, inner: &mut Inner, ctx: &handlers::Ctx, method: &str, outcome: Result<Value, PwcError>) -> Id {
-        let id = self.new_operation(inner, ctx, method, OpState::Queued);
+        let id = self.new_operation(inner, ctx, method, OpState::Completed);
+        let rec = inner.state.operations.get_mut(&id).expect("just created");
         match outcome {
-            Ok(r) => self.transition(inner, &id, OpState::Completed, Some(r), None),
-            Err(e) => self.fail(inner, &id, e),
+            Ok(r) => rec.op.result = Some(r),
+            Err(e) => {
+                rec.op.state = OpState::Failed;
+                rec.op.error = Some(e);
+            }
         }
-        let op = &mut inner.state.operations.get_mut(&id).expect("just created").op;
-        op.expires_at = None;
-        op.updated_at = op.created_at;
+        rec.finished_at = Some(ctx.now);
         id
+    }
+
+    /// Reports a wallet change; authorized Clients receive the corresponding event.
+    pub fn notify(&self, event: BackendEvent) {
+        let inner = self.lock();
+        match &event {
+            BackendEvent::WalletLocked { wallet_id } | BackendEvent::WalletUnlocked { wallet_id } => {
+                let Some(wallet) = self.backend.wallet(wallet_id.as_str()) else { return };
+                let kind = if matches!(event, BackendEvent::WalletLocked { .. }) { "wallet.locked" } else { "wallet.unlocked" };
+                let audience = Audience::Wallet { wallet: &wallet, readable_only: false };
+                self.emit(&inner, kind, None, None, json!({ "wallet_id": wallet_id }), audience);
+            }
+            BackendEvent::WalletSyncChanged { wallet_id } => {
+                let Some(wallet) = self.backend.wallet(wallet_id.as_str()) else { return };
+                let state = if wallet.state == WalletState::Syncing { "syncing" } else { "synced" };
+                let payload = json!({ "wallet_id": wallet_id, "sync": { "state": state } });
+                self.emit(&inner, "wallet.syncChanged", None, None, payload, Audience::Wallet { wallet: &wallet, readable_only: true });
+            }
+            BackendEvent::BalanceChanged { account_id } => {
+                let Some(account) = self.backend.account(account_id.as_str()) else { return };
+                let audience = Audience::Account { account: &account, scope: "balances:read" };
+                self.emit(&inner, "account.balanceChanged", Some(&account_id), None, json!({}), audience);
+            }
+            BackendEvent::TransactionChanged { account_id, txid, status } => {
+                let Some(account) = self.backend.account(account_id.as_str()) else { return };
+                let audience = Audience::Account { account: &account, scope: "transactions:read" };
+                let payload = json!({ "txid": txid, "status": status });
+                self.emit(&inner, "account.transactionChanged", Some(&account_id), None, payload, audience);
+            }
+        }
+    }
+
+    /// Delivers an event to every connection of a Client that holds `events:read` and could perform the
+    /// equivalent read (Core §8.6, LOCAL §8). A connection whose output buffer is full is closed.
+    fn emit(&self, inner: &Inner, event_type: &str, account_id: Option<&Id>, operation_id: Option<&Id>, payload: Value, audience: Audience) {
+        let now = Timestamp::now();
+        let mut event = json!({ "event_id": Id::random("ev"), "event_type": event_type, "occurred_at": now, "payload": payload });
+        if let Some(a) = account_id {
+            event["account_id"] = json!(a);
+        }
+        if let Some(o) = operation_id {
+            event["operation_id"] = json!(o);
+        }
+        let mut frame = serde_json::to_vec(&json!({ "jsonrpc": "2.0", "method": "pwc.event", "params": event })).expect("event serializes");
+        frame.push(b'\n');
+        let readable = |w: &WalletInfo| wallet_readable(w).is_ok();
+        let wallet_of = |a: &AccountInfo| self.backend.wallet(a.wallet_id.as_str());
+        for s in inner.sessions.values() {
+            let grants: Vec<&Grant> = self.active_grants(inner, &s.client_id, now).collect();
+            if !grants.iter().any(|g| g.has_scope("events:read")) {
+                continue;
+            }
+            let allowed = match &audience {
+                Audience::Client(c) => &s.client_id == *c,
+                Audience::Wallet { wallet, readable_only } => {
+                    (!readable_only || readable(wallet)) && grants.iter().any(|g| g.has_scope("wallets:read") && g.covers_wallet(wallet))
+                }
+                Audience::Account { account, scope } => {
+                    wallet_of(account).is_some_and(|w| readable(&w)) && grants.iter().any(|g| g.has_scope(scope) && g.covers_account(account))
+                }
+            };
+            if allowed && s.out.try_send(Outbound::Frame(frame.clone())).is_err() {
+                s.kill.notify_one();
+            }
+        }
     }
 
     fn requester(&self, inner: &Inner, client_id: &Id) -> Requester {
@@ -737,7 +820,7 @@ impl Provider {
             "profiles": ["pwc-core-read-v1", "pwc-psbt-signer-v1"],
             "supported_networks": crate::types::SUPPORTED_NETWORKS,
             "methods": methods::METHODS.iter().map(|m| m.name).collect::<Vec<_>>(),
-            "features": ["coin_control", "watch_only"],
+            "features": ["coin_control", "watch_only", "event_push"],
             "scopes": crate::types::SCOPES,
             "script_types": ["p2wpkh", "p2pkh"],
             "message_formats": ["bip322-simple", "legacy"],

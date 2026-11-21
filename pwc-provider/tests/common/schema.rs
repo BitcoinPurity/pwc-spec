@@ -1,4 +1,5 @@
-use std::sync::OnceLock;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex, OnceLock};
 
 use serde_json::{json, Value};
 
@@ -36,9 +37,17 @@ fn options() -> jsonschema::ValidationOptions {
 }
 
 fn check(file: &str, def: &str, instance: &Value) -> Result<(), String> {
-    let validator = options()
-        .build(&json!({ "$ref": format!("{BASE}{file}#/$defs/{def}") }))
-        .map_err(|e| format!("schema build: {e}"))?;
+    static CACHE: OnceLock<Mutex<HashMap<String, Arc<jsonschema::Validator>>>> = OnceLock::new();
+    let uri = format!("{BASE}{file}#/$defs/{def}");
+    let cached = CACHE.get_or_init(Default::default).lock().unwrap().get(&uri).cloned();
+    let validator = match cached {
+        Some(v) => v,
+        None => {
+            let v = Arc::new(options().build(&json!({ "$ref": uri })).map_err(|e| format!("schema build: {e}"))?);
+            CACHE.get().unwrap().lock().unwrap().insert(uri, v.clone());
+            v
+        }
+    };
     let errors: Vec<String> = validator.iter_errors(instance).map(|e| format!("{} at {}", e, e.instance_path)).collect();
     if errors.is_empty() {
         Ok(())

@@ -214,7 +214,15 @@ impl Provider {
                 let tx: bitcoin::Transaction = bitcoin::consensus::deserialize(&p.raw_transaction.0)
                     .map_err(|_| err(ErrorCode::InvalidArgument, "raw_transaction is not a valid transaction"))?;
                 let outcome = match self.backend.broadcast(&ctx.account().network, &tx) {
-                    Ok(txid) => Ok(json!({ "txid": txid.to_string() })),
+                    Ok(txid) => {
+                        let account = ctx.account();
+                        let a = super::Audience::Account { account, scope: "balances:read" };
+                        self.emit(inner, "account.balanceChanged", Some(&account.account_id), None, json!({}), a);
+                        let a = super::Audience::Account { account, scope: "transactions:read" };
+                        let payload = json!({ "txid": txid.to_string(), "status": "unconfirmed" });
+                        self.emit(inner, "account.transactionChanged", Some(&account.account_id), None, payload, a);
+                        Ok(json!({ "txid": txid.to_string() }))
+                    }
                     Err(e) if matches!(e.code, ErrorCode::TransactionRejected | ErrorCode::NetworkUnavailable) => Err(e),
                     Err(e) => return Err(e),
                 };
@@ -571,9 +579,14 @@ impl Provider {
         let Some(expiry) = grant.expiry() else { return };
         let provider = self.clone();
         let client_id = grant.client_id.clone();
+        let grant_id = grant.grant_id.clone();
         tokio::spawn(async move {
             tokio::time::sleep(expiry.remaining()).await;
             let mut inner = provider.lock();
+            if inner.state.grants.get(&grant_id).is_some_and(|g| !g.revoked) {
+                let audience = super::Audience::Client(&client_id);
+                provider.emit(&inner, "grant.expired", None, None, json!({ "grant_id": grant_id }), audience);
+            }
             provider.reevaluate(&mut inner, &client_id);
         });
     }

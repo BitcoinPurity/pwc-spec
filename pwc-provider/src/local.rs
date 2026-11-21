@@ -340,9 +340,12 @@ async fn connection(provider: Arc<Provider>, stream: UnixStream) {
     if let Stage::Authenticated { session_id, .. } = &conn.stage {
         conn.provider.close_session(session_id);
     }
-    let _ = conn.out.send(Outbound::Close).await;
+    let _ = tokio::time::timeout(DRAIN_TIMEOUT, conn.out.send(Outbound::Close)).await;
     drop(conn);
-    let _ = writer.await;
+    let abort = writer.abort_handle();
+    if tokio::time::timeout(DRAIN_TIMEOUT, writer).await.is_err() {
+        abort.abort(); // the Client stopped reading
+    }
     if close_with_drain {
         // Discard what the Client is still sending, so that closing does not reset the connection before
         // the Client has read the last response.

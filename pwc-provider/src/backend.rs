@@ -118,6 +118,17 @@ pub struct TransactionRecord {
     pub replaced_by_txid: Option<Hash256>,
 }
 
+/// A change in the wallet that the host reports to the Provider with `Provider::notify` (Core §8.6).
+#[derive(Debug, Clone)]
+pub enum BackendEvent {
+    WalletLocked { wallet_id: Id },
+    WalletUnlocked { wallet_id: Id },
+    WalletSyncChanged { wallet_id: Id },
+    BalanceChanged { account_id: Id },
+    /// `status` as in `TransactionRecord`.
+    TransactionChanged { account_id: Id, txid: String, status: &'static str },
+}
+
 /// Outpoints reserved by PSBT requests; reported as `locked` (Core §8.3).
 pub type Reserved = HashSet<bitcoin::OutPoint>;
 

@@ -214,6 +214,27 @@ impl Conn {
         }
     }
 
+    /// The next event notification, from those already received or the next frames.
+    pub async fn next_event(&mut self) -> Value {
+        if !self.events.is_empty() {
+            return self.events.remove(0);
+        }
+        loop {
+            let v = self.recv().await.expect("connection open");
+            if v["method"] == "pwc.event" {
+                return v["params"].clone();
+            }
+        }
+    }
+
+    /// Fails if an event arrives within a short time.
+    pub async fn no_event(&mut self) {
+        assert!(self.events.is_empty(), "unexpected events {:?}", self.events);
+        let mut line = Vec::new();
+        let got = tokio::time::timeout(Duration::from_millis(200), self.reader.read_until(b'\n', &mut line)).await;
+        assert!(got.is_err(), "unexpected frame {}", String::from_utf8_lossy(&line));
+    }
+
     pub async fn hello(&mut self) -> Value {
         self.ok("local.hello", json!({"protocols": ["pwc-local/1"]})).await
     }
@@ -277,6 +298,9 @@ impl Harness {
         let (mut c, id, secret) = self.pair().await;
         if !scopes.is_empty() {
             self.grant(&mut c, json!({"scopes": scopes})).await;
+            if scopes.contains(&"events:read") {
+                assert_eq!(c.next_event().await["event_type"], "operation.stateChanged");
+            }
         }
         (c, id, secret)
     }
