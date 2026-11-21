@@ -71,6 +71,7 @@ REGISTRY, CONFORMANCE, SECURITY, UX and CLIENT-GUIDE refer to all of the above.
 
 | Folder | Contents |
 |---|---|
+| `specs/` | The documents of §2 |
 | `pwc-schema/` | JSON Schemas for Core and the three transports with their own messages, the registry JSON, generators and the schema check |
 | `pwc-testkit/` | Test vectors, reference computations, PSBT fixtures, the LOCAL runner, a mock Provider and a minimal Client |
 

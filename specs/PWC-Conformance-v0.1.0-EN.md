@@ -42,7 +42,7 @@ A conformance claim MUST name the class or classes, the exact versions of the sp
 
 ## 3. Test kit
 
-The kit is distributed with the specifications. Its files:
+The kit is distributed with the specifications. Paths are relative to the root of the distribution, where the documents themselves are in `specs/`. Its files:
 
 | File | Purpose |
 |---|---|
@@ -67,7 +67,7 @@ The kit is distributed with the specifications. Its files:
 ## 4. Running the kit
 
 ```text
-python3 pwc-schema/check_schema.py PWC-Core-v0.2.1-EN.md PWC-Transport-Local-v0.1.0-EN.md PWC-Transport-Remote-v0.1.0-EN.md
+python3 pwc-schema/check_schema.py specs/PWC-Core-v0.2.1-EN.md specs/PWC-Transport-Local-v0.1.0-EN.md specs/PWC-Transport-Remote-v0.1.0-EN.md
 python3 pwc-testkit/run_vectors.py
 python3 pwc-testkit/check_psbt_fixtures.py <path-to-embit/src>
 python3 pwc-testkit/local_runner.py --socket <endpoint> --pair [--allow-destructive] --report report.json

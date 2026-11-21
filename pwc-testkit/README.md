@@ -21,7 +21,7 @@ python3 run_vectors.py
 python3 check_psbt_fixtures.py <path-to-embit/src>
 python3 mock_local_provider.py --dir /tmp/pwc-test &
 python3 local_runner.py --socket /tmp/pwc-test/mockwallet.sock --pair --allow-destructive --report report.json
-python3 check_family.py ..
+python3 check_family.py ../specs
 ```
 
 Against the mock Provider the runner passes all 16 automatable tests and lists 18 as `manual`.

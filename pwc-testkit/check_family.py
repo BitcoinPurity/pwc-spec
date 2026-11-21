@@ -1,6 +1,6 @@
 """Editorial consistency check across the PWC document family.
 
-Usage: python3 check_family.py <directory containing the PWC-*.md files>
+Usage: python3 check_family.py <directory containing the PWC-*.md files, normally specs/>
 Checks section references between documents, method, notification and event names, error codes, test identifiers
 cited by PWC-CONFORMANCE-001, table shapes, and requirement keywords written in lower case in normative documents.
 """
