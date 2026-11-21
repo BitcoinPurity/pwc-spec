@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://purity-wallet-connect.invalid/schema/pwc-transport-browser-0.1.0.schema.json",
+  "title": "PWC Transport Profile BROWSER v0.1.0",
+  "description": "JSON-representable values of PWC-TRANSPORT-BROWSER-001 v0.1.0: the announced provider info, the request arguments and the members of a rejection error. The provider object itself is a JavaScript object and is not described here.",
+  "$defs": {
+    "PwcProviderInfo": {
+      "type": "object",
+      "properties": {
+        "uuid": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "provider_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,32}$"
+        },
+        "name": {
+          "$ref": "https://purity-wallet-connect.invalid/schema/pwc-core-0.2.1.schema.json#/$defs/Text"
+        },
+        "icon": {
+          "type": "string",
+          "pattern": "^data:image/(png|webp|svg\\+xml)[;,]"
+        },
+        "protocol": {
+          "const": "pwc-browser/1"
+        }
+      },
+      "required": [
+        "icon",
+        "name",
+        "protocol",
+        "provider_id",
+        "uuid"
+      ]
+    },
+    "RequestArguments": {
+      "type": "object",
+      "properties": {
+        "method": {
+          "$ref": "https://purity-wallet-connect.invalid/schema/pwc-core-0.2.1.schema.json#/$defs/MethodName"
+        },
+        "params": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "method"
+      ]
+    },
+    "RejectionError": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "const": "PwcError"
+        },
+        "code": {
+          "$ref": "https://purity-wallet-connect.invalid/schema/pwc-core-0.2.1.schema.json#/$defs/ErrorCode"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "object"
+        },
+        "retryable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "name"
+      ]
+    }
+  }
+}

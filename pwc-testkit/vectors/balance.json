@@ -1,0 +1,79 @@
+{
+  "description": "Balance snapshots (PWC-CORE-001 v0.2.1 §4.3, tests C-24 and C-25). Each vector gives a scenario and the expected Balance fields.",
+  "vectors": [
+    {
+      "id": "BAL-01",
+      "note": "Core §4.3 example: self-funded spend with unconfirmed change; policy does not spend unconfirmed outputs",
+      "scenario": {
+        "confirmed_outputs": [{"outpoint": "a:0", "value": 400000}, {"outpoint": "b:0", "value": 600000}],
+        "pending_transactions": [{"txid": "t1", "inputs": ["a:0"],
+          "outputs": [{"outpoint": "t1:0", "value": 300000, "owned": false}, {"outpoint": "t1:1", "value": 99000, "owned": true}]}],
+        "policy": {"spend_unconfirmed_self": false, "spend_unconfirmed_external": false}
+      },
+      "expected": {"confirmed_sats": "1000000", "pending_self_sats": "99000", "pending_external_sats": "0",
+        "pending_outgoing_sats": "400000", "unconfirmed_delta_sats": "-301000", "spendable_sats": "600000",
+        "locked_sats": "0", "immature_sats": "0"}
+    },
+    {
+      "id": "BAL-02",
+      "note": "Core §4.3 example extended with an unconfirmed external receipt of 50,000 sat",
+      "scenario": {
+        "confirmed_outputs": [{"outpoint": "a:0", "value": 400000}, {"outpoint": "b:0", "value": 600000}],
+        "pending_transactions": [
+          {"txid": "t1", "inputs": ["a:0"],
+           "outputs": [{"outpoint": "t1:0", "value": 300000, "owned": false}, {"outpoint": "t1:1", "value": 99000, "owned": true}]},
+          {"txid": "x1", "inputs": ["foreign:0"], "outputs": [{"outpoint": "x1:0", "value": 50000, "owned": true}]}],
+        "policy": {"spend_unconfirmed_self": false, "spend_unconfirmed_external": false}
+      },
+      "expected": {"confirmed_sats": "1000000", "pending_self_sats": "99000", "pending_external_sats": "50000",
+        "pending_outgoing_sats": "400000", "unconfirmed_delta_sats": "-251000", "spendable_sats": "600000",
+        "locked_sats": "0", "immature_sats": "0"}
+    },
+    {
+      "id": "BAL-03",
+      "note": "Pending-to-pending spend: change of t1 is spent by t2; nothing is counted twice; policy spends self-funded change",
+      "scenario": {
+        "confirmed_outputs": [{"outpoint": "a:0", "value": 500000}],
+        "pending_transactions": [
+          {"txid": "t1", "inputs": ["a:0"],
+           "outputs": [{"outpoint": "t1:0", "value": 100000, "owned": false}, {"outpoint": "t1:1", "value": 399000, "owned": true}]},
+          {"txid": "t2", "inputs": ["t1:1"],
+           "outputs": [{"outpoint": "t2:0", "value": 200000, "owned": false}, {"outpoint": "t2:1", "value": 198000, "owned": true}]}],
+        "policy": {"spend_unconfirmed_self": true, "spend_unconfirmed_external": false}
+      },
+      "expected": {"confirmed_sats": "500000", "pending_self_sats": "198000", "pending_external_sats": "0",
+        "pending_outgoing_sats": "500000", "unconfirmed_delta_sats": "-302000", "spendable_sats": "198000",
+        "locked_sats": "0", "immature_sats": "0"}
+    },
+    {
+      "id": "BAL-04",
+      "note": "An own transaction spending an unconfirmed external receipt: its change is external because an ancestor is not self-funded",
+      "scenario": {
+        "confirmed_outputs": [],
+        "pending_transactions": [
+          {"txid": "x1", "inputs": ["foreign:0"], "outputs": [{"outpoint": "x1:0", "value": 80000, "owned": true}]},
+          {"txid": "t1", "inputs": ["x1:0"],
+           "outputs": [{"outpoint": "t1:0", "value": 30000, "owned": false}, {"outpoint": "t1:1", "value": 49000, "owned": true}]}],
+        "policy": {"spend_unconfirmed_self": true, "spend_unconfirmed_external": false}
+      },
+      "expected": {"confirmed_sats": "0", "pending_self_sats": "0", "pending_external_sats": "49000",
+        "pending_outgoing_sats": "0", "unconfirmed_delta_sats": "49000", "spendable_sats": "0",
+        "locked_sats": "0", "immature_sats": "0"}
+    },
+    {
+      "id": "BAL-05",
+      "note": "Immature coinbase that is also locked counts as immature only; a locked mature output counts as locked",
+      "scenario": {
+        "confirmed_outputs": [
+          {"outpoint": "cb:0", "value": 312500000, "immature": true, "locked": true},
+          {"outpoint": "a:0", "value": 70000, "locked": true},
+          {"outpoint": "b:0", "value": 30000}],
+        "pending_transactions": [],
+        "policy": {"spend_unconfirmed_self": false, "spend_unconfirmed_external": false}
+      },
+      "expected": {"confirmed_sats": "312600000", "pending_self_sats": "0", "pending_external_sats": "0",
+        "pending_outgoing_sats": "0", "unconfirmed_delta_sats": "0", "spendable_sats": "30000",
+        "locked_sats": "70000", "immature_sats": "312500000"}
+    }
+  ]
+}

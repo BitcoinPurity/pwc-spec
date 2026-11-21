@@ -1,0 +1,2585 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://purity-wallet-connect.invalid/schema/pwc-core-0.2.1.strict.schema.json",
+  "title": "PWC Core v0.2.1 (strict)",
+  "description": "Machine-readable companion of PWC-CORE-001 v0.2.1. If this schema and the specification text disagree, the text prevails (Core §3.2). x-pwc-methods maps every Core method to its params, direct result and, for Operation-returning methods, the completed Operation result. Strict variant: unknown members are rejected; use it to test Provider output.",
+  "x-pwc-methods": {
+    "pwc.getCapabilities": {
+      "params": {
+        "$ref": "#/$defs/pwc.getCapabilities.params"
+      },
+      "result": {
+        "$ref": "#/$defs/pwc.getCapabilities.result"
+      }
+    },
+    "session.getInfo": {
+      "params": {
+        "$ref": "#/$defs/session.getInfo.params"
+      },
+      "result": {
+        "$ref": "#/$defs/session.getInfo.result"
+      }
+    },
+    "session.requestPermissions": {
+      "params": {
+        "$ref": "#/$defs/session.requestPermissions.params"
+      },
+      "result": {
+        "$ref": "#/$defs/session.requestPermissions.result"
+      },
+      "operationResult": {
+        "$ref": "#/$defs/session.requestPermissions.operationResult"
+      }
+    },
+    "session.getPermissions": {
+      "params": {
+        "$ref": "#/$defs/session.getPermissions.params"
+      },
+      "result": {
+        "$ref": "#/$defs/session.getPermissions.result"
+      }
+    },
+    "session.revokePermissions": {
+      "params": {
+        "$ref": "#/$defs/session.revokePermissions.params"
+      },
+      "result": {
+        "$ref": "#/$defs/session.revokePermissions.result"
+      }
+    },
+    "wallet.list": {
+      "params": {
+        "$ref": "#/$defs/wallet.list.params"
+      },
+      "result": {
+        "$ref": "#/$defs/wallet.list.result"
+      }
+    },
+    "account.list": {
+      "params": {
+        "$ref": "#/$defs/account.list.params"
+      },
+      "result": {
+        "$ref": "#/$defs/account.list.result"
+      }
+    },
+    "account.getBalance": {
+      "params": {
+        "$ref": "#/$defs/account.getBalance.params"
+      },
+      "result": {
+        "$ref": "#/$defs/account.getBalance.result"
+      }
+    },
+    "address.getReceiveAddress": {
+      "params": {
+        "$ref": "#/$defs/address.getReceiveAddress.params"
+      },
+      "result": {
+        "$ref": "#/$defs/address.getReceiveAddress.result"
+      }
+    },
+    "address.create": {
+      "params": {
+        "$ref": "#/$defs/address.create.params"
+      },
+      "result": {
+        "$ref": "#/$defs/address.create.result"
+      }
+    },
+    "address.list": {
+      "params": {
+        "$ref": "#/$defs/address.list.params"
+      },
+      "result": {
+        "$ref": "#/$defs/address.list.result"
+      }
+    },
+    "utxo.list": {
+      "params": {
+        "$ref": "#/$defs/utxo.list.params"
+      },
+      "result": {
+        "$ref": "#/$defs/utxo.list.result"
+      }
+    },
+    "transaction.list": {
+      "params": {
+        "$ref": "#/$defs/transaction.list.params"
+      },
+      "result": {
+        "$ref": "#/$defs/transaction.list.result"
+      }
+    },
+    "transaction.get": {
+      "params": {
+        "$ref": "#/$defs/transaction.get.params"
+      },
+      "result": {
+        "$ref": "#/$defs/transaction.get.result"
+      }
+    },
+    "psbt.create": {
+      "params": {
+        "$ref": "#/$defs/psbt.create.params"
+      },
+      "result": {
+        "$ref": "#/$defs/psbt.create.result"
+      },
+      "operationResult": {
+        "$ref": "#/$defs/psbt.create.operationResult"
+      }
+    },
+    "psbt.releaseReservation": {
+      "params": {
+        "$ref": "#/$defs/psbt.releaseReservation.params"
+      },
+      "result": {
+        "$ref": "#/$defs/psbt.releaseReservation.result"
+      }
+    },
+    "psbt.sign": {
+      "params": {
+        "$ref": "#/$defs/psbt.sign.params"
+      },
+      "result": {
+        "$ref": "#/$defs/psbt.sign.result"
+      },
+      "operationResult": {
+        "$ref": "#/$defs/psbt.sign.operationResult"
+      }
+    },
+    "psbt.combine": {
+      "params": {
+        "$ref": "#/$defs/psbt.combine.params"
+      },
+      "result": {
+        "$ref": "#/$defs/psbt.combine.result"
+      }
+    },
+    "psbt.finalize": {
+      "params": {
+        "$ref": "#/$defs/psbt.finalize.params"
+      },
+      "result": {
+        "$ref": "#/$defs/psbt.finalize.result"
+      }
+    },
+    "transaction.broadcast": {
+      "params": {
+        "$ref": "#/$defs/transaction.broadcast.params"
+      },
+      "result": {
+        "$ref": "#/$defs/transaction.broadcast.result"
+      },
+      "operationResult": {
+        "$ref": "#/$defs/transaction.broadcast.operationResult"
+      }
+    },
+    "message.sign": {
+      "params": {
+        "$ref": "#/$defs/message.sign.params"
+      },
+      "result": {
+        "$ref": "#/$defs/message.sign.result"
+      },
+      "operationResult": {
+        "$ref": "#/$defs/message.sign.operationResult"
+      }
+    },
+    "message.verify": {
+      "params": {
+        "$ref": "#/$defs/message.verify.params"
+      },
+      "result": {
+        "$ref": "#/$defs/message.verify.result"
+      }
+    },
+    "operation.get": {
+      "params": {
+        "$ref": "#/$defs/operation.get.params"
+      },
+      "result": {
+        "$ref": "#/$defs/operation.get.result"
+      }
+    },
+    "operation.cancel": {
+      "params": {
+        "$ref": "#/$defs/operation.cancel.params"
+      },
+      "result": {
+        "$ref": "#/$defs/operation.cancel.result"
+      }
+    }
+  },
+  "$defs": {
+    "Id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._~:-]{1,128}$"
+    },
+    "Sats": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]{0,14}|1[0-9]{15}|20[0-9]{14}|2100000000000000)$"
+    },
+    "PositiveSats": {
+      "type": "string",
+      "pattern": "^([1-9][0-9]{0,14}|1[0-9]{15}|20[0-9]{14}|2100000000000000)$"
+    },
+    "SignedSats": {
+      "type": "string",
+      "pattern": "^(0|-?([1-9][0-9]{0,14}|1[0-9]{15}|20[0-9]{14}|2100000000000000))$"
+    },
+    "FeeRate": {
+      "type": "string",
+      "pattern": "^([1-9][0-9]{0,8}|1000000000)$"
+    },
+    "UInt32": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4294967295
+    },
+    "NonNegativeInteger": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "PositiveInteger": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "BlockHeight": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4294967295
+    },
+    "PsbtVersion": {
+      "const": 0
+    },
+    "Timestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$",
+      "format": "date-time"
+    },
+    "Hash256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "Hex": {
+      "type": "string",
+      "pattern": "^([0-9a-f]{2})+$"
+    },
+    "Base64": {
+      "type": "string",
+      "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{4}|[A-Za-z0-9+/][AQgw]==|[A-Za-z0-9+/]{2}[AEIMQUYcgkosw048]=)$"
+    },
+    "Address": {
+      "type": "string",
+      "minLength": 1
+    },
+    "Network": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]{1,32}$"
+    },
+    "Cursor": {
+      "type": "string",
+      "minLength": 1
+    },
+    "Text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$"
+    },
+    "MethodName": {
+      "type": "string",
+      "pattern": "^([a-z]+\\.[a-z][A-Za-z]*|vendor(\\.[a-z0-9-]+)+\\.[A-Za-z][A-Za-z0-9_-]*)$"
+    },
+    "Scope": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "wallets:read",
+            "balances:read",
+            "addresses:read",
+            "addresses:create",
+            "transactions:read",
+            "utxos:read",
+            "psbt:create",
+            "psbt:sign",
+            "transactions:broadcast",
+            "messages:sign",
+            "events:read"
+          ]
+        },
+        {
+          "type": "string",
+          "pattern": "^vendor(\\.[a-z0-9-]+)+\\.[A-Za-z][A-Za-z0-9_-]*$"
+        }
+      ]
+    },
+    "Feature": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "coin_control",
+            "multisig",
+            "hardware_signing",
+            "watch_only",
+            "event_push"
+          ]
+        },
+        {
+          "type": "string",
+          "pattern": "^vendor(\\.[a-z0-9-]+)+\\.[A-Za-z][A-Za-z0-9_-]*$"
+        }
+      ]
+    },
+    "ErrorCode": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "INVALID_ARGUMENT",
+            "PAYLOAD_TOO_LARGE",
+            "UNSUPPORTED_METHOD",
+            "UNSUPPORTED_OPERATION",
+            "UNSUPPORTED_PSBT_VERSION",
+            "UNSUPPORTED_SCRIPT",
+            "UNAUTHENTICATED",
+            "PERMISSION_REQUIRED",
+            "PERMISSION_REVOKED",
+            "GRANT_NOT_FOUND",
+            "GRANT_CONSTRAINT_VIOLATED",
+            "USER_REJECTED",
+            "WALLET_LOCKED",
+            "WALLET_NOT_FOUND",
+            "ACCOUNT_NOT_FOUND",
+            "NETWORK_MISMATCH",
+            "NETWORK_UNAVAILABLE",
+            "SYNC_INCOMPLETE",
+            "STATE_UNAVAILABLE",
+            "SIGNER_UNAVAILABLE",
+            "INSUFFICIENT_FUNDS",
+            "POLICY_VIOLATION",
+            "PSBT_VALIDATION_FAILED",
+            "PSBT_CONFLICT",
+            "TRANSACTION_REJECTED",
+            "TRANSACTION_NOT_FOUND",
+            "RESERVATION_NOT_FOUND",
+            "OPERATION_NOT_FOUND",
+            "OPERATION_NOT_CANCELABLE",
+            "OPERATION_EXPIRED",
+            "OPERATION_CANCELED",
+            "IDEMPOTENCY_CONFLICT",
+            "CURSOR_EXPIRED",
+            "RATE_LIMITED",
+            "PROVIDER_UNAVAILABLE",
+            "INTERNAL_ERROR"
+          ]
+        },
+        {
+          "type": "string",
+          "pattern": "^vendor(\\.[a-z0-9-]+)+\\.[A-Za-z][A-Za-z0-9_-]*$"
+        }
+      ]
+    },
+    "EventType": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "wallet.locked",
+            "wallet.unlocked",
+            "wallet.syncChanged",
+            "account.balanceChanged",
+            "account.transactionChanged",
+            "operation.stateChanged",
+            "grant.revoked",
+            "grant.expired",
+            "session.expired"
+          ]
+        },
+        {
+          "type": "string",
+          "pattern": "^vendor(\\.[a-z0-9-]+)+\\.[A-Za-z][A-Za-z0-9_-]*$"
+        }
+      ]
+    },
+    "ProfileName": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+-v[0-9]+$"
+    },
+    "SemVer": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?$"
+    },
+    "OutPoint": {
+      "type": "object",
+      "properties": {
+        "txid": {
+          "$ref": "#/$defs/Hash256"
+        },
+        "vout": {
+          "$ref": "#/$defs/UInt32"
+        }
+      },
+      "required": [
+        "txid",
+        "vout"
+      ],
+      "additionalProperties": false
+    },
+    "ScriptType": {
+      "type": "string",
+      "enum": [
+        "p2pkh",
+        "p2sh",
+        "p2sh-p2wpkh",
+        "p2sh-p2wsh",
+        "p2wpkh",
+        "p2wsh",
+        "p2tr",
+        "other"
+      ]
+    },
+    "MessageFormat": {
+      "type": "string",
+      "enum": [
+        "bip322-simple",
+        "bip322-full",
+        "legacy"
+      ]
+    },
+    "SyncStatus": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "synced",
+            "syncing",
+            "offline",
+            "unknown"
+          ]
+        },
+        "tip_height": {
+          "$ref": "#/$defs/BlockHeight"
+        }
+      },
+      "required": [
+        "state"
+      ],
+      "additionalProperties": false
+    },
+    "FeePolicy": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "rate"
+            },
+            "sat_per_kvb": {
+              "$ref": "#/$defs/FeeRate"
+            }
+          },
+          "required": [
+            "sat_per_kvb",
+            "type"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "wallet_estimate"
+            },
+            "target_blocks": {
+              "$ref": "#/$defs/PositiveInteger"
+            }
+          },
+          "required": [
+            "target_blocks",
+            "type"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "PwcError": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/ErrorCode"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "object"
+        },
+        "retryable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "additionalProperties": false
+    },
+    "Capabilities": {
+      "type": "object",
+      "properties": {
+        "pwc_version": {
+          "$ref": "#/$defs/SemVer"
+        },
+        "provider": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "$ref": "#/$defs/Text"
+            },
+            "version": {
+              "$ref": "#/$defs/Text"
+            },
+            "platform": {
+              "type": "string",
+              "enum": [
+                "desktop",
+                "mobile",
+                "extension",
+                "other"
+              ]
+            }
+          },
+          "required": [
+            "name",
+            "platform",
+            "version"
+          ],
+          "additionalProperties": false
+        },
+        "profiles": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProfileName"
+          }
+        },
+        "supported_networks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Network"
+          }
+        },
+        "methods": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MethodName"
+          }
+        },
+        "features": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Feature"
+          }
+        },
+        "scopes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Scope"
+          }
+        },
+        "script_types": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ScriptType"
+          }
+        },
+        "message_formats": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MessageFormat"
+          }
+        },
+        "limits": {
+          "type": "object",
+          "properties": {
+            "max_page_size": {
+              "$ref": "#/$defs/PositiveInteger"
+            },
+            "max_psbt_bytes": {
+              "$ref": "#/$defs/PositiveInteger"
+            },
+            "max_raw_transaction_bytes": {
+              "$ref": "#/$defs/PositiveInteger"
+            },
+            "max_message_bytes": {
+              "$ref": "#/$defs/PositiveInteger"
+            },
+            "max_concurrent_operations": {
+              "$ref": "#/$defs/PositiveInteger"
+            },
+            "operation_retention_seconds": {
+              "$ref": "#/$defs/PositiveInteger"
+            },
+            "max_combine_psbts": {
+              "type": "integer",
+              "minimum": 2,
+              "maximum": 9007199254740991
+            },
+            "high_fee_rate": {
+              "$ref": "#/$defs/FeeRate"
+            }
+          },
+          "required": [
+            "high_fee_rate",
+            "max_combine_psbts",
+            "max_concurrent_operations",
+            "max_message_bytes",
+            "max_page_size",
+            "max_psbt_bytes",
+            "max_raw_transaction_bytes",
+            "operation_retention_seconds"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "features",
+        "limits",
+        "message_formats",
+        "methods",
+        "profiles",
+        "provider",
+        "pwc_version",
+        "scopes",
+        "script_types",
+        "supported_networks"
+      ],
+      "additionalProperties": false
+    },
+    "WalletSummary": {
+      "type": "object",
+      "properties": {
+        "wallet_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "display_name": {
+          "$ref": "#/$defs/Text"
+        },
+        "network": {
+          "$ref": "#/$defs/Network"
+        },
+        "wallet_kind": {
+          "type": "string",
+          "enum": [
+            "software",
+            "hardware",
+            "multisig",
+            "watch_only",
+            "other"
+          ]
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "ready",
+            "locked",
+            "syncing",
+            "unavailable"
+          ]
+        },
+        "account_ids": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Id"
+          }
+        }
+      },
+      "required": [
+        "account_ids",
+        "display_name",
+        "network",
+        "state",
+        "wallet_id",
+        "wallet_kind"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "type": "string",
+                "enum": [
+                  "locked",
+                  "unavailable"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "account_ids": {
+                "maxItems": 0
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "AccountSummary": {
+      "type": "object",
+      "properties": {
+        "account_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "wallet_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "display_name": {
+          "$ref": "#/$defs/Text"
+        },
+        "network": {
+          "$ref": "#/$defs/Network"
+        },
+        "can_sign": {
+          "type": "boolean"
+        },
+        "script_types": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ScriptType"
+          }
+        },
+        "methods": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MethodName"
+          }
+        }
+      },
+      "required": [
+        "account_id",
+        "can_sign",
+        "display_name",
+        "methods",
+        "network",
+        "script_types",
+        "wallet_id"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "can_sign": {
+                "const": false
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "methods": {
+                "not": {
+                  "anyOf": [
+                    {
+                      "contains": {
+                        "const": "psbt.sign"
+                      }
+                    },
+                    {
+                      "contains": {
+                        "const": "message.sign"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "Balance": {
+      "type": "object",
+      "properties": {
+        "account_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "network": {
+          "$ref": "#/$defs/Network"
+        },
+        "confirmed_sats": {
+          "$ref": "#/$defs/Sats"
+        },
+        "pending_self_sats": {
+          "$ref": "#/$defs/Sats"
+        },
+        "pending_external_sats": {
+          "$ref": "#/$defs/Sats"
+        },
+        "pending_outgoing_sats": {
+          "$ref": "#/$defs/Sats"
+        },
+        "spendable_sats": {
+          "$ref": "#/$defs/Sats"
+        },
+        "locked_sats": {
+          "$ref": "#/$defs/Sats"
+        },
+        "immature_sats": {
+          "$ref": "#/$defs/Sats"
+        },
+        "unconfirmed_delta_sats": {
+          "$ref": "#/$defs/SignedSats"
+        },
+        "updated_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "sync": {
+          "$ref": "#/$defs/SyncStatus"
+        }
+      },
+      "required": [
+        "account_id",
+        "confirmed_sats",
+        "immature_sats",
+        "locked_sats",
+        "network",
+        "pending_external_sats",
+        "pending_outgoing_sats",
+        "pending_self_sats",
+        "spendable_sats",
+        "sync",
+        "unconfirmed_delta_sats",
+        "updated_at"
+      ],
+      "additionalProperties": false
+    },
+    "AddressRecord": {
+      "type": "object",
+      "properties": {
+        "account_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "network": {
+          "$ref": "#/$defs/Network"
+        },
+        "address": {
+          "$ref": "#/$defs/Address"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "receive",
+            "change",
+            "unknown"
+          ]
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "unused",
+            "used",
+            "unknown"
+          ]
+        },
+        "label": {
+          "$ref": "#/$defs/Text"
+        }
+      },
+      "required": [
+        "account_id",
+        "address",
+        "network",
+        "role",
+        "state"
+      ],
+      "additionalProperties": false
+    },
+    "Utxo": {
+      "type": "object",
+      "properties": {
+        "txid": {
+          "$ref": "#/$defs/Hash256"
+        },
+        "vout": {
+          "$ref": "#/$defs/UInt32"
+        },
+        "account_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "network": {
+          "$ref": "#/$defs/Network"
+        },
+        "value_sats": {
+          "$ref": "#/$defs/Sats"
+        },
+        "confirmations": {
+          "$ref": "#/$defs/NonNegativeInteger"
+        },
+        "block_height": {
+          "$ref": "#/$defs/BlockHeight"
+        },
+        "address": {
+          "$ref": "#/$defs/Address"
+        },
+        "script_pub_key": {
+          "$ref": "#/$defs/Hex"
+        },
+        "spendable": {
+          "type": "boolean"
+        },
+        "restrictions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "frozen",
+              "locked",
+              "immature",
+              "unconfirmed",
+              "unknown"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "is_change": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "account_id",
+        "confirmations",
+        "network",
+        "restrictions",
+        "spendable",
+        "txid",
+        "value_sats",
+        "vout"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "spendable": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "restrictions": {
+                "maxItems": 0
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "restrictions": {
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "confirmations": {
+                "minimum": 1
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "block_height"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "block_height"
+              ]
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "TransactionRecord": {
+      "type": "object",
+      "properties": {
+        "account_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "network": {
+          "$ref": "#/$defs/Network"
+        },
+        "txid": {
+          "$ref": "#/$defs/Hash256"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "unconfirmed",
+            "confirmed",
+            "conflicted",
+            "replaced",
+            "dropped",
+            "unknown"
+          ]
+        },
+        "confirmations": {
+          "$ref": "#/$defs/NonNegativeInteger"
+        },
+        "block_height": {
+          "$ref": "#/$defs/BlockHeight"
+        },
+        "first_seen_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "confirmed_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "net_change_sats": {
+          "$ref": "#/$defs/SignedSats"
+        },
+        "fee_sats": {
+          "$ref": "#/$defs/Sats"
+        },
+        "replaced_by_txid": {
+          "$ref": "#/$defs/Hash256"
+        }
+      },
+      "required": [
+        "account_id",
+        "confirmations",
+        "net_change_sats",
+        "network",
+        "status",
+        "txid"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "confirmations": {
+                "minimum": 1
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "block_height"
+            ],
+            "properties": {
+              "status": {
+                "const": "confirmed"
+              }
+            }
+          },
+          "else": {
+            "not": {
+              "required": [
+                "block_height"
+              ]
+            },
+            "properties": {
+              "status": {
+                "not": {
+                  "const": "confirmed"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "PsbtObject": {
+      "type": "object",
+      "properties": {
+        "psbt": {
+          "$ref": "#/$defs/Base64"
+        },
+        "psbt_version": {
+          "$ref": "#/$defs/PsbtVersion"
+        }
+      },
+      "required": [
+        "psbt",
+        "psbt_version"
+      ],
+      "additionalProperties": false
+    },
+    "AccountPsbtObject": {
+      "type": "object",
+      "properties": {
+        "psbt": {
+          "$ref": "#/$defs/Base64"
+        },
+        "psbt_version": {
+          "$ref": "#/$defs/PsbtVersion"
+        },
+        "account_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "network": {
+          "$ref": "#/$defs/Network"
+        }
+      },
+      "required": [
+        "account_id",
+        "network",
+        "psbt",
+        "psbt_version"
+      ],
+      "additionalProperties": false
+    },
+    "CreatePsbtResult": {
+      "type": "object",
+      "properties": {
+        "psbt": {
+          "$ref": "#/$defs/Base64"
+        },
+        "psbt_version": {
+          "$ref": "#/$defs/PsbtVersion"
+        },
+        "account_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "network": {
+          "$ref": "#/$defs/Network"
+        },
+        "fee_sats": {
+          "$ref": "#/$defs/Sats"
+        },
+        "vsize": {
+          "$ref": "#/$defs/PositiveInteger"
+        },
+        "change_output_indexes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/UInt32"
+          },
+          "uniqueItems": true
+        },
+        "reservation_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "reserved_until": {
+          "$ref": "#/$defs/Timestamp"
+        }
+      },
+      "required": [
+        "account_id",
+        "change_output_indexes",
+        "fee_sats",
+        "network",
+        "psbt",
+        "psbt_version",
+        "vsize"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "reservation_id"
+            ]
+          },
+          "then": {
+            "required": [
+              "reserved_until"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "reserved_until"
+              ]
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "SignPsbtResult": {
+      "type": "object",
+      "properties": {
+        "psbt": {
+          "$ref": "#/$defs/Base64"
+        },
+        "psbt_version": {
+          "$ref": "#/$defs/PsbtVersion"
+        },
+        "account_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "network": {
+          "$ref": "#/$defs/Network"
+        },
+        "signed_input_indexes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/UInt32"
+          },
+          "uniqueItems": true
+        },
+        "signing_status": {
+          "type": "string",
+          "enum": [
+            "partial",
+            "complete",
+            "unknown"
+          ]
+        }
+      },
+      "required": [
+        "account_id",
+        "network",
+        "psbt",
+        "psbt_version",
+        "signed_input_indexes",
+        "signing_status"
+      ],
+      "additionalProperties": false
+    },
+    "CombinePsbtResult": {
+      "type": "object",
+      "properties": {
+        "psbt": {
+          "$ref": "#/$defs/Base64"
+        },
+        "psbt_version": {
+          "$ref": "#/$defs/PsbtVersion"
+        }
+      },
+      "required": [
+        "psbt",
+        "psbt_version"
+      ],
+      "additionalProperties": false
+    },
+    "FinalizePsbtResult": {
+      "type": "object",
+      "properties": {
+        "psbt": {
+          "$ref": "#/$defs/Base64"
+        },
+        "psbt_version": {
+          "$ref": "#/$defs/PsbtVersion"
+        },
+        "complete": {
+          "type": "boolean"
+        },
+        "raw_transaction": {
+          "$ref": "#/$defs/Hex"
+        },
+        "txid": {
+          "$ref": "#/$defs/Hash256"
+        }
+      },
+      "required": [
+        "complete",
+        "psbt",
+        "psbt_version"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "complete": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "raw_transaction",
+              "txid"
+            ]
+          },
+          "else": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "raw_transaction"
+                  ]
+                },
+                {
+                  "required": [
+                    "txid"
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "GrantConstraints": {
+      "type": "object",
+      "properties": {
+        "max_amount_sats_per_request": {
+          "$ref": "#/$defs/PositiveSats"
+        },
+        "valid_until": {
+          "$ref": "#/$defs/Timestamp"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "Grant": {
+      "type": "object",
+      "properties": {
+        "grant_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "client_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "network": {
+          "$ref": "#/$defs/Network"
+        },
+        "scopes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Scope"
+          },
+          "uniqueItems": true
+        },
+        "wallet_ids": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Id"
+          }
+        },
+        "account_ids": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Id"
+          }
+        },
+        "created_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "expires_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "revoked",
+            "expired"
+          ]
+        },
+        "constraints": {
+          "$ref": "#/$defs/GrantConstraints"
+        }
+      },
+      "required": [
+        "account_ids",
+        "client_id",
+        "created_at",
+        "grant_id",
+        "network",
+        "scopes",
+        "status",
+        "wallet_ids"
+      ],
+      "additionalProperties": false
+    },
+    "SessionInfo": {
+      "type": "object",
+      "properties": {
+        "session_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "client_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "grant_ids": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Id"
+          }
+        },
+        "created_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "expires_at": {
+          "$ref": "#/$defs/Timestamp"
+        }
+      },
+      "required": [
+        "client_id",
+        "created_at",
+        "grant_ids",
+        "session_id"
+      ],
+      "additionalProperties": false
+    },
+    "Operation": {
+      "type": "object",
+      "properties": {
+        "operation_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "method": {
+          "$ref": "#/$defs/MethodName"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "queued",
+            "awaiting_approval",
+            "awaiting_unlock",
+            "awaiting_signer",
+            "processing",
+            "completed",
+            "rejected",
+            "expired",
+            "canceled",
+            "failed"
+          ]
+        },
+        "created_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "updated_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "expires_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "account_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "result": {
+          "type": "object"
+        },
+        "error": {
+          "$ref": "#/$defs/PwcError"
+        }
+      },
+      "required": [
+        "created_at",
+        "method",
+        "operation_id",
+        "state",
+        "updated_at"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "type": "string",
+                "enum": [
+                  "queued",
+                  "awaiting_approval",
+                  "awaiting_unlock",
+                  "awaiting_signer"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "expires_at"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "not": {
+                  "const": "completed"
+                }
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "required": [
+                "result"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "type": "string",
+                "enum": [
+                  "rejected",
+                  "expired",
+                  "canceled",
+                  "failed"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "error"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "error"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "rejected"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "error": {
+                "properties": {
+                  "code": {
+                    "const": "USER_REJECTED"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "expired"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "error": {
+                "properties": {
+                  "code": {
+                    "const": "OPERATION_EXPIRED"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "canceled"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "error": {
+                "properties": {
+                  "code": {
+                    "const": "OPERATION_CANCELED"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "PwcEvent": {
+      "type": "object",
+      "properties": {
+        "event_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "event_type": {
+          "$ref": "#/$defs/EventType"
+        },
+        "occurred_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "account_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "operation_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "payload": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "event_id",
+        "event_type",
+        "occurred_at",
+        "payload"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "event_type": {
+                "const": "wallet.locked"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "wallet_id": {
+                    "$ref": "#/$defs/Id"
+                  }
+                },
+                "required": [
+                  "wallet_id"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "event_type": {
+                "const": "wallet.unlocked"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "wallet_id": {
+                    "$ref": "#/$defs/Id"
+                  }
+                },
+                "required": [
+                  "wallet_id"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "event_type": {
+                "const": "wallet.syncChanged"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "wallet_id": {
+                    "$ref": "#/$defs/Id"
+                  },
+                  "sync": {
+                    "$ref": "#/$defs/SyncStatus"
+                  }
+                },
+                "required": [
+                  "sync",
+                  "wallet_id"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "event_type": {
+                "const": "account.balanceChanged"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "account_id"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "event_type": {
+                "const": "account.transactionChanged"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "txid": {
+                    "$ref": "#/$defs/Hash256"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "unconfirmed",
+                      "confirmed",
+                      "conflicted",
+                      "replaced",
+                      "dropped",
+                      "unknown"
+                    ]
+                  }
+                },
+                "required": [
+                  "status",
+                  "txid"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "account_id"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "event_type": {
+                "const": "operation.stateChanged"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "queued",
+                      "awaiting_approval",
+                      "awaiting_unlock",
+                      "awaiting_signer",
+                      "processing",
+                      "completed",
+                      "rejected",
+                      "expired",
+                      "canceled",
+                      "failed"
+                    ]
+                  }
+                },
+                "required": [
+                  "state"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "operation_id"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "event_type": {
+                "const": "grant.revoked"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "grant_id": {
+                    "$ref": "#/$defs/Id"
+                  }
+                },
+                "required": [
+                  "grant_id"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "event_type": {
+                "const": "grant.expired"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "grant_id": {
+                    "$ref": "#/$defs/Id"
+                  }
+                },
+                "required": [
+                  "grant_id"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "event_type": {
+                "const": "session.expired"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "session_id": {
+                    "$ref": "#/$defs/Id"
+                  }
+                },
+                "required": [
+                  "session_id"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "pwc.getCapabilities.params": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "pwc.getCapabilities.result": {
+      "$ref": "#/$defs/Capabilities"
+    },
+    "session.getInfo.params": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "session.getInfo.result": {
+      "$ref": "#/$defs/SessionInfo"
+    },
+    "session.requestPermissions.params": {
+      "type": "object",
+      "properties": {
+        "scopes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Scope"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "network": {
+          "$ref": "#/$defs/Network"
+        },
+        "wallet_ids": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Id"
+          }
+        },
+        "account_ids": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Id"
+          }
+        },
+        "expires_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "constraints": {
+          "$ref": "#/$defs/GrantConstraints"
+        },
+        "idempotency_key": {
+          "$ref": "#/$defs/Id"
+        }
+      },
+      "required": [
+        "idempotency_key",
+        "scopes"
+      ],
+      "additionalProperties": false
+    },
+    "session.requestPermissions.result": {
+      "$ref": "#/$defs/Operation"
+    },
+    "session.requestPermissions.operationResult": {
+      "type": "object",
+      "properties": {
+        "grants": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Grant"
+          }
+        }
+      },
+      "required": [
+        "grants"
+      ],
+      "additionalProperties": false
+    },
+    "session.getPermissions.params": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "session.getPermissions.result": {
+      "type": "object",
+      "properties": {
+        "grants": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Grant"
+          }
+        }
+      },
+      "required": [
+        "grants"
+      ],
+      "additionalProperties": false
+    },
+    "session.revokePermissions.params": {
+      "type": "object",
+      "properties": {
+        "grant_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "idempotency_key": {
+          "$ref": "#/$defs/Id"
+        }
+      },
+      "required": [
+        "grant_id",
+        "idempotency_key"
+      ],
+      "additionalProperties": false
+    },
+    "session.revokePermissions.result": {
+      "type": "object",
+      "properties": {
+        "revoked": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "revoked"
+      ],
+      "additionalProperties": false
+    },
+    "wallet.list.params": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "wallet.list.result": {
+      "type": "object",
+      "properties": {
+        "wallets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WalletSummary"
+          }
+        },
+        "next_cursor": {
+          "$ref": "#/$defs/Cursor"
+        }
+      },
+      "required": [
+        "wallets"
+      ],
+      "additionalProperties": false
+    },
+    "account.list.params": {
+      "type": "object",
+      "properties": {
+        "wallet_id": {
+          "$ref": "#/$defs/Id"
+        }
+      },
+      "required": [
+        "wallet_id"
+      ],
+      "additionalProperties": false
+    },
+    "account.list.result": {
+      "type": "object",
+      "properties": {
+        "accounts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AccountSummary"
+          }
+        },
+        "next_cursor": {
+          "$ref": "#/$defs/Cursor"
+        }
+      },
+      "required": [
+        "accounts"
+      ],
+      "additionalProperties": false
+    },
+    "account.getBalance.params": {
+      "type": "object",
+      "properties": {
+        "account_id": {
+          "$ref": "#/$defs/Id"
+        }
+      },
+      "required": [
+        "account_id"
+      ],
+      "additionalProperties": false
+    },
+    "account.getBalance.result": {
+      "$ref": "#/$defs/Balance"
+    },
+    "address.getReceiveAddress.params": {
+      "type": "object",
+      "properties": {
+        "account_id": {
+          "$ref": "#/$defs/Id"
+        }
+      },
+      "required": [
+        "account_id"
+      ],
+      "additionalProperties": false
+    },
+    "address.getReceiveAddress.result": {
+      "$ref": "#/$defs/AddressRecord"
+    },
+    "address.create.params": {
+      "type": "object",
+      "properties": {
+        "account_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "label": {
+          "$ref": "#/$defs/Text"
+        },
+        "idempotency_key": {
+          "$ref": "#/$defs/Id"
+        }
+      },
+      "required": [
+        "account_id",
+        "idempotency_key"
+      ],
+      "additionalProperties": false
+    },
+    "address.create.result": {
+      "$ref": "#/$defs/AddressRecord"
+    },
+    "address.list.params": {
+      "type": "object",
+      "properties": {
+        "account_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "cursor": {
+          "$ref": "#/$defs/Cursor"
+        },
+        "page_size": {
+          "$ref": "#/$defs/PositiveInteger"
+        }
+      },
+      "required": [
+        "account_id"
+      ],
+      "additionalProperties": false
+    },
+    "address.list.result": {
+      "type": "object",
+      "properties": {
+        "addresses": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AddressRecord"
+          }
+        },
+        "next_cursor": {
+          "$ref": "#/$defs/Cursor"
+        }
+      },
+      "required": [
+        "addresses"
+      ],
+      "additionalProperties": false
+    },
+    "utxo.list.params": {
+      "type": "object",
+      "properties": {
+        "account_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "cursor": {
+          "$ref": "#/$defs/Cursor"
+        },
+        "page_size": {
+          "$ref": "#/$defs/PositiveInteger"
+        }
+      },
+      "required": [
+        "account_id"
+      ],
+      "additionalProperties": false
+    },
+    "utxo.list.result": {
+      "type": "object",
+      "properties": {
+        "utxos": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Utxo"
+          }
+        },
+        "next_cursor": {
+          "$ref": "#/$defs/Cursor"
+        }
+      },
+      "required": [
+        "utxos"
+      ],
+      "additionalProperties": false
+    },
+    "transaction.list.params": {
+      "type": "object",
+      "properties": {
+        "account_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "cursor": {
+          "$ref": "#/$defs/Cursor"
+        },
+        "page_size": {
+          "$ref": "#/$defs/PositiveInteger"
+        }
+      },
+      "required": [
+        "account_id"
+      ],
+      "additionalProperties": false
+    },
+    "transaction.list.result": {
+      "type": "object",
+      "properties": {
+        "transactions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TransactionRecord"
+          }
+        },
+        "next_cursor": {
+          "$ref": "#/$defs/Cursor"
+        }
+      },
+      "required": [
+        "transactions"
+      ],
+      "additionalProperties": false
+    },
+    "transaction.get.params": {
+      "type": "object",
+      "properties": {
+        "account_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "txid": {
+          "$ref": "#/$defs/Hash256"
+        }
+      },
+      "required": [
+        "account_id",
+        "txid"
+      ],
+      "additionalProperties": false
+    },
+    "transaction.get.result": {
+      "type": "object",
+      "properties": {
+        "transaction": {
+          "$ref": "#/$defs/TransactionRecord"
+        }
+      },
+      "required": [
+        "transaction"
+      ],
+      "additionalProperties": false
+    },
+    "psbt.create.params": {
+      "type": "object",
+      "properties": {
+        "account_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "outputs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "address": {
+                "$ref": "#/$defs/Address"
+              },
+              "amount_sats": {
+                "$ref": "#/$defs/PositiveSats"
+              }
+            },
+            "required": [
+              "address",
+              "amount_sats"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1
+        },
+        "fee_policy": {
+          "$ref": "#/$defs/FeePolicy"
+        },
+        "selected_utxos": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/OutPoint"
+          }
+        },
+        "replaceable": {
+          "type": "boolean"
+        },
+        "idempotency_key": {
+          "$ref": "#/$defs/Id"
+        }
+      },
+      "required": [
+        "account_id",
+        "fee_policy",
+        "idempotency_key",
+        "outputs"
+      ],
+      "additionalProperties": false
+    },
+    "psbt.create.result": {
+      "$ref": "#/$defs/Operation"
+    },
+    "psbt.create.operationResult": {
+      "$ref": "#/$defs/CreatePsbtResult"
+    },
+    "psbt.releaseReservation.params": {
+      "type": "object",
+      "properties": {
+        "account_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "reservation_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "idempotency_key": {
+          "$ref": "#/$defs/Id"
+        }
+      },
+      "required": [
+        "account_id",
+        "idempotency_key",
+        "reservation_id"
+      ],
+      "additionalProperties": false
+    },
+    "psbt.releaseReservation.result": {
+      "type": "object",
+      "properties": {
+        "released": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "released"
+      ],
+      "additionalProperties": false
+    },
+    "psbt.sign.params": {
+      "type": "object",
+      "properties": {
+        "account_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "psbt": {
+          "$ref": "#/$defs/Base64"
+        },
+        "input_indexes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/UInt32"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "idempotency_key": {
+          "$ref": "#/$defs/Id"
+        }
+      },
+      "required": [
+        "account_id",
+        "idempotency_key",
+        "psbt"
+      ],
+      "additionalProperties": false
+    },
+    "psbt.sign.result": {
+      "$ref": "#/$defs/Operation"
+    },
+    "psbt.sign.operationResult": {
+      "$ref": "#/$defs/SignPsbtResult"
+    },
+    "psbt.combine.params": {
+      "type": "object",
+      "properties": {
+        "psbts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Base64"
+          },
+          "minItems": 2
+        }
+      },
+      "required": [
+        "psbts"
+      ],
+      "additionalProperties": false
+    },
+    "psbt.combine.result": {
+      "$ref": "#/$defs/CombinePsbtResult"
+    },
+    "psbt.finalize.params": {
+      "type": "object",
+      "properties": {
+        "psbt": {
+          "$ref": "#/$defs/Base64"
+        }
+      },
+      "required": [
+        "psbt"
+      ],
+      "additionalProperties": false
+    },
+    "psbt.finalize.result": {
+      "$ref": "#/$defs/FinalizePsbtResult"
+    },
+    "transaction.broadcast.params": {
+      "type": "object",
+      "properties": {
+        "account_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "raw_transaction": {
+          "$ref": "#/$defs/Hex"
+        },
+        "idempotency_key": {
+          "$ref": "#/$defs/Id"
+        }
+      },
+      "required": [
+        "account_id",
+        "idempotency_key",
+        "raw_transaction"
+      ],
+      "additionalProperties": false
+    },
+    "transaction.broadcast.result": {
+      "$ref": "#/$defs/Operation"
+    },
+    "transaction.broadcast.operationResult": {
+      "type": "object",
+      "properties": {
+        "txid": {
+          "$ref": "#/$defs/Hash256"
+        }
+      },
+      "required": [
+        "txid"
+      ],
+      "additionalProperties": false
+    },
+    "message.sign.params": {
+      "type": "object",
+      "properties": {
+        "account_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "address": {
+          "$ref": "#/$defs/Address"
+        },
+        "message": {
+          "type": "string"
+        },
+        "format": {
+          "$ref": "#/$defs/MessageFormat"
+        },
+        "idempotency_key": {
+          "$ref": "#/$defs/Id"
+        }
+      },
+      "required": [
+        "account_id",
+        "address",
+        "format",
+        "idempotency_key",
+        "message"
+      ],
+      "additionalProperties": false
+    },
+    "message.sign.result": {
+      "$ref": "#/$defs/Operation"
+    },
+    "message.sign.operationResult": {
+      "type": "object",
+      "properties": {
+        "signature": {
+          "$ref": "#/$defs/Base64"
+        },
+        "format": {
+          "$ref": "#/$defs/MessageFormat"
+        },
+        "address": {
+          "$ref": "#/$defs/Address"
+        }
+      },
+      "required": [
+        "address",
+        "format",
+        "signature"
+      ],
+      "additionalProperties": false
+    },
+    "message.verify.params": {
+      "type": "object",
+      "properties": {
+        "network": {
+          "$ref": "#/$defs/Network"
+        },
+        "address": {
+          "$ref": "#/$defs/Address"
+        },
+        "message": {
+          "type": "string"
+        },
+        "signature": {
+          "$ref": "#/$defs/Base64"
+        },
+        "format": {
+          "$ref": "#/$defs/MessageFormat"
+        }
+      },
+      "required": [
+        "address",
+        "format",
+        "message",
+        "network",
+        "signature"
+      ],
+      "additionalProperties": false
+    },
+    "message.verify.result": {
+      "type": "object",
+      "properties": {
+        "valid": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "valid"
+      ],
+      "additionalProperties": false
+    },
+    "operation.get.params": {
+      "type": "object",
+      "properties": {
+        "operation_id": {
+          "$ref": "#/$defs/Id"
+        }
+      },
+      "required": [
+        "operation_id"
+      ],
+      "additionalProperties": false
+    },
+    "operation.get.result": {
+      "$ref": "#/$defs/Operation"
+    },
+    "operation.cancel.params": {
+      "type": "object",
+      "properties": {
+        "operation_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "idempotency_key": {
+          "$ref": "#/$defs/Id"
+        }
+      },
+      "required": [
+        "idempotency_key",
+        "operation_id"
+      ],
+      "additionalProperties": false
+    },
+    "operation.cancel.result": {
+      "$ref": "#/$defs/Operation"
+    }
+  }
+}

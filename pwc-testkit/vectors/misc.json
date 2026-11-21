@@ -1,0 +1,47 @@
+{
+  "description": "Arithmetic and cryptographic vectors of the PWC family.",
+  "fees": {
+    "reference": "PWC-CORE-001 v0.2.1 §3.4: fee_sats = ceil(rate * vsize / 1000); tests C-22 and C-23",
+    "vectors": [
+      {"id": "FEE-01", "sat_per_kvb": "1250", "vsize": 250, "fee_sats": "313"},
+      {"id": "FEE-02", "sat_per_kvb": "1250", "vsize": 141, "fee_sats": "177"},
+      {"id": "FEE-03", "sat_per_kvb": "1000", "vsize": 141, "fee_sats": "141"},
+      {"id": "FEE-04", "sat_per_kvb": "1", "vsize": 1, "fee_sats": "1"},
+      {"id": "FEE-05", "sat_per_kvb": "999", "vsize": 1000, "fee_sats": "999"},
+      {"id": "FEE-06", "sat_per_kvb": "1001", "vsize": 999, "fee_sats": "1000"},
+      {"id": "FEE-07", "sat_per_kvb": "1000000000", "vsize": 1000000, "fee_sats": "1000000000000"}
+    ]
+  },
+  "local_auth": {
+    "reference": "PWC-TRANSPORT-LOCAL-001 v0.1.0 §5.4 and §12.3; test L-12",
+    "vectors": [
+      {"id": "LAUTH-01",
+       "client_secret": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+       "server_nonce": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+       "client_nonce": "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f",
+       "client_id": "cl-7Qm2xA",
+       "client_proof": "3c8210fe06538455dd0d56d572cde9134c529c781a5e4e374f2a7cfcaccc1488",
+       "server_proof": "a91ace84622f91fef391a014e55570ab722299a9af64aa25f2809c67decc29b2"}
+    ]
+  },
+  "remote_sas": {
+    "reference": "PWC-TRANSPORT-REMOTE-001 v0.1.0 §4.4 and §12.2; test R-03",
+    "vectors": [
+      {"id": "SAS-01",
+       "client_key": "1111111111111111111111111111111111111111111111111111111111111111",
+       "provider_key": "2222222222222222222222222222222222222222222222222222222222222222",
+       "secret": "00112233445566778899aabbccddeeff",
+       "hash": "9644b2022d166548aa677e24c6490910c5927f6ae43a53b7209128091d0fb2d2",
+       "sas": "084418"}
+    ]
+  },
+  "remote_split": {
+    "reference": "PWC-TRANSPORT-REMOTE-001 v0.1.0 §5.6; test R-09",
+    "vectors": [
+      {"id": "SPLIT-01", "message_bytes": 8192, "parts": 1},
+      {"id": "SPLIT-02", "message_bytes": 8193, "parts": 2},
+      {"id": "SPLIT-03", "message_bytes": 20000, "parts": 4},
+      {"id": "SPLIT-04", "message_bytes": 1048576, "parts": 175}
+    ]
+  }
+}

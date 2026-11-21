@@ -1,0 +1,112 @@
+{
+  "description": "PSBT fixtures for PWC-CORE-001 v0.2.1 \u00a74.7 and \u00a78.3, covering Core tests C-11 to C-14, C-40 and C-55. 2-of-2 P2WSH input of 100,000 sat on regtest, one output of 99,000 sat, fee 1,000 sat. Compare PSBTs by their sets of key-value pairs, not by bytes, because serializations may order keys differently.",
+  "keys": {
+    "k1": "025a992d6972ec621ce76b9b0673c44c77dedc9bebc01fb0cedc3b7d60d306fd68",
+    "k2": "0353cd1c81ed76af62f9d522946c7bf21c9996e182b8275583f9ac757bad6b8f37",
+    "note": "Private keys are SHA-256('PWC test key 1') and SHA-256('PWC test key 2'). Test only."
+  },
+  "psbts": {
+    "unsigned": "cHNidP8BAFICAAAAAaqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqAAAAAAD/////AbiCAQAAAAAAFgAU3CKDIn6hTwDX+sUD2qCb+6wjr0UAAAAAAAEBK6CGAQAAAAAAIgAgXPRh7RHzoPlBSBdzmADrwc3kEaQdkqUCmDQf3OOoHhEBBUdSIQJamS1pcuxiHOdrmwZzxEx33tyb68AfsM7cO31g0wb9aCEDU80cge12r2L51SKUbHvyHJmW4YK4J1WD+ax1e61rjzdSrgAA",
+    "partial_k1": "cHNidP8BAFICAAAAAaqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqAAAAAAD/////AbiCAQAAAAAAFgAU3CKDIn6hTwDX+sUD2qCb+6wjr0UAAAAAAAEBK6CGAQAAAAAAIgAgXPRh7RHzoPlBSBdzmADrwc3kEaQdkqUCmDQf3OOoHhEiAgJamS1pcuxiHOdrmwZzxEx33tyb68AfsM7cO31g0wb9aEcwRAIgO1zDf1UjM79XE0m/ZzoecJzqo3vzMll6Ax7UlbqKgVECIEQ5gHm4BsIN2+0RJF2dPBxZTMnUbF2yXHu/i1BMJEJoAQEFR1IhAlqZLWly7GIc52ubBnPETHfe3JvrwB+wztw7fWDTBv1oIQNTzRyB7XavYvnVIpRse/IcmZbhgrgnVYP5rHV7rWuPN1KuAAA=",
+    "partial_k2": "cHNidP8BAFICAAAAAaqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqAAAAAAD/////AbiCAQAAAAAAFgAU3CKDIn6hTwDX+sUD2qCb+6wjr0UAAAAAAAEBK6CGAQAAAAAAIgAgXPRh7RHzoPlBSBdzmADrwc3kEaQdkqUCmDQf3OOoHhEiAgNTzRyB7XavYvnVIpRse/IcmZbhgrgnVYP5rHV7rWuPN0cwRAIgDHSLJOtphDxSb8YXPSS/z5xkM87xuVllpt2UohWA0pECIEXfe/+3bIu0micSVjPAsf3WenvrqICP75/d9IyS6X4hAQEFR1IhAlqZLWly7GIc52ubBnPETHfe3JvrwB+wztw7fWDTBv1oIQNTzRyB7XavYvnVIpRse/IcmZbhgrgnVYP5rHV7rWuPN1KuAAA=",
+    "partial_k1_anyonecanpay": "cHNidP8BAFICAAAAAaqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqAAAAAAD/////AbiCAQAAAAAAFgAU3CKDIn6hTwDX+sUD2qCb+6wjr0UAAAAAAAEBK6CGAQAAAAAAIgAgXPRh7RHzoPlBSBdzmADrwc3kEaQdkqUCmDQf3OOoHhEiAgJamS1pcuxiHOdrmwZzxEx33tyb68AfsM7cO31g0wb9aEcwRAIgJ337Jqewj3BR7QIVG2ArdGEuOtUG8rEnnCw4TY+E29kCIBuu3V721pP4hfWtyJYIkfAoWL4z8vhc4SngaEdaJW0SgQEFR1IhAlqZLWly7GIc52ubBnPETHfe3JvrwB+wztw7fWDTBv1oIQNTzRyB7XavYvnVIpRse/IcmZbhgrgnVYP5rHV7rWuPN1KuAAA=",
+    "partial_k1_corrupted": "cHNidP8BAFICAAAAAaqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqAAAAAAD/////AbiCAQAAAAAAFgAU3CKDIn6hTwDX+sUD2qCb+6wjr0UAAAAAAAEBK6CGAQAAAAAAIgAgXPRh7RHzoPlBSBdzmADrwc3kEaQdkqUCmDQf3OOoHhEiAgJamS1pcuxiHOdrmwZzxEx33tyb68AfsM7cO31g0wb9aEcwRAIgO1zDf1UjM79XE0m/ZzoecJzqo3vzMll6Ax7UlbqKgVECIEQ5gHm4BsIN2+0RJF2dPBxZTMnUbF2yXHu/i1BMJEJpAQEFR1IhAlqZLWly7GIc52ubBnPETHfe3JvrwB+wztw7fWDTBv1oIQNTzRyB7XavYvnVIpRse/IcmZbhgrgnVYP5rHV7rWuPN1KuAAA=",
+    "other_transaction_k2": "cHNidP8BAFICAAAAAaqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqAAAAAAD/////AdB+AQAAAAAAFgAU3CKDIn6hTwDX+sUD2qCb+6wjr0UAAAAAAAEBK6CGAQAAAAAAIgAgXPRh7RHzoPlBSBdzmADrwc3kEaQdkqUCmDQf3OOoHhEiAgNTzRyB7XavYvnVIpRse/IcmZbhgrgnVYP5rHV7rWuPN0cwRAIgfBjW7ESiQAIkDcaoI+kYluXhVK15n0xKcJf0P7J3Sv0CIHmadWPdm8SP+OBTwNdd5GUKi3383llDGgGyEJ6A2kMjAQEFR1IhAlqZLWly7GIc52ubBnPETHfe3JvrwB+wztw7fWDTBv1oIQNTzRyB7XavYvnVIpRse/IcmZbhgrgnVYP5rHV7rWuPN1KuAAA=",
+    "combined": "cHNidP8BAFICAAAAAaqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqAAAAAAD/////AbiCAQAAAAAAFgAU3CKDIn6hTwDX+sUD2qCb+6wjr0UAAAAAAAEBK6CGAQAAAAAAIgAgXPRh7RHzoPlBSBdzmADrwc3kEaQdkqUCmDQf3OOoHhEiAgJamS1pcuxiHOdrmwZzxEx33tyb68AfsM7cO31g0wb9aEcwRAIgO1zDf1UjM79XE0m/ZzoecJzqo3vzMll6Ax7UlbqKgVECIEQ5gHm4BsIN2+0RJF2dPBxZTMnUbF2yXHu/i1BMJEJoASICA1PNHIHtdq9i+dUilGx78hyZluGCuCdVg/msdXuta483RzBEAiAMdIsk62mEPFJvxhc9JL/PnGQzzvG5WWWm3ZSiFYDSkQIgRd97/7dsi7SaJxJWM8Cx/dZ6e+uogI/vn930jJLpfiEBAQVHUiECWpktaXLsYhzna5sGc8RMd97cm+vAH7DO3Dt9YNMG/WghA1PNHIHtdq9i+dUilGx78hyZluGCuCdVg/msdXuta483Uq4AAA==",
+    "version2": "cHNidP8BAgQCAAAAAQQBAQEFAQEB+wQCAAAAAAEOIKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqAQ8EAAAAAAEBK6CGAQAAAAAAIgAgXPRh7RHzoPlBSBdzmADrwc3kEaQdkqUCmDQf3OOoHhEAAQMIuIIBAAAAAAABBBYAFNwigyJ+oU8A1/rFA9qgm/usI69FAA=="
+  },
+  "finalized": {
+    "raw_transaction": "02000000000101aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01b882010000000000160014dc2283227ea14f00d7fac503daa09bfbac23af45040047304402203b5cc37f552333bf571349bf673a1e709ceaa37bf332597a031ed495ba8a8151022044398079b806c20ddbed11245d9d3c1c594cc9d46c5db25c7bbf8b504c2442680147304402200c748b24eb69843c526fc6173d24bfcf9c6433cef1b95965a6dd94a21580d291022045df7bffb76c8bb49a27125633c0b1fdd67a7beba8808fef9fddf48c92e97e2101475221025a992d6972ec621ce76b9b0673c44c77dedc9bebc01fb0cedc3b7d60d306fd68210353cd1c81ed76af62f9d522946c7bf21c9996e182b8275583f9ac757bad6b8f3752ae00000000",
+    "txid": "1922282d242f24371e83c583f7116d030cb2051a94e47fbfb6d86c9bd0f685ac"
+  },
+  "cases": [
+    {
+      "id": "PSBT-01",
+      "method": "psbt.combine",
+      "inputs": [
+        "partial_k1",
+        "partial_k2"
+      ],
+      "expect": {
+        "result_equals": "combined"
+      }
+    },
+    {
+      "id": "PSBT-02",
+      "method": "psbt.combine",
+      "inputs": [
+        "partial_k1",
+        "other_transaction_k2"
+      ],
+      "expect": {
+        "error": "PSBT_CONFLICT"
+      }
+    },
+    {
+      "id": "PSBT-03",
+      "method": "psbt.combine",
+      "inputs": [
+        "partial_k1",
+        "version2"
+      ],
+      "expect": {
+        "error": "UNSUPPORTED_PSBT_VERSION"
+      }
+    },
+    {
+      "id": "PSBT-04",
+      "method": "psbt.combine",
+      "inputs": [
+        "partial_k1",
+        "partial_k1_anyonecanpay"
+      ],
+      "expect": {
+        "result_equals": "partial_k1",
+        "note": "both signatures verify; the first submitted value is kept"
+      }
+    },
+    {
+      "id": "PSBT-05",
+      "method": "psbt.combine",
+      "inputs": [
+        "partial_k1",
+        "partial_k1_corrupted"
+      ],
+      "expect": {
+        "error": "PSBT_CONFLICT"
+      }
+    },
+    {
+      "id": "PSBT-06",
+      "method": "psbt.finalize",
+      "inputs": [
+        "partial_k1"
+      ],
+      "expect": {
+        "complete": false
+      }
+    },
+    {
+      "id": "PSBT-07",
+      "method": "psbt.finalize",
+      "inputs": [
+        "combined"
+      ],
+      "expect": {
+        "complete": true,
+        "raw_transaction": "02000000000101aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01b882010000000000160014dc2283227ea14f00d7fac503daa09bfbac23af45040047304402203b5cc37f552333bf571349bf673a1e709ceaa37bf332597a031ed495ba8a8151022044398079b806c20ddbed11245d9d3c1c594cc9d46c5db25c7bbf8b504c2442680147304402200c748b24eb69843c526fc6173d24bfcf9c6433cef1b95965a6dd94a21580d291022045df7bffb76c8bb49a27125633c0b1fdd67a7beba8808fef9fddf48c92e97e2101475221025a992d6972ec621ce76b9b0673c44c77dedc9bebc01fb0cedc3b7d60d306fd68210353cd1c81ed76af62f9d522946c7bf21c9996e182b8275583f9ac757bad6b8f3752ae00000000",
+        "txid": "1922282d242f24371e83c583f7116d030cb2051a94e47fbfb6d86c9bd0f685ac"
+      }
+    },
+    {
+      "id": "PSBT-08",
+      "method": "psbt.finalize",
+      "inputs": [
+        "version2"
+      ],
+      "expect": {
+        "error": "UNSUPPORTED_PSBT_VERSION"
+      }
+    }
+  ]
+}

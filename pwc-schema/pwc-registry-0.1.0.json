@@ -1,0 +1,780 @@
+{
+  "registry_version": "0.1.0",
+  "covers": [
+    "PWC-CORE-001 v0.2.1",
+    "PWC-TRANSPORT-LOCAL-001 v0.1.0",
+    "PWC-TRANSPORT-BROWSER-001 v0.1.0",
+    "PWC-TRANSPORT-REMOTE-001 v0.1.0",
+    "PWC-TRANSPORT-MOBILE-001 v0.1.0"
+  ],
+  "methods": [
+    {
+      "name": "pwc.getCapabilities",
+      "scope": null,
+      "returns_operation": false,
+      "idempotency_key": false,
+      "pwc_core_read_v1": true,
+      "pwc_psbt_signer_v1": false,
+      "defined_in": "PWC-CORE-001 v0.2.1 §8.1"
+    },
+    {
+      "name": "session.getInfo",
+      "scope": null,
+      "returns_operation": false,
+      "idempotency_key": false,
+      "pwc_core_read_v1": true,
+      "pwc_psbt_signer_v1": false,
+      "defined_in": "PWC-CORE-001 v0.2.1 §8.1"
+    },
+    {
+      "name": "session.requestPermissions",
+      "scope": null,
+      "returns_operation": true,
+      "idempotency_key": true,
+      "pwc_core_read_v1": true,
+      "pwc_psbt_signer_v1": false,
+      "defined_in": "PWC-CORE-001 v0.2.1 §8.1"
+    },
+    {
+      "name": "session.getPermissions",
+      "scope": null,
+      "returns_operation": false,
+      "idempotency_key": false,
+      "pwc_core_read_v1": true,
+      "pwc_psbt_signer_v1": false,
+      "defined_in": "PWC-CORE-001 v0.2.1 §8.1"
+    },
+    {
+      "name": "session.revokePermissions",
+      "scope": null,
+      "returns_operation": false,
+      "idempotency_key": true,
+      "pwc_core_read_v1": true,
+      "pwc_psbt_signer_v1": false,
+      "defined_in": "PWC-CORE-001 v0.2.1 §8.1"
+    },
+    {
+      "name": "wallet.list",
+      "scope": "wallets:read",
+      "returns_operation": false,
+      "idempotency_key": false,
+      "pwc_core_read_v1": true,
+      "pwc_psbt_signer_v1": false,
+      "defined_in": "PWC-CORE-001 v0.2.1 §8.1"
+    },
+    {
+      "name": "account.list",
+      "scope": "wallets:read",
+      "returns_operation": false,
+      "idempotency_key": false,
+      "pwc_core_read_v1": true,
+      "pwc_psbt_signer_v1": false,
+      "defined_in": "PWC-CORE-001 v0.2.1 §8.1"
+    },
+    {
+      "name": "account.getBalance",
+      "scope": "balances:read",
+      "returns_operation": false,
+      "idempotency_key": false,
+      "pwc_core_read_v1": true,
+      "pwc_psbt_signer_v1": false,
+      "defined_in": "PWC-CORE-001 v0.2.1 §8.2"
+    },
+    {
+      "name": "address.getReceiveAddress",
+      "scope": "addresses:read",
+      "returns_operation": false,
+      "idempotency_key": false,
+      "pwc_core_read_v1": true,
+      "pwc_psbt_signer_v1": false,
+      "defined_in": "PWC-CORE-001 v0.2.1 §8.2"
+    },
+    {
+      "name": "address.create",
+      "scope": "addresses:create",
+      "returns_operation": false,
+      "idempotency_key": true,
+      "pwc_core_read_v1": false,
+      "pwc_psbt_signer_v1": false,
+      "defined_in": "PWC-CORE-001 v0.2.1 §8.2"
+    },
+    {
+      "name": "address.list",
+      "scope": "addresses:read",
+      "returns_operation": false,
+      "idempotency_key": false,
+      "pwc_core_read_v1": false,
+      "pwc_psbt_signer_v1": false,
+      "defined_in": "PWC-CORE-001 v0.2.1 §8.2"
+    },
+    {
+      "name": "utxo.list",
+      "scope": "utxos:read",
+      "returns_operation": false,
+      "idempotency_key": false,
+      "pwc_core_read_v1": false,
+      "pwc_psbt_signer_v1": false,
+      "defined_in": "PWC-CORE-001 v0.2.1 §8.2"
+    },
+    {
+      "name": "transaction.list",
+      "scope": "transactions:read",
+      "returns_operation": false,
+      "idempotency_key": false,
+      "pwc_core_read_v1": true,
+      "pwc_psbt_signer_v1": false,
+      "defined_in": "PWC-CORE-001 v0.2.1 §8.2"
+    },
+    {
+      "name": "transaction.get",
+      "scope": "transactions:read",
+      "returns_operation": false,
+      "idempotency_key": false,
+      "pwc_core_read_v1": false,
+      "pwc_psbt_signer_v1": false,
+      "defined_in": "PWC-CORE-001 v0.2.1 §8.2"
+    },
+    {
+      "name": "psbt.create",
+      "scope": "psbt:create",
+      "returns_operation": true,
+      "idempotency_key": true,
+      "pwc_core_read_v1": false,
+      "pwc_psbt_signer_v1": false,
+      "defined_in": "PWC-CORE-001 v0.2.1 §8.3"
+    },
+    {
+      "name": "psbt.releaseReservation",
+      "scope": "psbt:create",
+      "returns_operation": false,
+      "idempotency_key": true,
+      "pwc_core_read_v1": false,
+      "pwc_psbt_signer_v1": false,
+      "defined_in": "PWC-CORE-001 v0.2.1 §8.3"
+    },
+    {
+      "name": "psbt.sign",
+      "scope": "psbt:sign",
+      "returns_operation": true,
+      "idempotency_key": true,
+      "pwc_core_read_v1": false,
+      "pwc_psbt_signer_v1": true,
+      "defined_in": "PWC-CORE-001 v0.2.1 §8.3"
+    },
+    {
+      "name": "psbt.combine",
+      "scope": null,
+      "returns_operation": false,
+      "idempotency_key": false,
+      "pwc_core_read_v1": false,
+      "pwc_psbt_signer_v1": false,
+      "defined_in": "PWC-CORE-001 v0.2.1 §8.3"
+    },
+    {
+      "name": "psbt.finalize",
+      "scope": null,
+      "returns_operation": false,
+      "idempotency_key": false,
+      "pwc_core_read_v1": false,
+      "pwc_psbt_signer_v1": false,
+      "defined_in": "PWC-CORE-001 v0.2.1 §8.3"
+    },
+    {
+      "name": "transaction.broadcast",
+      "scope": "transactions:broadcast",
+      "returns_operation": true,
+      "idempotency_key": true,
+      "pwc_core_read_v1": false,
+      "pwc_psbt_signer_v1": false,
+      "defined_in": "PWC-CORE-001 v0.2.1 §8.3"
+    },
+    {
+      "name": "message.sign",
+      "scope": "messages:sign",
+      "returns_operation": true,
+      "idempotency_key": true,
+      "pwc_core_read_v1": false,
+      "pwc_psbt_signer_v1": false,
+      "defined_in": "PWC-CORE-001 v0.2.1 §8.4"
+    },
+    {
+      "name": "message.verify",
+      "scope": null,
+      "returns_operation": false,
+      "idempotency_key": false,
+      "pwc_core_read_v1": false,
+      "pwc_psbt_signer_v1": false,
+      "defined_in": "PWC-CORE-001 v0.2.1 §8.4"
+    },
+    {
+      "name": "operation.get",
+      "scope": null,
+      "returns_operation": false,
+      "idempotency_key": false,
+      "pwc_core_read_v1": true,
+      "pwc_psbt_signer_v1": false,
+      "defined_in": "PWC-CORE-001 v0.2.1 §8.5"
+    },
+    {
+      "name": "operation.cancel",
+      "scope": null,
+      "returns_operation": false,
+      "idempotency_key": true,
+      "pwc_core_read_v1": true,
+      "pwc_psbt_signer_v1": false,
+      "defined_in": "PWC-CORE-001 v0.2.1 §8.5"
+    },
+    {
+      "name": "local.hello",
+      "scope": null,
+      "returns_operation": false,
+      "idempotency_key": false,
+      "pwc_core_read_v1": false,
+      "pwc_psbt_signer_v1": false,
+      "defined_in": "PWC-TRANSPORT-LOCAL-001 v0.1.0 §5.2"
+    },
+    {
+      "name": "local.pair",
+      "scope": null,
+      "returns_operation": false,
+      "idempotency_key": false,
+      "pwc_core_read_v1": false,
+      "pwc_psbt_signer_v1": false,
+      "defined_in": "PWC-TRANSPORT-LOCAL-001 v0.1.0 §5.3"
+    },
+    {
+      "name": "local.authenticate",
+      "scope": null,
+      "returns_operation": false,
+      "idempotency_key": false,
+      "pwc_core_read_v1": false,
+      "pwc_psbt_signer_v1": false,
+      "defined_in": "PWC-TRANSPORT-LOCAL-001 v0.1.0 §5.4"
+    },
+    {
+      "name": "local.unpair",
+      "scope": null,
+      "returns_operation": false,
+      "idempotency_key": false,
+      "pwc_core_read_v1": false,
+      "pwc_psbt_signer_v1": false,
+      "defined_in": "PWC-TRANSPORT-LOCAL-001 v0.1.0 §5.7"
+    },
+    {
+      "name": "local.openDelegate",
+      "scope": null,
+      "returns_operation": false,
+      "idempotency_key": false,
+      "pwc_core_read_v1": false,
+      "pwc_psbt_signer_v1": false,
+      "defined_in": "PWC-TRANSPORT-LOCAL-001 v0.1.0 §5.8"
+    },
+    {
+      "name": "local.delegated",
+      "scope": null,
+      "returns_operation": false,
+      "idempotency_key": false,
+      "pwc_core_read_v1": false,
+      "pwc_psbt_signer_v1": false,
+      "defined_in": "PWC-TRANSPORT-LOCAL-001 v0.1.0 §5.8"
+    },
+    {
+      "name": "local.closeDelegate",
+      "scope": null,
+      "returns_operation": false,
+      "idempotency_key": false,
+      "pwc_core_read_v1": false,
+      "pwc_psbt_signer_v1": false,
+      "defined_in": "PWC-TRANSPORT-LOCAL-001 v0.1.0 §5.8"
+    },
+    {
+      "name": "remote.ping",
+      "scope": null,
+      "returns_operation": false,
+      "idempotency_key": false,
+      "pwc_core_read_v1": false,
+      "pwc_psbt_signer_v1": false,
+      "defined_in": "PWC-TRANSPORT-REMOTE-001 v0.1.0 §6"
+    },
+    {
+      "name": "remote.updateRelays",
+      "scope": null,
+      "returns_operation": false,
+      "idempotency_key": false,
+      "pwc_core_read_v1": false,
+      "pwc_psbt_signer_v1": false,
+      "defined_in": "PWC-TRANSPORT-REMOTE-001 v0.1.0 §6"
+    },
+    {
+      "name": "remote.unpair",
+      "scope": null,
+      "returns_operation": false,
+      "idempotency_key": false,
+      "pwc_core_read_v1": false,
+      "pwc_psbt_signer_v1": false,
+      "defined_in": "PWC-TRANSPORT-REMOTE-001 v0.1.0 §6"
+    }
+  ],
+  "notifications": [
+    {
+      "name": "pwc.event",
+      "direction": "Provider to Client",
+      "defined_in": "PWC-TRANSPORT-LOCAL-001 v0.1.0 §8; PWC-TRANSPORT-REMOTE-001 v0.1.0 §5.3"
+    },
+    {
+      "name": "local.delegatedEvent",
+      "direction": "Provider to delegator",
+      "defined_in": "PWC-TRANSPORT-LOCAL-001 v0.1.0 §5.8"
+    },
+    {
+      "name": "remote.paired",
+      "direction": "Provider to Client",
+      "defined_in": "PWC-TRANSPORT-REMOTE-001 v0.1.0 §4.3"
+    },
+    {
+      "name": "remote.pairingRejected",
+      "direction": "Provider to Client",
+      "defined_in": "PWC-TRANSPORT-REMOTE-001 v0.1.0 §4.2"
+    },
+    {
+      "name": "remote.relaysChanged",
+      "direction": "Provider to Client",
+      "defined_in": "PWC-TRANSPORT-REMOTE-001 v0.1.0 §5.2"
+    }
+  ],
+  "scopes": [
+    {
+      "name": "wallets:read",
+      "grants": "Wallet/account inventory",
+      "approval": "Explicit initial disclosure consent"
+    },
+    {
+      "name": "balances:read",
+      "grants": "`account.getBalance`",
+      "approval": "Grant required"
+    },
+    {
+      "name": "addresses:read",
+      "grants": "Existing/current addresses",
+      "approval": "Grant required"
+    },
+    {
+      "name": "addresses:create",
+      "grants": "New receive address",
+      "approval": "Explicit grant; no payment implied"
+    },
+    {
+      "name": "transactions:read",
+      "grants": "Account transaction history",
+      "approval": "Grant required"
+    },
+    {
+      "name": "utxos:read",
+      "grants": "Outpoints and coin-selection metadata",
+      "approval": "Privacy-sensitive grant"
+    },
+    {
+      "name": "psbt:create",
+      "grants": "Construct PSBT using an account's resources; release its reservations",
+      "approval": "Grant plus local wallet policy; discloses the selected coins (Core §4.7)"
+    },
+    {
+      "name": "psbt:sign",
+      "grants": "Request signatures for selected inputs",
+      "approval": "**Individual approval of every transaction**"
+    },
+    {
+      "name": "transactions:broadcast",
+      "grants": "Submit raw transaction to wallet-selected backend",
+      "approval": "Grant plus applicable local policy"
+    },
+    {
+      "name": "messages:sign",
+      "grants": "Request supported message signature",
+      "approval": "**Individual approval of every message**"
+    },
+    {
+      "name": "events:read",
+      "grants": "Deliver authorized state-change events",
+      "approval": "Underlying read scopes still enforced"
+    }
+  ],
+  "features": [
+    {
+      "name": "coin_control",
+      "meaning": "`psbt.create` honors `selected_utxos`"
+    },
+    {
+      "name": "multisig",
+      "meaning": "The Provider handles multisignature accounts"
+    },
+    {
+      "name": "hardware_signing",
+      "meaning": "The Provider can sign through hardware devices"
+    },
+    {
+      "name": "watch_only",
+      "meaning": "The Provider handles watch-only accounts"
+    },
+    {
+      "name": "event_push",
+      "meaning": "The Provider delivers the events of Core §8.6 through a transport profile"
+    }
+  ],
+  "errors": [
+    {
+      "code": "INVALID_ARGUMENT",
+      "meaning": "Missing required parameter, malformed field, value outside its type's syntax or range, invalid binary encoding, or a cursor used outside its context",
+      "raised_by": "Provider"
+    },
+    {
+      "code": "PAYLOAD_TOO_LARGE",
+      "meaning": "A PSBT, raw transaction, message or list exceeds an advertised limit of Core §4.1",
+      "raised_by": "Provider"
+    },
+    {
+      "code": "UNSUPPORTED_METHOD",
+      "meaning": "Method not implemented by this Provider",
+      "raised_by": "Provider"
+    },
+    {
+      "code": "UNSUPPORTED_OPERATION",
+      "meaning": "Method exists but is not supported for this account, input, format or state",
+      "raised_by": "Provider"
+    },
+    {
+      "code": "UNSUPPORTED_PSBT_VERSION",
+      "meaning": "PSBT is not version 0",
+      "raised_by": "Provider"
+    },
+    {
+      "code": "UNSUPPORTED_SCRIPT",
+      "meaning": "Script type or sighash mode not supported",
+      "raised_by": "Provider"
+    },
+    {
+      "code": "UNAUTHENTICATED",
+      "meaning": "No valid authenticated session/principal",
+      "raised_by": "Provider"
+    },
+    {
+      "code": "PERMISSION_REQUIRED",
+      "meaning": "No active grant of this Client holds the required scope",
+      "raised_by": "Provider"
+    },
+    {
+      "code": "PERMISSION_REVOKED",
+      "meaning": "No active grant holds the required scope, but a retained revoked or expired grant of this Client did",
+      "raised_by": "Provider"
+    },
+    {
+      "code": "GRANT_NOT_FOUND",
+      "meaning": "No such grant belonging to this Client",
+      "raised_by": "Provider"
+    },
+    {
+      "code": "GRANT_CONSTRAINT_VIOLATED",
+      "meaning": "Request exceeds a constraint of the grant, such as `max_amount_sats_per_request`",
+      "raised_by": "Provider"
+    },
+    {
+      "code": "USER_REJECTED",
+      "meaning": "User denied request",
+      "raised_by": "Provider"
+    },
+    {
+      "code": "WALLET_LOCKED",
+      "meaning": "Wallet is locked; its data cannot be read until the User unlocks it",
+      "raised_by": "Provider"
+    },
+    {
+      "code": "WALLET_NOT_FOUND",
+      "meaning": "No such wallet visible to this Client (nonexistent or outside its grants)",
+      "raised_by": "Provider"
+    },
+    {
+      "code": "ACCOUNT_NOT_FOUND",
+      "meaning": "No such account visible to this Client (nonexistent or outside its grants)",
+      "raised_by": "Provider"
+    },
+    {
+      "code": "NETWORK_MISMATCH",
+      "meaning": "An address is encoded for a network other than the selected account's, or than the stated `network`",
+      "raised_by": "Provider"
+    },
+    {
+      "code": "NETWORK_UNAVAILABLE",
+      "meaning": "Selected network/backend unavailable",
+      "raised_by": "Provider"
+    },
+    {
+      "code": "SYNC_INCOMPLETE",
+      "meaning": "Wallet has not completed the synchronization the action needs",
+      "raised_by": "Provider"
+    },
+    {
+      "code": "STATE_UNAVAILABLE",
+      "meaning": "Required balance, fee, UTXO or confirmation data cannot be made coherent",
+      "raised_by": "Provider"
+    },
+    {
+      "code": "SIGNER_UNAVAILABLE",
+      "meaning": "Required hardware/external signer unavailable",
+      "raised_by": "Provider"
+    },
+    {
+      "code": "INSUFFICIENT_FUNDS",
+      "meaning": "Insufficient eligible value after fees/policy",
+      "raised_by": "Provider"
+    },
+    {
+      "code": "POLICY_VIOLATION",
+      "meaning": "Wallet/user risk policy denies action",
+      "raised_by": "Provider"
+    },
+    {
+      "code": "PSBT_VALIDATION_FAILED",
+      "meaning": "Invalid, inconsistent or unreviewable PSBT",
+      "raised_by": "Provider"
+    },
+    {
+      "code": "PSBT_CONFLICT",
+      "meaning": "PSBTs of different transactions, or conflicting values for the same key, during combination",
+      "raised_by": "Provider"
+    },
+    {
+      "code": "TRANSACTION_REJECTED",
+      "meaning": "Broadcast backend refused transaction",
+      "raised_by": "Provider"
+    },
+    {
+      "code": "TRANSACTION_NOT_FOUND",
+      "meaning": "The account has no record of the requested transaction",
+      "raised_by": "Provider"
+    },
+    {
+      "code": "RESERVATION_NOT_FOUND",
+      "meaning": "No such reservation of this Client for this account",
+      "raised_by": "Provider"
+    },
+    {
+      "code": "OPERATION_NOT_FOUND",
+      "meaning": "Unknown, no longer retained or unauthorized operation reference",
+      "raised_by": "Provider"
+    },
+    {
+      "code": "OPERATION_NOT_CANCELABLE",
+      "meaning": "Operation already past an irreversible step",
+      "raised_by": "Provider"
+    },
+    {
+      "code": "OPERATION_EXPIRED",
+      "meaning": "Approval or operation window expired",
+      "raised_by": "Provider"
+    },
+    {
+      "code": "OPERATION_CANCELED",
+      "meaning": "Operation was canceled before an irreversible step",
+      "raised_by": "Provider"
+    },
+    {
+      "code": "IDEMPOTENCY_CONFLICT",
+      "meaning": "Same key used with different parameters",
+      "raised_by": "Provider"
+    },
+    {
+      "code": "CURSOR_EXPIRED",
+      "meaning": "Listing cursor cannot be continued safely",
+      "raised_by": "Provider"
+    },
+    {
+      "code": "RATE_LIMITED",
+      "meaning": "Client exceeds a request quota or `max_concurrent_operations`",
+      "raised_by": "Provider"
+    },
+    {
+      "code": "PROVIDER_UNAVAILABLE",
+      "meaning": "The Provider cannot currently be reached. Generated by a transport component, such as a browser bridge or a relay client, never by the Provider itself",
+      "raised_by": "transport component"
+    },
+    {
+      "code": "INTERNAL_ERROR",
+      "meaning": "Unexpected Provider error; without sensitive diagnostics",
+      "raised_by": "Provider"
+    }
+  ],
+  "events": [
+    {
+      "event_type": "wallet.locked",
+      "envelope": "none",
+      "payload": "`{ wallet_id: Id }`"
+    },
+    {
+      "event_type": "wallet.unlocked",
+      "envelope": "none",
+      "payload": "`{ wallet_id: Id }`"
+    },
+    {
+      "event_type": "wallet.syncChanged",
+      "envelope": "none",
+      "payload": "`{ wallet_id: Id, sync: SyncStatus }`"
+    },
+    {
+      "event_type": "account.balanceChanged",
+      "envelope": "`account_id`",
+      "payload": "`{}`"
+    },
+    {
+      "event_type": "account.transactionChanged",
+      "envelope": "`account_id`",
+      "payload": "`{ txid: Hash256, status: string }`, `status` as in `TransactionRecord`"
+    },
+    {
+      "event_type": "operation.stateChanged",
+      "envelope": "`operation_id`",
+      "payload": "`{ state: string }`, `state` as in `Operation`"
+    },
+    {
+      "event_type": "grant.revoked",
+      "envelope": "none",
+      "payload": "`{ grant_id: Id }`"
+    },
+    {
+      "event_type": "grant.expired",
+      "envelope": "none",
+      "payload": "`{ grant_id: Id }`"
+    },
+    {
+      "event_type": "session.expired",
+      "envelope": "none",
+      "payload": "`{ session_id: Id }`"
+    }
+  ],
+  "profiles": [
+    {
+      "name": "pwc-core-read-v1",
+      "status": "Mandatory",
+      "defined_in": "PWC-CORE-001 v0.2.1 §5.1"
+    },
+    {
+      "name": "pwc-psbt-signer-v1",
+      "status": "Optional",
+      "defined_in": "PWC-CORE-001 v0.2.1 §5.2"
+    }
+  ],
+  "protocols": [
+    {
+      "name": "pwc-local/1",
+      "defined_in": "PWC-TRANSPORT-LOCAL-001 v0.1.0",
+      "use": "Value of `local.hello` `protocols` and `protocol`"
+    },
+    {
+      "name": "pwc-browser/1",
+      "defined_in": "PWC-TRANSPORT-BROWSER-001 v0.1.0",
+      "use": "Value of `PwcProviderInfo.protocol`"
+    },
+    {
+      "name": "pwc-remote/1",
+      "defined_in": "PWC-TRANSPORT-REMOTE-001 v0.1.0; used unchanged by PWC-TRANSPORT-MOBILE-001 v0.1.0",
+      "use": "Version `v=1` of the `pwc-remote:` pairing URI"
+    }
+  ],
+  "networks": [
+    {
+      "name": "mainnet",
+      "meaning": "Existing Purity main network"
+    },
+    {
+      "name": "signet",
+      "meaning": "Existing Purity signet"
+    },
+    {
+      "name": "regtest",
+      "meaning": "Existing Purity regression-test network"
+    }
+  ],
+  "script_types": [
+    "p2pkh",
+    "p2sh",
+    "p2sh-p2wpkh",
+    "p2sh-p2wsh",
+    "p2wpkh",
+    "p2wsh",
+    "p2tr",
+    "other"
+  ],
+  "message_formats": [
+    "bip322-simple",
+    "bip322-full",
+    "legacy"
+  ],
+  "identifiers": [
+    {
+      "identifier": "JSON-RPC error code `1000`",
+      "use": "Carries every `PwcError` in `error.data`",
+      "defined_in": "PWC-TRANSPORT-LOCAL-001 v0.1.0 §4.3"
+    },
+    {
+      "identifier": "JSON-RPC error codes `-32700`, `-32600`",
+      "use": "Parse error; invalid request",
+      "defined_in": "PWC-TRANSPORT-LOCAL-001 v0.1.0 §4.3"
+    },
+    {
+      "identifier": "Endpoint directory `pwc`",
+      "use": "Unix socket directory name under the platform base path",
+      "defined_in": "PWC-TRANSPORT-LOCAL-001 v0.1.0 §3.2"
+    },
+    {
+      "identifier": "Pipe prefix `pwc-<sid>-`",
+      "use": "Windows named pipe prefix",
+      "defined_in": "PWC-TRANSPORT-LOCAL-001 v0.1.0 §3.3"
+    },
+    {
+      "identifier": "HMAC labels `PWC-LOCAL-1 client`, `PWC-LOCAL-1 provider`",
+      "use": "Authentication proofs",
+      "defined_in": "PWC-TRANSPORT-LOCAL-001 v0.1.0 §5.4"
+    },
+    {
+      "identifier": "DOM events `pwc:requestProvider`, `pwc:announceProvider`",
+      "use": "Provider discovery",
+      "defined_in": "PWC-TRANSPORT-BROWSER-001 v0.1.0 §4.1"
+    },
+    {
+      "identifier": "Event type `pwcevent`",
+      "use": "Core events on the page interface",
+      "defined_in": "PWC-TRANSPORT-BROWSER-001 v0.1.0 §4.3"
+    },
+    {
+      "identifier": "Error name `PwcError`",
+      "use": "`name` of a rejected request's `Error`",
+      "defined_in": "PWC-TRANSPORT-BROWSER-001 v0.1.0 §4.2"
+    },
+    {
+      "identifier": "URI scheme `pwc-remote`",
+      "use": "Pairing URI",
+      "defined_in": "PWC-TRANSPORT-REMOTE-001 v0.1.0 §4.1"
+    },
+    {
+      "identifier": "Nostr event kind `27180`",
+      "use": "PWC messages (ephemeral; registration pending)",
+      "defined_in": "PWC-TRANSPORT-REMOTE-001 v0.1.0 §5.1"
+    },
+    {
+      "identifier": "Hash label `PWC-REMOTE-1 sas`",
+      "use": "Short authentication string",
+      "defined_in": "PWC-TRANSPORT-REMOTE-001 v0.1.0 §4.4"
+    },
+    {
+      "identifier": "Link parameter `pwc_session`",
+      "use": "Session reference in wake and return links",
+      "defined_in": "PWC-TRANSPORT-MOBILE-001 v0.1.0 §3"
+    }
+  ],
+  "provider_ids": [
+    {
+      "provider_id": "puritywallet",
+      "holder": "PurityWallet desktop and its future mobile and extension editions"
+    }
+  ],
+  "extension_namespace": "vendor.<reverse-domain>.<name>"
+}

@@ -1,0 +1,523 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://purity-wallet-connect.invalid/schema/pwc-transport-local-0.1.0.schema.json",
+  "title": "PWC Transport Profile LOCAL v0.1.0",
+  "description": "Frames and local.* methods of PWC-TRANSPORT-LOCAL-001 v0.1.0. Core types are referenced from the Core schema, which must be registered with the validator.",
+  "x-pwc-methods": {
+    "local.hello": {
+      "params": {
+        "$ref": "#/$defs/local.hello.params"
+      },
+      "result": {
+        "$ref": "#/$defs/local.hello.result"
+      }
+    },
+    "local.pair": {
+      "params": {
+        "$ref": "#/$defs/local.pair.params"
+      },
+      "result": {
+        "$ref": "#/$defs/local.pair.result"
+      }
+    },
+    "local.authenticate": {
+      "params": {
+        "$ref": "#/$defs/local.authenticate.params"
+      },
+      "result": {
+        "$ref": "#/$defs/local.authenticate.result"
+      }
+    },
+    "local.unpair": {
+      "params": {
+        "$ref": "#/$defs/local.unpair.params"
+      },
+      "result": {
+        "$ref": "#/$defs/local.unpair.result"
+      }
+    },
+    "local.openDelegate": {
+      "params": {
+        "$ref": "#/$defs/local.openDelegate.params"
+      },
+      "result": {
+        "$ref": "#/$defs/local.openDelegate.result"
+      }
+    },
+    "local.delegated": {
+      "params": {
+        "$ref": "#/$defs/local.delegated.params"
+      },
+      "result": {
+        "$ref": "#/$defs/local.delegated.result"
+      }
+    },
+    "local.closeDelegate": {
+      "params": {
+        "$ref": "#/$defs/local.closeDelegate.params"
+      },
+      "result": {
+        "$ref": "#/$defs/local.closeDelegate.result"
+      }
+    }
+  },
+  "$defs": {
+    "RpcId": {
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        }
+      ]
+    },
+    "Hex32": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "Request": {
+      "type": "object",
+      "properties": {
+        "jsonrpc": {
+          "const": "2.0"
+        },
+        "id": {
+          "$ref": "#/$defs/RpcId"
+        },
+        "method": {
+          "$ref": "https://purity-wallet-connect.invalid/schema/pwc-core-0.2.1.schema.json#/$defs/MethodName"
+        },
+        "params": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "jsonrpc",
+        "method",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    "SuccessResponse": {
+      "type": "object",
+      "properties": {
+        "jsonrpc": {
+          "const": "2.0"
+        },
+        "id": {
+          "$ref": "#/$defs/RpcId"
+        },
+        "result": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "jsonrpc",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    "ErrorResponse": {
+      "type": "object",
+      "properties": {
+        "jsonrpc": {
+          "const": "2.0"
+        },
+        "id": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/RpcId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "error": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "const": 1000
+                },
+                "message": {
+                  "type": "string"
+                },
+                "data": {
+                  "$ref": "https://purity-wallet-connect.invalid/schema/pwc-core-0.2.1.schema.json#/$defs/PwcError"
+                }
+              },
+              "required": [
+                "code",
+                "data",
+                "message"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "enum": [
+                    -32700,
+                    -32600
+                  ]
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "message"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "required": [
+        "error",
+        "id",
+        "jsonrpc"
+      ],
+      "additionalProperties": false
+    },
+    "EventNotification": {
+      "type": "object",
+      "properties": {
+        "jsonrpc": {
+          "const": "2.0"
+        },
+        "method": {
+          "const": "pwc.event"
+        },
+        "params": {
+          "$ref": "https://purity-wallet-connect.invalid/schema/pwc-core-0.2.1.schema.json#/$defs/PwcEvent"
+        }
+      },
+      "required": [
+        "jsonrpc",
+        "method",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    "DelegatedEventNotification": {
+      "type": "object",
+      "properties": {
+        "jsonrpc": {
+          "const": "2.0"
+        },
+        "method": {
+          "const": "local.delegatedEvent"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "delegate_id": {
+              "$ref": "https://purity-wallet-connect.invalid/schema/pwc-core-0.2.1.schema.json#/$defs/Id"
+            },
+            "event": {
+              "$ref": "https://purity-wallet-connect.invalid/schema/pwc-core-0.2.1.schema.json#/$defs/PwcEvent"
+            }
+          },
+          "required": [
+            "delegate_id",
+            "event"
+          ]
+        }
+      },
+      "required": [
+        "jsonrpc",
+        "method",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    "DelegatePrincipal": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "web_origin"
+        },
+        "origin": {
+          "type": "string",
+          "pattern": "^(https://[^/?#\\s]+|http://(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]{1,5})?)$"
+        },
+        "private": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "kind",
+        "origin",
+        "private"
+      ]
+    },
+    "ProviderFrame": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/SuccessResponse"
+        },
+        {
+          "$ref": "#/$defs/ErrorResponse"
+        },
+        {
+          "$ref": "#/$defs/EventNotification"
+        },
+        {
+          "$ref": "#/$defs/DelegatedEventNotification"
+        }
+      ]
+    },
+    "local.hello.params": {
+      "type": "object",
+      "properties": {
+        "protocols": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "protocols"
+      ]
+    },
+    "local.hello.result": {
+      "type": "object",
+      "properties": {
+        "protocol": {
+          "type": "string"
+        },
+        "pwc_version": {
+          "$ref": "https://purity-wallet-connect.invalid/schema/pwc-core-0.2.1.schema.json#/$defs/SemVer"
+        },
+        "provider_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,32}$"
+        },
+        "provider": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "$ref": "https://purity-wallet-connect.invalid/schema/pwc-core-0.2.1.schema.json#/$defs/Text"
+            },
+            "version": {
+              "$ref": "https://purity-wallet-connect.invalid/schema/pwc-core-0.2.1.schema.json#/$defs/Text"
+            }
+          },
+          "required": [
+            "name",
+            "version"
+          ]
+        },
+        "max_frame_bytes": {
+          "type": "integer",
+          "minimum": 1048576,
+          "maximum": 9007199254740991
+        },
+        "server_nonce": {
+          "$ref": "#/$defs/Hex32"
+        },
+        "delegation": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "delegation",
+        "max_frame_bytes",
+        "protocol",
+        "provider",
+        "provider_id",
+        "pwc_version",
+        "server_nonce"
+      ]
+    },
+    "local.pair.params": {
+      "type": "object",
+      "properties": {
+        "client_name": {
+          "$ref": "https://purity-wallet-connect.invalid/schema/pwc-core-0.2.1.schema.json#/$defs/Text"
+        },
+        "client_description": {
+          "$ref": "https://purity-wallet-connect.invalid/schema/pwc-core-0.2.1.schema.json#/$defs/Text"
+        },
+        "pairing_code": {
+          "type": "string",
+          "pattern": "^[0-9]{6}$"
+        },
+        "delegator": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "client_name",
+        "pairing_code"
+      ]
+    },
+    "local.pair.result": {
+      "type": "object",
+      "properties": {
+        "client_id": {
+          "$ref": "https://purity-wallet-connect.invalid/schema/pwc-core-0.2.1.schema.json#/$defs/Id"
+        },
+        "client_secret": {
+          "$ref": "#/$defs/Hex32"
+        },
+        "session_id": {
+          "$ref": "https://purity-wallet-connect.invalid/schema/pwc-core-0.2.1.schema.json#/$defs/Id"
+        }
+      },
+      "required": [
+        "client_id",
+        "client_secret",
+        "session_id"
+      ]
+    },
+    "local.authenticate.params": {
+      "type": "object",
+      "properties": {
+        "client_id": {
+          "$ref": "https://purity-wallet-connect.invalid/schema/pwc-core-0.2.1.schema.json#/$defs/Id"
+        },
+        "client_nonce": {
+          "$ref": "#/$defs/Hex32"
+        },
+        "client_proof": {
+          "$ref": "#/$defs/Hex32"
+        }
+      },
+      "required": [
+        "client_id",
+        "client_nonce",
+        "client_proof"
+      ]
+    },
+    "local.authenticate.result": {
+      "type": "object",
+      "properties": {
+        "session_id": {
+          "$ref": "https://purity-wallet-connect.invalid/schema/pwc-core-0.2.1.schema.json#/$defs/Id"
+        },
+        "server_proof": {
+          "$ref": "#/$defs/Hex32"
+        }
+      },
+      "required": [
+        "server_proof",
+        "session_id"
+      ]
+    },
+    "local.unpair.params": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    },
+    "local.unpair.result": {
+      "type": "object",
+      "properties": {
+        "unpaired": {
+          "const": true
+        }
+      },
+      "required": [
+        "unpaired"
+      ]
+    },
+    "local.openDelegate.params": {
+      "type": "object",
+      "properties": {
+        "principal": {
+          "$ref": "#/$defs/DelegatePrincipal"
+        }
+      },
+      "required": [
+        "principal"
+      ]
+    },
+    "local.openDelegate.result": {
+      "type": "object",
+      "properties": {
+        "delegate_id": {
+          "$ref": "https://purity-wallet-connect.invalid/schema/pwc-core-0.2.1.schema.json#/$defs/Id"
+        },
+        "client_id": {
+          "$ref": "https://purity-wallet-connect.invalid/schema/pwc-core-0.2.1.schema.json#/$defs/Id"
+        },
+        "session_id": {
+          "$ref": "https://purity-wallet-connect.invalid/schema/pwc-core-0.2.1.schema.json#/$defs/Id"
+        }
+      },
+      "required": [
+        "client_id",
+        "delegate_id",
+        "session_id"
+      ]
+    },
+    "local.delegated.params": {
+      "type": "object",
+      "properties": {
+        "delegate_id": {
+          "$ref": "https://purity-wallet-connect.invalid/schema/pwc-core-0.2.1.schema.json#/$defs/Id"
+        },
+        "method": {
+          "allOf": [
+            {
+              "$ref": "https://purity-wallet-connect.invalid/schema/pwc-core-0.2.1.schema.json#/$defs/MethodName"
+            },
+            {
+              "not": {
+                "pattern": "^local\\."
+              }
+            }
+          ]
+        },
+        "params": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "delegate_id",
+        "method",
+        "params"
+      ]
+    },
+    "local.delegated.result": {
+      "type": "object"
+    },
+    "local.closeDelegate.params": {
+      "type": "object",
+      "properties": {
+        "delegate_id": {
+          "$ref": "https://purity-wallet-connect.invalid/schema/pwc-core-0.2.1.schema.json#/$defs/Id"
+        }
+      },
+      "required": [
+        "delegate_id"
+      ]
+    },
+    "local.closeDelegate.result": {
+      "type": "object",
+      "properties": {
+        "closed": {
+          "const": true
+        }
+      },
+      "required": [
+        "closed"
+      ]
+    }
+  }
+}

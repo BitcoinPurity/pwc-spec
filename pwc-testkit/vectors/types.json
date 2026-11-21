@@ -1,0 +1,384 @@
+{
+  "description": "Validity of values against PWC semantic types and object rules (PWC-CORE-001 v0.2.1 §3.2, §4; tests C-22, C-26, C-29). 'type' names a $defs entry of pwc-core-0.2.1.schema.json.",
+  "vectors": [
+    {
+      "type": "Sats",
+      "value": "0",
+      "valid": true
+    },
+    {
+      "type": "Sats",
+      "value": "2100000000000000",
+      "valid": true
+    },
+    {
+      "type": "Sats",
+      "value": "2100000000000001",
+      "valid": false
+    },
+    {
+      "type": "Sats",
+      "value": "01",
+      "valid": false
+    },
+    {
+      "type": "Sats",
+      "value": "-1",
+      "valid": false
+    },
+    {
+      "type": "Sats",
+      "value": 5,
+      "valid": false
+    },
+    {
+      "type": "PositiveSats",
+      "value": "0",
+      "valid": false
+    },
+    {
+      "type": "PositiveSats",
+      "value": "1999999999999999",
+      "valid": true
+    },
+    {
+      "type": "SignedSats",
+      "value": "-0",
+      "valid": false
+    },
+    {
+      "type": "SignedSats",
+      "value": "+5",
+      "valid": false
+    },
+    {
+      "type": "SignedSats",
+      "value": "-301000",
+      "valid": true
+    },
+    {
+      "type": "SignedSats",
+      "value": "-2100000000000001",
+      "valid": false
+    },
+    {
+      "type": "FeeRate",
+      "value": "0",
+      "valid": false
+    },
+    {
+      "type": "FeeRate",
+      "value": "1.25",
+      "valid": false
+    },
+    {
+      "type": "FeeRate",
+      "value": "-5",
+      "valid": false
+    },
+    {
+      "type": "FeeRate",
+      "value": "01250",
+      "valid": false
+    },
+    {
+      "type": "FeeRate",
+      "value": "+1250",
+      "valid": false
+    },
+    {
+      "type": "FeeRate",
+      "value": 1250,
+      "valid": false
+    },
+    {
+      "type": "FeeRate",
+      "value": "1250",
+      "valid": true
+    },
+    {
+      "type": "FeeRate",
+      "value": "1000000000",
+      "valid": true
+    },
+    {
+      "type": "FeeRate",
+      "value": "1000000001",
+      "valid": false
+    },
+    {
+      "type": "Id",
+      "value": "acct-01",
+      "valid": true
+    },
+    {
+      "type": "Id",
+      "value": "",
+      "valid": false
+    },
+    {
+      "type": "Id",
+      "value": "a b",
+      "valid": false
+    },
+    {
+      "type": "Id",
+      "value": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "valid": false
+    },
+    {
+      "type": "Hex",
+      "value": "ab",
+      "valid": true
+    },
+    {
+      "type": "Hex",
+      "value": "abc",
+      "valid": false
+    },
+    {
+      "type": "Hex",
+      "value": "AB",
+      "valid": false
+    },
+    {
+      "type": "Hex",
+      "value": "",
+      "valid": false
+    },
+    {
+      "type": "Base64",
+      "value": "cHNidP8=",
+      "valid": true
+    },
+    {
+      "type": "Base64",
+      "value": "cHNidP9=",
+      "valid": false
+    },
+    {
+      "type": "Base64",
+      "value": "cHNidP8",
+      "valid": false
+    },
+    {
+      "type": "Base64",
+      "value": "",
+      "valid": false
+    },
+    {
+      "type": "Hash256",
+      "value": "abababababababababababababababababababababababababababababababab",
+      "valid": true
+    },
+    {
+      "type": "Hash256",
+      "value": "ABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABAB",
+      "valid": false
+    },
+    {
+      "type": "Timestamp",
+      "value": "2026-11-14T00:00:00Z",
+      "valid": true
+    },
+    {
+      "type": "Timestamp",
+      "value": "2026-11-14T00:00:00.5Z",
+      "valid": true
+    },
+    {
+      "type": "Timestamp",
+      "value": "2026-11-14T00:00:00+11:00",
+      "valid": false
+    },
+    {
+      "type": "Text",
+      "value": "PurityWallet",
+      "valid": true
+    },
+    {
+      "type": "Text",
+      "value": "",
+      "valid": false
+    },
+    {
+      "type": "Text",
+      "value": "a\nb",
+      "valid": false
+    },
+    {
+      "type": "Text",
+      "value": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "valid": false
+    },
+    {
+      "type": "UInt32",
+      "value": 4294967295,
+      "valid": true
+    },
+    {
+      "type": "UInt32",
+      "value": 4294967296,
+      "valid": false
+    },
+    {
+      "type": "PsbtVersion",
+      "value": 2,
+      "valid": false
+    },
+    {
+      "type": "Network",
+      "value": "signet",
+      "valid": true
+    },
+    {
+      "type": "Network",
+      "value": "Signet",
+      "valid": false
+    },
+    {
+      "type": "Utxo",
+      "value": {
+        "txid": "abababababababababababababababababababababababababababababababab",
+        "vout": 0,
+        "account_id": "a",
+        "network": "mainnet",
+        "value_sats": "1",
+        "confirmations": 0,
+        "spendable": true,
+        "restrictions": [
+          "frozen"
+        ]
+      },
+      "valid": false
+    },
+    {
+      "type": "Utxo",
+      "value": {
+        "txid": "abababababababababababababababababababababababababababababababab",
+        "vout": 0,
+        "account_id": "a",
+        "network": "mainnet",
+        "value_sats": "1",
+        "confirmations": 3,
+        "spendable": true,
+        "restrictions": []
+      },
+      "valid": false
+    },
+    {
+      "type": "TransactionRecord",
+      "value": {
+        "account_id": "a",
+        "network": "mainnet",
+        "txid": "abababababababababababababababababababababababababababababababab",
+        "status": "confirmed",
+        "confirmations": 0,
+        "net_change_sats": "0"
+      },
+      "valid": false
+    },
+    {
+      "type": "FinalizePsbtResult",
+      "value": {
+        "psbt": "cHNidP8=",
+        "psbt_version": 0,
+        "complete": true
+      },
+      "valid": false
+    },
+    {
+      "type": "FinalizePsbtResult",
+      "value": {
+        "psbt": "cHNidP8=",
+        "psbt_version": 0,
+        "complete": false,
+        "txid": "abababababababababababababababababababababababababababababababab"
+      },
+      "valid": false
+    },
+    {
+      "type": "Operation",
+      "value": {
+        "operation_id": "op",
+        "method": "psbt.sign",
+        "state": "awaiting_approval",
+        "created_at": "2026-11-14T00:00:00Z",
+        "updated_at": "2026-11-14T00:00:00Z"
+      },
+      "valid": false
+    },
+    {
+      "type": "Operation",
+      "value": {
+        "operation_id": "op",
+        "method": "psbt.sign",
+        "state": "rejected",
+        "created_at": "2026-11-14T00:00:00Z",
+        "updated_at": "2026-11-14T00:00:00Z",
+        "error": {
+          "code": "POLICY_VIOLATION",
+          "message": "x"
+        }
+      },
+      "valid": false
+    },
+    {
+      "type": "WalletSummary",
+      "value": {
+        "wallet_id": "w",
+        "display_name": "W",
+        "network": "mainnet",
+        "wallet_kind": "software",
+        "state": "locked",
+        "account_ids": [
+          "a"
+        ]
+      },
+      "valid": false
+    },
+    {
+      "type": "CreatePsbtResult",
+      "value": {
+        "psbt": "cHNidP8=",
+        "psbt_version": 0,
+        "account_id": "a",
+        "network": "mainnet",
+        "fee_sats": "1",
+        "vsize": 1,
+        "change_output_indexes": [],
+        "reservation_id": "r"
+      },
+      "valid": false
+    },
+    {
+      "type": "PwcEvent",
+      "value": {
+        "event_id": "e",
+        "event_type": "operation.stateChanged",
+        "occurred_at": "2026-11-14T00:00:00Z",
+        "payload": {
+          "state": "completed"
+        }
+      },
+      "valid": false
+    },
+    {
+      "type": "psbt.combine.params",
+      "value": {
+        "psbts": [
+          "cHNidP8="
+        ]
+      },
+      "valid": false
+    },
+    {
+      "type": "session.requestPermissions.params",
+      "value": {
+        "scopes": [],
+        "idempotency_key": "k"
+      },
+      "valid": false
+    }
+  ]
+}

@@ -1,0 +1,355 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://purity-wallet-connect.invalid/schema/pwc-transport-remote-0.1.0.schema.json",
+  "title": "PWC Transport Profile REMOTE v0.1.0",
+  "description": "Nostr event envelope, decrypted plaintexts and remote.* methods of PWC-TRANSPORT-REMOTE-001 v0.1.0. Requires the Core and LOCAL schemas to be registered with the validator.",
+  "x-pwc-methods": {
+    "remote.ping": {
+      "params": {
+        "$ref": "#/$defs/remote.ping.params"
+      },
+      "result": {
+        "$ref": "#/$defs/remote.ping.result"
+      }
+    },
+    "remote.updateRelays": {
+      "params": {
+        "$ref": "#/$defs/remote.updateRelays.params"
+      },
+      "result": {
+        "$ref": "#/$defs/remote.updateRelays.result"
+      }
+    },
+    "remote.unpair": {
+      "params": {
+        "$ref": "#/$defs/remote.unpair.params"
+      },
+      "result": {
+        "$ref": "#/$defs/remote.unpair.result"
+      }
+    }
+  },
+  "$defs": {
+    "PublicKey": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "WssUrl": {
+      "type": "string",
+      "pattern": "^wss://[^\\s]+$"
+    },
+    "NostrEvent": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "pubkey": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "created_at": {
+          "$ref": "https://purity-wallet-connect.invalid/schema/pwc-core-0.2.1.schema.json#/$defs/NonNegativeInteger"
+        },
+        "kind": {
+          "const": 27180
+        },
+        "tags": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "const": "p"
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            ],
+            "minItems": 2,
+            "maxItems": 2
+          }
+        },
+        "content": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sig": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{128}$"
+        }
+      },
+      "required": [
+        "content",
+        "created_at",
+        "id",
+        "kind",
+        "pubkey",
+        "sig",
+        "tags"
+      ]
+    },
+    "RemotePart": {
+      "type": "object",
+      "properties": {
+        "pwc_part": {
+          "type": "object",
+          "properties": {
+            "message_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{32}$"
+            },
+            "index": {
+              "$ref": "https://purity-wallet-connect.invalid/schema/pwc-core-0.2.1.schema.json#/$defs/UInt32"
+            },
+            "count": {
+              "type": "integer",
+              "minimum": 2,
+              "maximum": 4294967295
+            },
+            "data": {
+              "$ref": "https://purity-wallet-connect.invalid/schema/pwc-core-0.2.1.schema.json#/$defs/Base64"
+            }
+          },
+          "required": [
+            "count",
+            "data",
+            "index",
+            "message_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "pwc_part"
+      ],
+      "additionalProperties": false
+    },
+    "RemotePairedParams": {
+      "type": "object",
+      "properties": {
+        "secret": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        },
+        "client_id": {
+          "$ref": "https://purity-wallet-connect.invalid/schema/pwc-core-0.2.1.schema.json#/$defs/Id"
+        },
+        "session_id": {
+          "$ref": "https://purity-wallet-connect.invalid/schema/pwc-core-0.2.1.schema.json#/$defs/Id"
+        },
+        "pwc_version": {
+          "$ref": "https://purity-wallet-connect.invalid/schema/pwc-core-0.2.1.schema.json#/$defs/SemVer"
+        },
+        "provider_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,32}$"
+        },
+        "provider": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "$ref": "https://purity-wallet-connect.invalid/schema/pwc-core-0.2.1.schema.json#/$defs/Text"
+            },
+            "version": {
+              "$ref": "https://purity-wallet-connect.invalid/schema/pwc-core-0.2.1.schema.json#/$defs/Text"
+            }
+          },
+          "required": [
+            "name",
+            "version"
+          ]
+        },
+        "relays": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^wss://[^\\s]+$"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "max_message_bytes": {
+          "type": "integer",
+          "minimum": 1048576,
+          "maximum": 9007199254740991
+        },
+        "wake_url": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "client_id",
+        "max_message_bytes",
+        "provider",
+        "provider_id",
+        "pwc_version",
+        "relays",
+        "secret",
+        "session_id"
+      ]
+    },
+    "Notification": {
+      "oneOf": [
+        {
+          "$ref": "https://purity-wallet-connect.invalid/schema/pwc-transport-local-0.1.0.schema.json#/$defs/EventNotification"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "const": "2.0"
+            },
+            "method": {
+              "const": "remote.paired"
+            },
+            "params": {
+              "$ref": "#/$defs/RemotePairedParams"
+            }
+          },
+          "required": [
+            "jsonrpc",
+            "method",
+            "params"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "const": "2.0"
+            },
+            "method": {
+              "const": "remote.pairingRejected"
+            },
+            "params": {
+              "type": "object",
+              "properties": {
+                "secret": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{32}$"
+                }
+              },
+              "required": [
+                "secret"
+              ]
+            }
+          },
+          "required": [
+            "jsonrpc",
+            "method",
+            "params"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "const": "2.0"
+            },
+            "method": {
+              "const": "remote.relaysChanged"
+            },
+            "params": {
+              "type": "object",
+              "properties": {
+                "relays": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^wss://[^\\s]+$"
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                }
+              },
+              "required": [
+                "relays"
+              ]
+            }
+          },
+          "required": [
+            "jsonrpc",
+            "method",
+            "params"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Plaintext": {
+      "oneOf": [
+        {
+          "$ref": "https://purity-wallet-connect.invalid/schema/pwc-transport-local-0.1.0.schema.json#/$defs/Request"
+        },
+        {
+          "$ref": "https://purity-wallet-connect.invalid/schema/pwc-transport-local-0.1.0.schema.json#/$defs/SuccessResponse"
+        },
+        {
+          "$ref": "https://purity-wallet-connect.invalid/schema/pwc-transport-local-0.1.0.schema.json#/$defs/ErrorResponse"
+        },
+        {
+          "$ref": "#/$defs/Notification"
+        },
+        {
+          "$ref": "#/$defs/RemotePart"
+        }
+      ]
+    },
+    "remote.ping.params": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    },
+    "remote.ping.result": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    },
+    "remote.updateRelays.params": {
+      "type": "object",
+      "properties": {
+        "relays": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^wss://[^\\s]+$"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "relays"
+      ]
+    },
+    "remote.updateRelays.result": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    },
+    "remote.unpair.params": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    },
+    "remote.unpair.result": {
+      "type": "object",
+      "properties": {
+        "unpaired": {
+          "const": true
+        }
+      },
+      "required": [
+        "unpaired"
+      ]
+    }
+  }
+}
