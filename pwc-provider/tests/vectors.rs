@@ -88,3 +88,12 @@ fn error_codes_serialize_as_registered_tokens() {
         assert!(codes.contains(&serde_json::to_value(c).unwrap()), "{c:?}");
     }
 }
+
+#[test]
+fn balance_vectors() {
+    for v in vectors("balance.json")["vectors"].as_array().unwrap() {
+        let scenario: pwc_provider::balance::Scenario = serde_json::from_value(v["scenario"].clone()).unwrap();
+        let got = serde_json::to_value(pwc_provider::balance::compute(&scenario).components).unwrap();
+        assert_eq!(got, v["expected"], "{}", v["id"]);
+    }
+}

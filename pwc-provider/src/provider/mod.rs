@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tokio::sync::{mpsc, oneshot, Notify};
 
-use crate::backend::{AccountInfo, WalletBackend, WalletInfo, WalletState};
+use crate::backend::{AccountInfo, Reserved, WalletBackend, WalletInfo, WalletState};
 use crate::error::{err, ErrorCode, PwcError};
 use crate::methods::{self, Resource};
 use crate::prompt::{PairingRequest, PeerInfo, Prompt, Requester};
@@ -688,6 +688,11 @@ impl Provider {
         for s in inner.sessions.values().filter(|s| s.client_id == client_id) {
             s.kill.notify_one();
         }
+    }
+
+    /// Outpoints of the account under an active reservation.
+    fn reserved(&self, _inner: &Inner, _account_id: &Id, _now: Timestamp) -> Reserved {
+        Reserved::new()
     }
 
     fn requester(&self, inner: &Inner, client_id: &Id) -> Requester {

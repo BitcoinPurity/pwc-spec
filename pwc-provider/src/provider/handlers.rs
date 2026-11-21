@@ -9,7 +9,7 @@ use super::grants::{self, Grant};
 use super::{Inner, OpState, Outcome, Provider, Target};
 use crate::backend::{AccountInfo, WalletInfo};
 use crate::error::{err, ErrorCode, PwcError};
-use crate::methods::{Request, RequestPermissions};
+use crate::methods::{Listing, Request, RequestPermissions};
 use crate::prompt::{GrantChoice, PermissionRequest, Prompt};
 use crate::types::{Id, Timestamp};
 
@@ -128,11 +128,89 @@ impl Provider {
                 self.transition(inner, &p.operation_id, OpState::Canceled, None, Some(e));
                 Ok(Outcome::Operation(p.operation_id))
             }
-            _ => {
-                let _ = ctx.account();
-                Err(err(ErrorCode::InternalError, "not implemented"))
+            Request::GetBalance(_) => {
+                let reserved = self.reserved(inner, &ctx.account().account_id, ctx.now);
+                let b = self.backend.balance(ctx.account().account_id.as_str(), &reserved)?;
+                Ok(Outcome::AccountData(json!(b)))
             }
+            Request::GetReceiveAddress(_) => {
+                Ok(Outcome::AccountData(json!(self.backend.receive_address(ctx.account().account_id.as_str())?)))
+            }
+            Request::AddressCreate(p) => {
+                self.account_method(ctx, "address.create")?;
+                let a = self.backend.create_address(ctx.account().account_id.as_str(), p.label.as_ref())?;
+                Ok(Outcome::AccountData(json!(a)))
+            }
+            Request::AddressList(p) => {
+                let items: Vec<Value> = self.backend.addresses(ctx.account().account_id.as_str()).iter().map(|a| json!(a)).collect();
+                self.page(inner, ctx, "address.list", &p, items, "addresses")
+            }
+            Request::UtxoList(p) => {
+                let reserved = self.reserved(inner, &ctx.account().account_id, ctx.now);
+                let items: Vec<Value> =
+                    self.backend.utxos(ctx.account().account_id.as_str(), &reserved)?.iter().map(|u| json!(u)).collect();
+                self.page(inner, ctx, "utxo.list", &p, items, "utxos")
+            }
+            Request::TransactionList(p) => {
+                let items: Vec<Value> =
+                    self.backend.transactions(ctx.account().account_id.as_str())?.iter().map(|t| json!(t)).collect();
+                self.page(inner, ctx, "transaction.list", &p, items, "transactions")
+            }
+            Request::TransactionGet(p) => {
+                let found = self.backend.transactions(ctx.account().account_id.as_str())?.into_iter().find(|t| t.txid == p.txid);
+                match found {
+                    Some(t) => Ok(Outcome::AccountData(json!({ "transaction": t }))),
+                    None => Err(err(ErrorCode::TransactionNotFound, "The account has no record of this transaction")),
+                }
+            }
+            _ => Err(err(ErrorCode::InternalError, "not implemented")),
         }
+    }
+
+    /// Core §4.2: a method absent from the account's `methods` is unsupported for it.
+    fn account_method(&self, ctx: &Ctx, method: &str) -> Result<(), PwcError> {
+        if ctx.account().methods.contains(&method) {
+            Ok(())
+        } else {
+            Err(err(ErrorCode::UnsupportedOperation, format!("{method} is not supported for this account")))
+        }
+    }
+
+    fn cursor_mac(&self, inner: &Inner, method: &str, ctx: &Ctx, offset: usize) -> String {
+        use bitcoin::hashes::{sha256, Hash, HashEngine, Hmac, HmacEngine};
+        let mut e = HmacEngine::<sha256::Hash>::new(&inner.state.cursor_key);
+        let account = ctx.account().account_id.as_str();
+        e.input(format!("{method}\u{0}{account}\u{0}{}\u{0}{offset}", ctx.client_id).as_bytes());
+        let mac = Hmac::<sha256::Hash>::from_engine(e).to_byte_array();
+        bitcoin::hex::DisplayHex::to_lower_hex_string(&mac[..16])
+    }
+
+    /// Core §8 pagination with cursors bound to the method, account and Client.
+    fn page(&self, inner: &Inner, ctx: &Ctx, method: &str, p: &Listing, items: Vec<Value>, key: &str) -> Result<Outcome, PwcError> {
+        let max = self.config.limits.max_page_size as usize;
+        let offset = match &p.cursor {
+            None => 0,
+            Some(c) => {
+                let bad = || err(ErrorCode::InvalidArgument, "The cursor is not valid for this listing");
+                let (n, mac) = c.as_str().split_once('.').ok_or_else(bad)?;
+                let n: usize = n.parse().map_err(|_| bad())?;
+                let expected = self.cursor_mac(inner, method, ctx, n);
+                if mac.len() != expected.len() || !bitcoin::hashes::cmp::fixed_time_eq(expected.as_bytes(), mac.as_bytes()) {
+                    return Err(bad());
+                }
+                if n > items.len() {
+                    return Err(err(ErrorCode::CursorExpired, "The listing changed; restart it"));
+                }
+                n
+            }
+        };
+        let size = p.page_size.map_or(50.min(max), |s| (s.0 as usize).min(max));
+        let end = (offset + size).min(items.len());
+        let mut v = json!({ key: items[offset..end] });
+        if end < items.len() {
+            v["next_cursor"] = json!(format!("{end}.{}", self.cursor_mac(inner, method, ctx, end)));
+        }
+        Ok(Outcome::AccountData(v))
     }
 
     fn own_operation(&self, inner: &Inner, client_id: &Id, op_id: &Id) -> Result<OpState, PwcError> {
