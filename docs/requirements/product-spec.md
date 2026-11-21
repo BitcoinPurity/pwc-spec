@@ -66,7 +66,11 @@
 
 `limits` 的具体数值见 `docs/api-contract.md`。
 
-## 4. 已知限制
+## 4. 持续集成
+
+`.github/workflows/ci.yml` 有两个任务：规范检查（`check_schema.py`、`run_vectors.py`、`check_family.py`）和 Rust Provider（`cargo fmt --check`、`cargo clippy -D warnings`、`cargo test`，后者包含对演示程序运行 `local_runner.py`）。Rust 工具链固定为 1.97.0。
+
+## 5. 已知限制
 
 - 跨重启保留状态依赖宿主钱包调用保存与加载接口。演示程序重启后需要重新配对。
 - `mainnet` 和 `signet` 下同样是内存模拟数据。

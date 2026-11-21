@@ -41,3 +41,4 @@
 - 演示程序以自动批准模式运行时，`pwc-testkit/local_runner.py --pair --allow-destructive` 没有失败项。
 - 进程没有任何 TCP 或 UDP 监听。
 - 仓库原有的 `run_vectors.py` 和 `check_schema.py` 结果不变。
+- GitHub Actions（`.github/workflows/ci.yml`）在每个 PR 和 `main` 的推送上运行：规范检查脚本，以及 `pwc-provider` 的 `cargo fmt --check`、`cargo clippy -D warnings`、`cargo test`。
