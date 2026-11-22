@@ -2,17 +2,14 @@
 
 use std::collections::HashSet;
 use std::fmt;
-use std::os::unix::fs::{DirBuilderExt, MetadataExt, PermissionsExt};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
 use bitcoin::hashes::{sha256, Hash, HashEngine, Hmac, HmacEngine};
 use serde::Deserialize;
 use serde_json::{json, Value};
-use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
-use tokio::net::unix::OwnedReadHalf;
-use tokio::net::{UnixListener, UnixStream};
+use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::sync::{mpsc, Notify};
 use tokio::task::JoinHandle;
 use tokio::time::Instant;
@@ -47,13 +44,25 @@ pub fn server_proof(secret: &[u8; 32], server_nonce: &[u8; 32], client_nonce: &[
 }
 
 // ---------------------------------------------------------------------------------------------------------
-// Endpoint (LOCAL §3.2)
+// Endpoint (LOCAL §3)
+
+#[cfg(unix)]
+mod unix;
+#[cfg(unix)]
+pub use unix::{bind, default_directory, serve, Endpoint};
+
+#[cfg(windows)]
+mod windows;
+#[cfg(windows)]
+pub use windows::{bind_pipe, pipe_name, serve, Endpoint};
 
 #[derive(Debug)]
 pub enum EndpointError {
     UnsafeDirectory(PathBuf),
     PathTooLong(PathBuf),
     AlreadyRunning(PathBuf),
+    /// Windows: the pipe name exists and is not served by another instance under this user (LOCAL §3.3).
+    NameTaken(PathBuf),
     Io(PathBuf, std::io::Error),
 }
 
@@ -71,97 +80,17 @@ impl fmt::Display for EndpointError {
                 p.display()
             ),
             Self::AlreadyRunning(p) => write!(f, "another Provider instance is listening on {}", p.display()),
+            Self::NameTaken(p) => write!(
+                f,
+                "the pipe {} exists but is not served by a Provider of the current user; it is not used",
+                p.display()
+            ),
             Self::Io(p, e) => write!(f, "{}: {e}", p.display()),
         }
     }
 }
 
 impl std::error::Error for EndpointError {}
-
-/// A listening endpoint. Dropping it removes the socket file.
-pub struct Endpoint {
-    listener: UnixListener,
-    path: PathBuf,
-}
-
-impl Endpoint {
-    pub fn path(&self) -> &Path {
-        &self.path
-    }
-}
-
-impl Drop for Endpoint {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_file(&self.path);
-    }
-}
-
-fn euid() -> u32 {
-    // SAFETY: geteuid has no preconditions and cannot fail.
-    unsafe { libc::geteuid() }
-}
-
-/// The endpoint directory of LOCAL §3.2 for the current user.
-pub fn default_directory() -> Option<PathBuf> {
-    let home = std::env::var_os("HOME").map(PathBuf::from);
-    if cfg!(target_os = "macos") {
-        return home.map(|h| h.join("Library/Application Support/PWC/run"));
-    }
-    let runtime = std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from);
-    match runtime {
-        Some(r) if r.is_absolute() && std::fs::metadata(&r).is_ok_and(|m| m.uid() == euid()) => Some(r.join("pwc")),
-        _ => home.map(|h| h.join(".pwc/run")),
-    }
-}
-
-const SUN_PATH_MAX: usize = if cfg!(target_os = "macos") { 104 } else { 108 };
-
-/// Creates or checks the endpoint directory and listens on `<dir>/<provider_id>.sock`.
-pub fn bind(dir: &Path, provider_id: &str) -> Result<Endpoint, EndpointError> {
-    let io = |e| EndpointError::Io(dir.to_path_buf(), e);
-    match std::fs::metadata(dir) {
-        Ok(m) => {
-            if !m.is_dir() || m.uid() != euid() || m.mode() & 0o077 != 0 {
-                return Err(EndpointError::UnsafeDirectory(dir.to_path_buf()));
-            }
-        }
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            std::fs::DirBuilder::new()
-                .recursive(true)
-                .mode(0o700)
-                .create(dir)
-                .map_err(io)?;
-        }
-        Err(e) => return Err(io(e)),
-    }
-    let path = dir.join(format!("{provider_id}.sock"));
-    if path.as_os_str().len() + 1 > SUN_PATH_MAX {
-        return Err(EndpointError::PathTooLong(path));
-    }
-    if std::fs::symlink_metadata(&path).is_ok() {
-        match std::os::unix::net::UnixStream::connect(&path) {
-            Ok(_) => return Err(EndpointError::AlreadyRunning(path)),
-            Err(e) if e.kind() == std::io::ErrorKind::ConnectionRefused => {
-                std::fs::remove_file(&path).map_err(io)?;
-            }
-            Err(e) => return Err(EndpointError::Io(path, e)),
-        }
-    }
-    let listener = UnixListener::bind(&path).map_err(|e| EndpointError::Io(path.clone(), e))?;
-    let endpoint = Endpoint { listener, path };
-    std::fs::set_permissions(&endpoint.path, std::fs::Permissions::from_mode(0o600))
-        .map_err(|e| EndpointError::Io(endpoint.path.clone(), e))?;
-    Ok(endpoint)
-}
-
-/// Accepts connections until the task is dropped.
-pub async fn serve(provider: Arc<Provider>, endpoint: Endpoint) {
-    loop {
-        if let Ok((stream, _)) = endpoint.listener.accept().await {
-            tokio::spawn(connection(provider.clone(), stream));
-        }
-    }
-}
 
 // ---------------------------------------------------------------------------------------------------------
 // Frames and JSON-RPC (LOCAL §4)
@@ -172,7 +101,7 @@ enum Read {
     Eof,
 }
 
-async fn read_frame(reader: &mut BufReader<OwnedReadHalf>) -> Read {
+async fn read_frame<R: AsyncRead + Unpin>(reader: &mut BufReader<R>) -> Read {
     let mut buf = Vec::new();
     match (&mut *reader)
         .take(MAX_FRAME_BYTES as u64)
@@ -319,21 +248,12 @@ enum Next {
     Close,
 }
 
-fn peer_info(stream: &UnixStream) -> Option<PeerInfo> {
-    let cred = stream.peer_cred().ok()?;
-    if cred.uid() != euid() {
-        return None;
-    }
-    let pid = cred.pid();
-    let executable = pid.and_then(|p| std::fs::read_link(format!("/proc/{p}/exe")).ok());
-    Some(PeerInfo { pid, executable })
-}
-
-async fn connection(provider: Arc<Provider>, stream: UnixStream) {
-    let Some(peer) = peer_info(&stream) else {
-        return; // LOCAL §3.4: closed without any message
-    };
-    let (rd, mut wr) = stream.into_split();
+/// Serves one connection whose peer passed the check of LOCAL §3.4.
+pub(crate) async fn connection<R, W>(provider: Arc<Provider>, rd: R, mut wr: W, peer: PeerInfo)
+where
+    R: AsyncRead + Unpin + Send + 'static,
+    W: AsyncWrite + Unpin + Send + 'static,
+{
     let (out, mut out_rx) = mpsc::channel::<Outbound>(provider.config().event_buffer);
     let writer = tokio::spawn(async move {
         while let Some(o) = out_rx.recv().await {
@@ -394,7 +314,7 @@ impl Conn {
     }
 
     /// Runs until the connection should close; returns whether the Provider initiated the close.
-    async fn run(&mut self, reader: &mut BufReader<OwnedReadHalf>) -> bool {
+    async fn run<R: AsyncRead + Unpin>(&mut self, reader: &mut BufReader<R>) -> bool {
         enum Event {
             Read(Read),
             Pairing(Result<(), PwcError>),

@@ -1,4 +1,6 @@
-//! Runs the LOCAL conformance runner of `pwc-testkit/` against the demo binary.
+//! Runs the LOCAL conformance runner of `pwc-testkit/` against the demo binary. The runner opens AF_UNIX
+//! sockets only, so this test runs on macOS and Linux.
+#![cfg(unix)]
 
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};

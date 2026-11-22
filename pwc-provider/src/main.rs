@@ -1,6 +1,6 @@
 //! Demo PWC LOCAL Provider backed by the in-memory wallet.
 //!
-//! Usage: pwc-provider [--dir DIR] [--approve ask|auto] [--approve-delay-ms N]
+//! Usage: pwc-provider [--dir DIR] [--approve ask|auto] [--approve-delay-ms N]; `--dir` is for macOS and Linux.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -107,22 +107,42 @@ async fn ask(backend: Arc<MemoryBackend>, mut prompts: PromptReceiver) {
     }
 }
 
+#[cfg(unix)]
+fn bind(dir: Option<PathBuf>) -> Result<local::Endpoint, String> {
+    let dir = dir
+        .or_else(local::default_directory)
+        .ok_or("cannot determine the endpoint directory; pass --dir")?;
+    local::bind(&dir, pwc_provider::PROVIDER_ID).map_err(|e| e.to_string())
+}
+
+#[cfg(windows)]
+fn bind(dir: Option<PathBuf>) -> Result<local::Endpoint, String> {
+    if dir.is_some() {
+        return Err("--dir is not used on Windows, where the endpoint is a named pipe".into());
+    }
+    local::bind_pipe(pwc_provider::PROVIDER_ID).map_err(|e| e.to_string())
+}
+
+#[cfg(unix)]
+async fn terminated() {
+    let mut term = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()).unwrap();
+    term.recv().await;
+}
+
+#[cfg(windows)]
+async fn terminated() {
+    std::future::pending::<()>().await
+}
+
 #[tokio::main]
 async fn main() {
     let a = args();
-    let dir = a.dir.or_else(local::default_directory).unwrap_or_else(|| {
-        eprintln!("cannot determine the endpoint directory; pass --dir");
-        std::process::exit(1)
-    });
     let backend = Arc::new(MemoryBackend::demo());
     let (provider, prompts) = Provider::new(backend.clone(), Config::default());
-    let endpoint = match local::bind(&dir, pwc_provider::PROVIDER_ID) {
-        Ok(e) => e,
-        Err(e) => {
-            eprintln!("pwc-provider: {e}");
-            std::process::exit(1)
-        }
-    };
+    let endpoint = bind(a.dir).unwrap_or_else(|e| {
+        eprintln!("pwc-provider: {e}");
+        std::process::exit(1)
+    });
     eprintln!("pwc-provider listening on {}", endpoint.path().display());
     if a.auto {
         eprintln!("WARNING: --approve auto approves every pairing and request without asking. Test use only.");
@@ -130,10 +150,9 @@ async fn main() {
     } else {
         tokio::spawn(ask(backend, prompts));
     }
-    let mut term = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()).unwrap();
     tokio::select! {
         _ = local::serve(provider, endpoint) => {}
         _ = tokio::signal::ctrl_c() => {}
-        _ = term.recv() => {}
+        _ = terminated() => {}
     }
 }

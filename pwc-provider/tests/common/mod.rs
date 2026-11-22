@@ -12,9 +12,7 @@ use pwc_provider::prompt::{GrantChoice, PermissionRequest, Prompt};
 use pwc_provider::provider::{Config, PromptReceiver, Provider};
 use pwc_provider::types::Network;
 use serde_json::{json, Value};
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::net::unix::{OwnedReadHalf, OwnedWriteHalf};
-use tokio::net::UnixStream;
+use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::task::JoinHandle;
 
 pub const WAIT: Duration = Duration::from_secs(5);
@@ -55,7 +53,11 @@ impl Harness {
 
     pub async fn serve(provider: Arc<Provider>, prompts: PromptReceiver) -> Harness {
         let dir = tempfile::tempdir().unwrap();
+        #[cfg(unix)]
         let endpoint = local::bind(&dir.path().join("run"), pwc_provider::PROVIDER_ID).unwrap();
+        // The pipe namespace is shared by every test of the run, so each Harness has its own provider id.
+        #[cfg(windows)]
+        let endpoint = local::bind_pipe(&format!("pwc-test-{}", rand_suffix())).unwrap();
         let path = endpoint.path().to_path_buf();
         let server = tokio::spawn(local::serve(provider.clone(), endpoint));
         Harness {
@@ -119,8 +121,8 @@ impl Harness {
 }
 
 pub struct Conn {
-    reader: BufReader<OwnedReadHalf>,
-    writer: OwnedWriteHalf,
+    reader: BufReader<Box<dyn AsyncRead + Unpin + Send>>,
+    writer: Box<dyn AsyncWrite + Unpin + Send>,
     next_id: u64,
     pub events: Vec<Value>,
 }
@@ -147,9 +149,24 @@ fn check_result(method: &str, result: &Value) {
 }
 
 impl Conn {
+    /// Connects to a socket path or, on Windows, a pipe name.
     pub async fn connect(path: &std::path::Path) -> Conn {
-        let stream = UnixStream::connect(path).await.unwrap();
-        let (r, w) = stream.into_split();
+        #[cfg(unix)]
+        let (r, w) = {
+            let (r, w) = tokio::net::UnixStream::connect(path).await.unwrap().into_split();
+            (
+                Box::new(r) as Box<dyn AsyncRead + Unpin + Send>,
+                Box::new(w) as Box<dyn AsyncWrite + Unpin + Send>,
+            )
+        };
+        #[cfg(windows)]
+        let (r, w) = {
+            let (r, w) = tokio::io::split(open_pipe(path).await);
+            (
+                Box::new(r) as Box<dyn AsyncRead + Unpin + Send>,
+                Box::new(w) as Box<dyn AsyncWrite + Unpin + Send>,
+            )
+        };
         Conn {
             reader: BufReader::new(r),
             writer: w,
@@ -386,4 +403,19 @@ impl Conn {
 
 pub fn code(v: &Value) -> &str {
     v["error"]["data"]["code"].as_str().unwrap_or("")
+}
+
+/// Opens a client end of a pipe, waiting while every instance is busy.
+#[cfg(windows)]
+pub async fn open_pipe(path: &std::path::Path) -> tokio::net::windows::named_pipe::NamedPipeClient {
+    let deadline = tokio::time::Instant::now() + WAIT;
+    loop {
+        match tokio::net::windows::named_pipe::ClientOptions::new().open(path) {
+            Ok(c) => return c,
+            Err(e) if e.raw_os_error() == Some(231) && tokio::time::Instant::now() < deadline => {
+                tokio::time::sleep(Duration::from_millis(10)).await
+            }
+            Err(e) => panic!("cannot open {}: {e}", path.display()),
+        }
+    }
 }
