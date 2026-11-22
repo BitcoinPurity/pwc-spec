@@ -13,6 +13,7 @@ Purity Wallet Connect is a family of specifications that lets applications use a
 | [`pwc-testkit/`](pwc-testkit/) | Test vectors, PSBT fixtures, the LOCAL conformance runner, a mock Provider and a minimal Client |
 | [`pwc-provider/`](pwc-provider/) | A Rust Provider implementing Core and LOCAL, with an in-memory demo wallet (requirements in [`input/`](input/), design in [`docs/`](docs/)) |
 | [`pwc-provider-java/`](pwc-provider-java/) | The Java Provider SDK: a JNI binding of `pwc-provider/` for Java host wallets, with a demo program |
+| [`pwc-client/`](pwc-client/) | A Rust Client library: Core v0.2.1 over the LOCAL transport; see [`docs/api-contract.md`](docs/api-contract.md) |
 
 ## Documents
 
