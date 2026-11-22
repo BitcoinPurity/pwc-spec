@@ -142,6 +142,17 @@ final class LocalClient implements AutoCloseable {
         }
     }
 
+    /** Fails if a frame arrives within a short time. */
+    void noEvent() throws InterruptedException {
+        if (!events.isEmpty()) {
+            throw new AssertionError("unexpected events " + events);
+        }
+        JsonNode f = frames.poll(200, TimeUnit.MILLISECONDS);
+        if (f != null) {
+            throw new AssertionError("unexpected frame " + f);
+        }
+    }
+
     JsonNode hello() {
         return ok("local.hello", obj("protocols", List.of("pwc-local/1")));
     }
