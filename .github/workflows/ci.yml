@@ -74,10 +74,6 @@ jobs:
         working-directory: pwc-provider-java
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "25"
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: "1.97.0"
@@ -85,10 +81,21 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: pwc-provider-java/native
-      - uses: gradle/actions/setup-gradle@v4
       - run: cargo fmt --check
         working-directory: pwc-provider-java/native
       - run: cargo clippy --all-targets --locked -- -D warnings
         working-directory: pwc-provider-java/native
-      # The tests include DemoRunnerTest, which runs pwc-testkit/local_runner.py with the runner's python3.
-      - run: ./gradlew build
+      # A Temurin JDK 25 downloaded here, because actions/setup-java needs a GitHub workflow token, which this
+      # pipeline does not get (see the spec job). The Gradle wrapper downloads Gradle itself. The tests include
+      # DemoRunnerTest, which runs pwc-testkit/local_runner.py with the agent's python3.
+      - run: |
+          arch=$(uname -m); case "$arch" in x86_64) arch=x64;; arm64) arch=aarch64;; esac
+          jdk="$HOME/.cache/pwc-jdk-25-$arch"
+          if [ ! -x "$jdk/bin/java" ]; then
+            mkdir -p "$jdk"
+            curl -fsSL "https://api.adoptium.net/v3/binary/latest/25/ga/linux/$arch/jdk/hotspot/normal/eclipse" \
+              | tar -xz -C "$jdk" --strip-components=1
+          fi
+          export JAVA_HOME="$jdk" PATH="$jdk/bin:$PATH"
+          java -version
+          ./gradlew build --no-daemon
