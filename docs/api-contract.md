@@ -173,3 +173,83 @@ provider.revoke_grant(&grant_id);                                // the User rev
 provider.unpair_client(&client_id);                              // the User unpairs a Client in the wallet
 provider.paired_clients();                                       // the list of paired Clients (LOCAL §5.7)
 ```
+
+## 5. Java Provider SDK
+
+Package `org.bitcoinpurity.pwc.provider`. Sections 1 to 4 apply unchanged. "Nullable" means the field is `null` when the Rust field is `None`.
+
+### 5.1 Provider and server
+
+| Member | Rust counterpart | Notes |
+|---|---|---|
+| `Provider.create(WalletBackend, Config, PromptHandler)` | `Provider::new` | |
+| `Provider.withState(WalletBackend, Config, PromptHandler, byte[])` | `Provider::with_state` | Throws `StateException` with kind `CORRUPT` or `UNSUPPORTED_VERSION` |
+| `byte[] saveState()` | `save_state` | |
+| `Config config()` | `config` | |
+| `List<PairedClient> pairedClients()` | `paired_clients` | |
+| `List<Grant> grants()` | `grants` | |
+| `boolean revokeGrant(String grantId)` | `revoke_grant` | |
+| `void unpairClient(String clientId)` | `unpair_client` | |
+| `void notify(BackendEvent)` | `notify` | |
+| `void close()` | dropping the `Arc` | Releases this handle; servers and connections keep their own references |
+| `LocalServer.PROVIDER_ID` | `PROVIDER_ID` | `"pwc-provider"` |
+| `Optional<Path> LocalServer.defaultDirectory()` | `local::default_directory` | |
+| `LocalServer.start(Provider, Path dir)`, `start(Provider, Path dir, String providerId)` | `local::bind` and `local::serve` | Throws `EndpointException` with kind `UNSAFE_DIRECTORY`, `PATH_TOO_LONG`, `ALREADY_RUNNING` or `IO` and the path |
+| `Path path()`, `void close()` | `Endpoint::path`, dropping `serve` | `close` returns after the socket file is removed |
+
+`Config` (record, `Config.defaults()`, `Config.builder()`, `toBuilder()`): `providerName`, `providerVersion`, `limits`, `helloTimeout`, `authTimeout`, `pairingTimeout`, `approvalTimeout`, `reservationTtl` (`Duration`), `pairingLimit`, `authFailureLimit` (`RateLimit(int max, Duration window)`), `authFailureDelay`, `promptLimit`, `eventBuffer` (`int`). `Limits` (record, `Limits.defaults()`, builder): `maxPageSize`, `maxPsbtBytes`, `maxCombinePsbts`, `maxRawTransactionBytes`, `maxMessageBytes`, `maxConcurrentOperations`, `operationRetentionSeconds`, `highFeeRate` (`long`, sat/kvB).
+
+`PairedClient(clientId, claimedName, claimedDescription nullable, Instant pairedAt, Instant lastConnectedAt, PeerInfo peer)`. `Grant(grantId, clientId, network, List<String> scopes, walletIds, accountIds, Instant createdAt, Instant expiresAt nullable, GrantStatus status, GrantConstraints constraints nullable)`; `GrantStatus`: `ACTIVE`, `REVOKED`, `EXPIRED`.
+
+### 5.2 Prompts
+
+`PromptHandler.onPrompt(Prompt)` is called on the thread `pwc-prompts`, one prompt at a time.
+
+| Class | `request()` | Answer |
+|---|---|---|
+| `PairingPrompt` | `PairingRequest(claimedName, claimedDescription nullable, pairingCode, PeerInfo peer)` | `approve()`, `reject()` |
+| `PermissionPrompt` | `PermissionRequest(Requester requester, List<String> scopes, network nullable, walletIds, accountIds, Instant expiresAt nullable, GrantConstraints constraints nullable)` | `grant(GrantChoice)`, `reject()` |
+| `PsbtSignPrompt` | `PsbtSignRequest(requester, accountId, network, List<Integer> inputsToSign, int inputCount, List<OutputSummary> outputs, long feeSats, long feeRateSatPerKvb, byte[] psbt)` | `approve()`, `reject()` |
+| `MessageSignPrompt` | `MessageSignRequest(requester, accountId, network, address, message, MessageFormat format)` | `approve()`, `reject()` |
+
+- Every prompt: `boolean isWithdrawn()`; `toString()` is the Rust `Display` text.
+- A second answer throws `IllegalStateException`. An answer to a withdrawn prompt has no effect.
+- `PeerInfo(Integer pid nullable, Path executable nullable)`, `Requester(clientId, claimedName, PeerInfo peer)`, `GrantConstraints(Long maxAmountSatsPerRequest nullable, Instant validUntil nullable)`, `GrantChoice(network, List<String> scopes, walletIds, accountIds, Instant expiresAt nullable, GrantConstraints constraints nullable)`, `OutputSummary(address nullable, String scriptPubKey hex, long amountSats, boolean toThisAccount)`.
+
+### 5.3 Backend
+
+`WalletBackend`, one method per method of the Rust trait:
+
+| Java | Rust |
+|---|---|
+| `List<WalletInfo> wallets()` | `wallets` |
+| `Optional<AccountInfo> account(String accountId)` | `account` |
+| `Balance balance(String accountId, Set<TransactionOutPoint> reserved) throws PwcException` | `balance` |
+| `AddressRecord receiveAddress(String accountId) throws PwcException` | `receive_address` |
+| `AddressRecord createAddress(String accountId, String label) throws PwcException` | `create_address`; `label` nullable |
+| `List<AddressRecord> addresses(String accountId)` | `addresses` |
+| `List<Utxo> utxos(String accountId, Set<TransactionOutPoint> reserved) throws PwcException` | `utxos` |
+| `List<TransactionRecord> transactions(String accountId) throws PwcException` | `transactions` |
+| `boolean ownsScript(String accountId, Script script)` | `owns_script` |
+| `boolean isUnspent(String accountId, TransactionOutPoint outpoint)` | `is_unspent` |
+| `OptionalLong feeEstimate(String network, long targetBlocks)` | `fee_estimate` |
+| `CreatedPsbt createPsbt(String accountId, CreateRequest request, Set<TransactionOutPoint> excluded) throws PwcException` | `create_psbt` |
+| `Optional<TransactionOutput> ownedOutput(String accountId, TransactionOutPoint outpoint)` | `owned_output` |
+| `SignedPsbt signPsbt(String accountId, byte[] psbt, List<Integer> inputs) throws PwcException` | `sign_psbt` |
+| `byte[] signMessage(String accountId, Script script, String message, MessageFormat format) throws PwcException` | `sign_message` |
+| `Sha256Hash broadcast(String network, Transaction tx) throws PwcException` | `broadcast` |
+| `default Optional<WalletInfo> wallet(String walletId)` | `wallet` |
+
+Records: `WalletInfo(walletId, displayName, network, WalletKind kind, WalletState state, List<String> accountIds)`, `AccountInfo(accountId, walletId, displayName, network, boolean canSign, ScriptType scriptType, List<String> methods)`, `Balance(accountId, network, BalanceComponents components, Instant updatedAt, SyncStatus sync)`, `BalanceComponents(confirmedSats, pendingSelfSats, pendingExternalSats, pendingOutgoingSats, unconfirmedDeltaSats, spendableSats, lockedSats, immatureSats)` (all `long`), `SyncStatus(SyncState state, Integer tipHeight nullable)`, `AddressRecord(accountId, network, address, AddressRole role, AddressState state, label nullable)`, `Utxo(Sha256Hash txid, int vout, accountId, network, long valueSats, int confirmations, Integer blockHeight nullable, address, Script scriptPubKey, boolean spendable, List<UtxoRestriction> restrictions, boolean isChange)`, `TransactionRecord(accountId, network, Sha256Hash txid, TransactionStatus status, int confirmations, Integer blockHeight, Instant firstSeenAt, Instant confirmedAt, long netChangeSats, Long feeSats, Sha256Hash replacedByTxid)` (the last six nullable except `netChangeSats`), `CreateRequest(List<TransactionOutput> outputs, long feeRate, List<TransactionOutPoint> selected nullable, boolean replaceable)`, `CreatedPsbt(byte[] psbt, long fee, long vsize, List<Integer> changeOutputIndexes, List<TransactionOutPoint> inputs)`, `SignedPsbt(byte[] psbt, List<Integer> signedInputs)`.
+
+Enums: `WalletKind`, `WalletState`, `ScriptType`, `MessageFormat` (`BIP322_SIMPLE`, `BIP322_FULL`, `LEGACY`), `SyncState`, `AddressRole`, `AddressState`, `UtxoRestriction`, `TransactionStatus`, with the values of the strict schema; `ErrorCode` with the 36 codes of Core §10.
+
+`BackendEvent` (sealed): `WalletLocked(walletId)`, `WalletUnlocked(walletId)`, `WalletSyncChanged(walletId)`, `BalanceChanged(accountId)`, `TransactionChanged(accountId, Sha256Hash txid, TransactionStatus status)`.
+
+`PwcException(ErrorCode code, String message)` and `(code, message, String details nullable JSON text, Boolean retryable nullable)`.
+
+`MemoryBackend` (`demo()`): `addWallet`, `addAccount`, `setWalletState`, `receive`, `receiveCoinbase`, `receiveConflicting`, `replace`, `dropPending`, `mine`, `reorg`, `setOffline`, `setFeeEstimate(String, OptionalLong)`, `spendByUser`, `tip`, plus `WalletBackend`. An unknown identifier throws `IllegalStateException` and leaves the in-memory backend unusable, as the Rust `expect` would.
+
+### 5.4 Demo program
+
+`java --enable-native-access=ALL-UNNAMED -cp <classpath> org.bitcoinpurity.pwc.provider.demo.Main [--dir DIR] [--approve ask|auto] [--approve-delay-ms N]`, with the behavior of section 2.4 of the product specification.
