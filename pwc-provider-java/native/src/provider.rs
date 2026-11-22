@@ -303,11 +303,11 @@ fn event_from_java(env: &mut JNIEnv, e: &JObject) -> Result<BackendEvent> {
             account_id: id(env, "accountId")?,
         })
     } else {
-        let txid = obj(env, e, "txid", SHA256)?;
+        let txid = str_field(env, e, "txid")?;
         let status = enum_field(env, e, "status", "TransactionStatus", '_')?;
         Ok(BackendEvent::TransactionChanged {
             account_id: id(env, "accountId")?,
-            txid: from_sha256(env, &txid)?,
+            txid: parse::<pwc_provider::types::Hash256>(txid)?.0,
             status: static_str(&status, &TRANSACTION_STATUSES)?,
         })
     }
@@ -347,6 +347,7 @@ fn endpoint_error(e: EndpointError) -> Error {
         EndpointError::UnsafeDirectory(p) => ("UNSAFE_DIRECTORY", p),
         EndpointError::PathTooLong(p) => ("PATH_TOO_LONG", p),
         EndpointError::AlreadyRunning(p) => ("ALREADY_RUNNING", p),
+        EndpointError::NameTaken(p) => ("NAME_TAKEN", p),
         EndpointError::Io(p, _) => ("IO", p),
     };
     Error::Kind {

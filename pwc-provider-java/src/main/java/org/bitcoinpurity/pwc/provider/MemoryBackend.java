@@ -5,11 +5,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
-import org.bitcoinj.base.Sha256Hash;
-import org.bitcoinj.core.Transaction;
-import org.bitcoinj.core.TransactionOutPoint;
-import org.bitcoinj.core.TransactionOutput;
-import org.bitcoinj.script.Script;
 
 /**
  * The in-memory wallet of the Rust library: simulated wallets and one simulated chain per network. Passed to
@@ -78,28 +73,28 @@ public final class MemoryBackend implements WalletBackend, AutoCloseable {
     }
 
     /** A payment of {@code value} satoshis to the account from a third party. */
-    public Sha256Hash receive(String accountId, long value, int confirmations) {
+    public String receive(String accountId, long value, int confirmations) {
         return run(h -> Native.memoryReceive(h, accountId, value, confirmations, false));
     }
 
     /** A coinbase output to the account. */
-    public Sha256Hash receiveCoinbase(String accountId, long value, int confirmations) {
+    public String receiveCoinbase(String accountId, long value, int confirmations) {
         return run(h -> Native.memoryReceive(h, accountId, value, confirmations, true));
     }
 
     /** A pending payment to the account that double-spends the input of the pending payment {@code txid}. */
-    public Sha256Hash receiveConflicting(String accountId, Sha256Hash txid, long value) {
+    public String receiveConflicting(String accountId, String txid, long value) {
         return run(h -> Native.memoryReceiveConflicting(h, accountId, txid, value));
     }
 
-    public void replace(String network, Sha256Hash txid, Sha256Hash by) {
+    public void replace(String network, String txid, String by) {
         run(h -> {
             Native.memoryReplace(h, network, txid, by);
             return null;
         });
     }
 
-    public void dropPending(String network, Sha256Hash txid) {
+    public void dropPending(String network, String txid) {
         run(h -> {
             Native.memoryDropPending(h, network, txid);
             return null;
@@ -137,7 +132,7 @@ public final class MemoryBackend implements WalletBackend, AutoCloseable {
     }
 
     /** The User spends an output of the account from the wallet itself, paying {@code value} to a third party. */
-    public Sha256Hash spendByUser(String accountId, TransactionOutPoint outpoint, long value) {
+    public String spendByUser(String accountId, OutPoint outpoint, long value) {
         return run(h -> Native.memorySpendByUser(h, accountId, outpoint, value));
     }
 
@@ -158,7 +153,7 @@ public final class MemoryBackend implements WalletBackend, AutoCloseable {
     }
 
     @Override
-    public Balance balance(String accountId, Set<TransactionOutPoint> reserved) throws PwcException {
+    public Balance balance(String accountId, Set<OutPoint> reserved) throws PwcException {
         return call(h -> Native.memoryBalance(h, accountId, reserved));
     }
 
@@ -178,7 +173,7 @@ public final class MemoryBackend implements WalletBackend, AutoCloseable {
     }
 
     @Override
-    public List<Utxo> utxos(String accountId, Set<TransactionOutPoint> reserved) throws PwcException {
+    public List<Utxo> utxos(String accountId, Set<OutPoint> reserved) throws PwcException {
         return List.copyOf(call(h -> Native.memoryUtxos(h, accountId, reserved)));
     }
 
@@ -188,12 +183,12 @@ public final class MemoryBackend implements WalletBackend, AutoCloseable {
     }
 
     @Override
-    public boolean ownsScript(String accountId, Script script) {
-        return run(h -> Native.memoryOwnsScript(h, accountId, script));
+    public boolean ownsScript(String accountId, byte[] scriptPubKey) {
+        return run(h -> Native.memoryOwnsScript(h, accountId, scriptPubKey));
     }
 
     @Override
-    public boolean isUnspent(String accountId, TransactionOutPoint outpoint) {
+    public boolean isUnspent(String accountId, OutPoint outpoint) {
         return run(h -> Native.memoryIsUnspent(h, accountId, outpoint));
     }
 
@@ -204,13 +199,13 @@ public final class MemoryBackend implements WalletBackend, AutoCloseable {
     }
 
     @Override
-    public CreatedPsbt createPsbt(String accountId, CreateRequest request, Set<TransactionOutPoint> excluded)
+    public CreatedPsbt createPsbt(String accountId, CreateRequest request, Set<OutPoint> excluded)
             throws PwcException {
         return call(h -> Native.memoryCreatePsbt(h, accountId, request, excluded));
     }
 
     @Override
-    public Optional<TransactionOutput> ownedOutput(String accountId, TransactionOutPoint outpoint) {
+    public Optional<TxOut> ownedOutput(String accountId, OutPoint outpoint) {
         return Optional.ofNullable(run(h -> Native.memoryOwnedOutput(h, accountId, outpoint)));
     }
 
@@ -220,14 +215,14 @@ public final class MemoryBackend implements WalletBackend, AutoCloseable {
     }
 
     @Override
-    public byte[] signMessage(String accountId, Script script, String message, MessageFormat format)
+    public byte[] signMessage(String accountId, byte[] scriptPubKey, String message, MessageFormat format)
             throws PwcException {
-        return call(h -> Native.memorySignMessage(h, accountId, script, message, format));
+        return call(h -> Native.memorySignMessage(h, accountId, scriptPubKey, message, format));
     }
 
     @Override
-    public Sha256Hash broadcast(String network, Transaction tx) throws PwcException {
-        return call(h -> Native.memoryBroadcast(h, network, tx));
+    public String broadcast(String network, byte[] transaction) throws PwcException {
+        return call(h -> Native.memoryBroadcast(h, network, transaction));
     }
 
     @Override

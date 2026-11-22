@@ -7,12 +7,10 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import java.nio.ByteBuffer;
 import java.util.Base64;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
-import org.bitcoinj.core.Transaction;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -70,10 +68,9 @@ class SigningTest {
             JsonNode sent = c.ok("transaction.broadcast", obj(
                     "account_id", WPKH, "raw_transaction", fin.get("raw_transaction"), "idempotency_key", "b"));
             assertEquals("completed", sent.get("state").asText(), sent.toString());
-            Transaction tx = Transaction.read(ByteBuffer.wrap(
-                    LocalClient.HEX.parseHex(fin.get("raw_transaction").asText())));
-            assertEquals(tx.getTxId().toString(), sent.get("result").get("txid").asText());
-            assertEquals("unconfirmed", c.ok("transaction.get", obj("account_id", WPKH, "txid", tx.getTxId().toString()))
+            String txid = fin.get("txid").asText();
+            assertEquals(txid, sent.get("result").get("txid").asText());
+            assertEquals("unconfirmed", c.ok("transaction.get", obj("account_id", WPKH, "txid", txid))
                     .get("transaction").get("status").asText());
 
             String address = c.ok("utxo.list", obj("account_id", WPKH)).get("utxos").get(0).get("address").asText();

@@ -10,6 +10,8 @@ public final class EndpointException extends Exception {
         UNSAFE_DIRECTORY,
         PATH_TOO_LONG,
         ALREADY_RUNNING,
+        /** Windows: the pipe name exists and is not served by a Provider of the current user. */
+        NAME_TAKEN,
         IO
     }
 

@@ -169,12 +169,12 @@ pub fn address_records<'l>(env: &mut JNIEnv<'l>, items: &[AddressRecord]) -> Res
 }
 
 pub fn utxo<'l>(env: &mut JNIEnv<'l>, u: &Utxo) -> Result<JObject<'l>> {
-    let txid = sha256(env, u.txid.as_str())?;
+    let txid = string(env, u.txid.as_str())?;
     let id = string(env, u.account_id.as_str())?;
     let network = string(env, &u.network)?;
     let height = integer(env, u.block_height.map(u32_int).transpose()?)?;
     let address = string(env, &u.address)?;
-    let script = script(env, &u.script_pub_key.0)?;
+    let script = bytes(env, &u.script_pub_key.0)?;
     let mut restrictions = Vec::new();
     for r in &u.restrictions {
         restrictions.push(enum_value(env, "UtxoRestriction", r)?);
@@ -183,7 +183,7 @@ pub fn utxo<'l>(env: &mut JNIEnv<'l>, u: &Utxo) -> Result<JObject<'l>> {
     new(
         env,
         "Utxo",
-        &sig(&format!("{SHA256}I{STRING}{STRING}JI{INTEGER}{STRING}{SCRIPT}Z{LIST}Z")),
+        &sig(&format!("{STRING}I{STRING}{STRING}JI{INTEGER}{STRING}{BYTES}Z{LIST}Z")),
         &[
             (&txid).into(),
             JValue::Int(u32_int(u.vout)?),
@@ -204,18 +204,18 @@ pub fn utxo<'l>(env: &mut JNIEnv<'l>, u: &Utxo) -> Result<JObject<'l>> {
 pub fn transaction_record<'l>(env: &mut JNIEnv<'l>, r: &TransactionRecord) -> Result<JObject<'l>> {
     let id = string(env, r.account_id.as_str())?;
     let network = string(env, &r.network)?;
-    let txid = sha256(env, r.txid.as_str())?;
+    let txid = string(env, r.txid.as_str())?;
     let status = enum_value(env, "TransactionStatus", r.status)?;
     let height = integer(env, r.block_height.map(u32_int).transpose()?)?;
     let first = opt_instant(env, r.first_seen_at)?;
     let confirmed = opt_instant(env, r.confirmed_at)?;
     let fee = long(env, r.fee_sats.map(|f| u64_long(f.0)).transpose()?)?;
-    let replaced = opt_sha256(env, r.replaced_by_txid.as_ref().map(|h| h.as_str()))?;
+    let replaced = opt_string(env, r.replaced_by_txid.as_ref().map(|h| h.as_str()))?;
     new(
         env,
         "TransactionRecord",
         &sig(&format!(
-            "{STRING}{STRING}{SHA256}{}I{INTEGER}{INSTANT}{INSTANT}J{LONG}{SHA256}",
+            "{STRING}{STRING}{STRING}{}I{INTEGER}{INSTANT}{INSTANT}J{LONG}{STRING}",
             t("TransactionStatus")
         )),
         &[
@@ -395,15 +395,15 @@ pub fn from_address_record(env: &mut JNIEnv, a: &JObject) -> Result<AddressRecor
 }
 
 pub fn from_utxo(env: &mut JNIEnv, u: &JObject) -> Result<Utxo> {
-    let txid = obj(env, u, "txid", SHA256)?;
-    let script = obj(env, u, "scriptPubKey", SCRIPT)?;
+    let txid = str_field(env, u, "txid")?;
+    let script = bytes_field(env, u, "scriptPubKey")?;
     let mut restrictions = Vec::new();
     for r in list_field(env, u, "restrictions")? {
         let name = enum_name(env, &r, '_')?;
         restrictions.push(static_str(&name, &UTXO_RESTRICTIONS)?);
     }
     Ok(Utxo {
-        txid: parse(from_sha256(env, &txid)?)?,
+        txid: parse(txid)?,
         vout: u32_field(env, u, "vout")?,
         account_id: parse(str_field(env, u, "accountId")?)?,
         network: parse::<pwc_provider::types::Network>(str_field(env, u, "network")?)?.0,
@@ -411,7 +411,7 @@ pub fn from_utxo(env: &mut JNIEnv, u: &JObject) -> Result<Utxo> {
         confirmations: u32_field(env, u, "confirmations")?,
         block_height: opt_u32_field(env, u, "blockHeight")?,
         address: parse::<pwc_provider::types::Address>(str_field(env, u, "address")?)?.0,
-        script_pub_key: Hex(from_script(env, &script)?.into_bytes()),
+        script_pub_key: Hex(script),
         spendable: bool_field(env, u, "spendable")?,
         restrictions,
         is_change: bool_field(env, u, "isChange")?,
@@ -419,18 +419,13 @@ pub fn from_utxo(env: &mut JNIEnv, u: &JObject) -> Result<Utxo> {
 }
 
 pub fn from_transaction_record(env: &mut JNIEnv, r: &JObject) -> Result<TransactionRecord> {
-    let txid = obj(env, r, "txid", SHA256)?;
+    let txid = str_field(env, r, "txid")?;
     let status = enum_field(env, r, "status", "TransactionStatus", '_')?;
-    let replaced = obj(env, r, "replacedByTxid", SHA256)?;
-    let replaced = if replaced.is_null() {
-        None
-    } else {
-        Some(parse(from_sha256(env, &replaced)?)?)
-    };
+    let replaced = opt_str_field(env, r, "replacedByTxid")?.map(parse).transpose()?;
     Ok(TransactionRecord {
         account_id: parse(str_field(env, r, "accountId")?)?,
         network: parse::<pwc_provider::types::Network>(str_field(env, r, "network")?)?.0,
-        txid: parse(from_sha256(env, &txid)?)?,
+        txid: parse(txid)?,
         status: static_str(&status, &TRANSACTION_STATUSES)?,
         confirmations: u32_field(env, r, "confirmations")?,
         block_height: opt_u32_field(env, r, "blockHeight")?,

@@ -154,7 +154,7 @@ pub extern "system" fn Java_org_bitcoinpurity_pwc_provider_Native_memoryReceive<
         } else {
             b.receive(&account, value, confirmations)
         };
-        Ok(sha256(env, &txid.to_string())?.into_raw())
+        Ok(string(env, &txid.to_string())?.into_raw())
     })
 }
 
@@ -171,7 +171,7 @@ pub extern "system" fn Java_org_bitcoinpurity_pwc_provider_Native_memoryReceiveC
         let account = id(env, &account_id)?;
         let conflicting = txid(env, &txid_of)?;
         let new = b.receive_conflicting(&account, &conflicting, amount(value)?);
-        Ok(sha256(env, &new.to_string())?.into_raw())
+        Ok(string(env, &new.to_string())?.into_raw())
     })
 }
 
@@ -287,7 +287,7 @@ pub extern "system" fn Java_org_bitcoinpurity_pwc_provider_Native_memorySpendByU
         let account = id(env, &account_id)?;
         let outpoint = from_outpoint(env, &outpoint)?;
         let txid = b.spend_by_user(&account, &outpoint, amount(value)?);
-        Ok(sha256(env, &txid.to_string())?.into_raw())
+        Ok(string(env, &txid.to_string())?.into_raw())
     })
 }
 
@@ -572,6 +572,6 @@ pub extern "system" fn Java_org_bitcoinpurity_pwc_provider_Native_memoryBroadcas
         let network = text(env, &network)?;
         let tx = from_transaction(env, &tx)?;
         let txid = pwc(b.broadcast(&network, &tx))?;
-        Ok(sha256(env, &txid.to_string())?.into_raw())
+        Ok(string(env, &txid.to_string())?.into_raw())
     })
 }

@@ -3,7 +3,6 @@ package org.bitcoinpurity.pwc.provider;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import org.bitcoinj.base.Sha256Hash;
 import org.junit.jupiter.api.Test;
 
 class EventsTest {
@@ -19,11 +18,11 @@ class EventsTest {
             assertEquals("a-regtest-wpkh", e.get("account_id").asText());
             noEvents.noEvent();
 
-            Sha256Hash txid = Sha256Hash.wrap("ab".repeat(32));
+            String txid = "ab".repeat(32);
             h.provider.notify(new BackendEvent.TransactionChanged("a-regtest-wpkh", txid, TransactionStatus.CONFIRMED));
             e = listener.nextEvent();
             assertEquals("account.transactionChanged", e.get("event_type").asText());
-            assertEquals(txid.toString(), e.get("payload").get("txid").asText());
+            assertEquals(txid, e.get("payload").get("txid").asText());
             assertEquals("confirmed", e.get("payload").get("status").asText());
 
             h.provider.notify(new BackendEvent.WalletSyncChanged("w-regtest-main"));

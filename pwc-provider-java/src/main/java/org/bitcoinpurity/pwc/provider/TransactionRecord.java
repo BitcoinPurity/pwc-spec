@@ -1,16 +1,15 @@
 package org.bitcoinpurity.pwc.provider;
 
 import java.time.Instant;
-import org.bitcoinj.base.Sha256Hash;
 
 /**
- * Core §4.6 {@code TransactionRecord}. {@code blockHeight}, {@code firstSeenAt}, {@code confirmedAt},
+ * Core §4.6 {@code TransactionRecord}; transaction ids are lower-case hex. {@code blockHeight}, {@code firstSeenAt}, {@code confirmedAt},
  * {@code feeSats} and {@code replacedByTxid} are nullable.
  */
 public record TransactionRecord(
         String accountId,
         String network,
-        Sha256Hash txid,
+        String txid,
         TransactionStatus status,
         int confirmations,
         Integer blockHeight,
@@ -18,4 +17,4 @@ public record TransactionRecord(
         Instant confirmedAt,
         long netChangeSats,
         Long feeSats,
-        Sha256Hash replacedByTxid) {}
+        String replacedByTxid) {}

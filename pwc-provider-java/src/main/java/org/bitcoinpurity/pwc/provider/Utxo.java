@@ -1,12 +1,10 @@
 package org.bitcoinpurity.pwc.provider;
 
 import java.util.List;
-import org.bitcoinj.base.Sha256Hash;
-import org.bitcoinj.script.Script;
 
-/** Core §4.5 {@code Utxo}; {@code blockHeight} is nullable. */
+/** Core §4.5 {@code Utxo}; {@code txid} is lower-case hex, {@code blockHeight} is nullable. */
 public record Utxo(
-        Sha256Hash txid,
+        String txid,
         int vout,
         String accountId,
         String network,
@@ -14,7 +12,7 @@ public record Utxo(
         int confirmations,
         Integer blockHeight,
         String address,
-        Script scriptPubKey,
+        byte[] scriptPubKey,
         boolean spendable,
         List<UtxoRestriction> restrictions,
         boolean isChange) {

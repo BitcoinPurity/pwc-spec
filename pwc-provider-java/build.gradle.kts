@@ -17,12 +17,10 @@ repositories {
 }
 
 dependencies {
-    api("org.bitcoinj:bitcoinj-core:0.17.1")
     testImplementation(platform("org.junit:junit-bom:5.13.4"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testImplementation("com.fasterxml.jackson.core:jackson-databind:2.20.0")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
-    testRuntimeOnly("org.slf4j:slf4j-nop:2.0.16")
 }
 
 val os = System.getProperty("os.name").lowercase().let { if (it.startsWith("mac")) "macos" else it }
