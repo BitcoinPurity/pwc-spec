@@ -91,7 +91,8 @@ class LocalServerTest {
 
     @Test
     void defaultEndpointOfThePlatform() throws Exception {
-        String id = "pwc-test-" + UUID.randomUUID();
+        // Short: the macOS default directory is long and socket paths are limited to 104 bytes there.
+        String id = "t-" + UUID.randomUUID().toString().substring(0, 12);
         try (MemoryBackend memory = MemoryBackend.demo();
                 Provider provider = Provider.create(memory, Config.defaults(), Prompt::reject);
                 LocalServer server = LocalServer.start(provider, id)) {
