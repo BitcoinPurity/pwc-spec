@@ -22,9 +22,8 @@ jobs:
       - run: .venv/bin/python pwc-testkit/run_vectors.py
       - run: .venv/bin/python pwc-testkit/check_family.py specs
 
-  # Every use of Swatinem/rust-cache sets cache-bin to "false". With the default, its save step deletes from
-  # ~/.cargo/bin the programs that were there before the job, cargo among them. The agents share that directory,
-  # so a job running at the same time then fails with "cargo: command not found".
+  # Every use of Swatinem/rust-cache sets cache-bin to "false", so that it leaves ~/.cargo/bin alone: the agents
+  # share that directory, and with the default the save step removes programs from it.
   provider:
     name: Rust Provider
     runs-on: ubuntu-latest
@@ -58,18 +57,25 @@ jobs:
         with:
           toolchain: "1.97.0"
           components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: pwc-client
-          cache-bin: "false"
-      - run: cargo fmt --check
-      - run: cargo clippy --all-targets --locked -- -D warnings
-      # The feature that exports the interface through UniFFI; pwc-client-ffi builds the bindings.
-      - run: cargo clippy --all-targets --all-features --locked -- -D warnings
+      # One step that does not depend on ~/.cargo, which the agents share. Jobs running at the same time, also
+      # those of other builds, reinstall rustup there and clean it, and a later step of this job then failed
+      # with "cargo: command not found". The toolchain's own programs are used instead of the rustup proxies,
+      # with a private CARGO_HOME, and without Swatinem/rust-cache.
       # The tests include tests/provider.rs, which runs the library against pwc-provider, and
       # tests/mock_provider.rs, which runs pwc-testkit/mock_local_provider.py with the runner's python3.
-      - run: cargo test --locked
-      - run: cargo test --locked --all-features
+      - run: |
+          toolchain="${RUSTUP_HOME:-$HOME/.rustup}/toolchains/1.97.0-$(uname -m)-unknown-linux-gnu/bin"
+          test -x "$toolchain/cargo"
+          export PATH="$toolchain:$PATH"
+          export CARGO_HOME="$(mktemp -d)"
+          trap 'rm -rf "$CARGO_HOME"' EXIT
+          echo "cargo: $(command -v cargo)"
+          cargo fmt --check
+          cargo clippy --all-targets --locked -- -D warnings
+          # The feature that exports the interface through UniFFI; pwc-client-ffi builds the bindings.
+          cargo clippy --all-targets --all-features --locked -- -D warnings
+          cargo test --locked
+          cargo test --locked --all-features
 
   client-ffi:
     name: Client bindings
@@ -83,14 +89,18 @@ jobs:
         with:
           toolchain: "1.97.0"
           components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: pwc-client-ffi
-          cache-bin: "false"
-      - run: cargo fmt --check
-      - run: cargo clippy --all-targets --locked -- -D warnings
+      # One step with the toolchain's own programs and a private CARGO_HOME, as in the client job.
       # tests/python.rs generates the Python module and runs tests/test_bindings.py with the runner's python3.
-      - run: cargo test --locked
+      - run: |
+          toolchain="${RUSTUP_HOME:-$HOME/.rustup}/toolchains/1.97.0-$(uname -m)-unknown-linux-gnu/bin"
+          test -x "$toolchain/cargo"
+          export PATH="$toolchain:$PATH"
+          export CARGO_HOME="$(mktemp -d)"
+          trap 'rm -rf "$CARGO_HOME"' EXIT
+          echo "cargo: $(command -v cargo)"
+          cargo fmt --check
+          cargo clippy --all-targets --locked -- -D warnings
+          cargo test --locked
 
   coverage:
     name: Coverage
