@@ -96,4 +96,7 @@ jobs:
           fi
           export JAVA_HOME="$jdk" PATH="$jdk/bin:$PATH"
           java -version
+          # The absolute path bash resolves, because the JVM does not expand entries such as ~/.cargo/bin in PATH.
+          export CARGO="$(command -v cargo)"
+          echo "cargo: $CARGO; PATH entries with cargo: $(echo "$PATH" | tr ':' '\n' | grep cargo | tr '\n' ' ')"
           ./gradlew build --no-daemon

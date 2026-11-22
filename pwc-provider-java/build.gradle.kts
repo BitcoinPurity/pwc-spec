@@ -32,7 +32,8 @@ val libraryFile = if (os == "macos") "libpwc_provider_jni.dylib" else "libpwc_pr
 val cargoBuild by tasks.registering(Exec::class) {
     description = "Builds the JNI library with cargo."
     workingDir = file("native")
-    commandLine("cargo", "build", "--release", "--locked")
+    // CARGO overrides the cargo found on PATH, for environments where the JVM resolves PATH differently.
+    commandLine(System.getenv("CARGO") ?: "cargo", "build", "--release", "--locked")
     inputs.files(fileTree("native/src"), "native/Cargo.toml", "native/Cargo.lock")
     inputs.files(fileTree("../pwc-provider/src"), "../pwc-provider/Cargo.toml")
     outputs.file("native/target/release/$libraryFile")
