@@ -1,0 +1,18 @@
+[package]
+name = "pwc-provider-jni"
+version = "0.1.0"
+edition = "2021"
+description = "JNI binding of pwc-provider for the Java Provider SDK"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+bitcoin = { version = ">=0.32.8, <0.32.100" }
+jni = "0.21.1"
+pwc-provider = { path = "../../pwc-provider" }
+serde = "1"
+serde_json = "1"
+time = "0.3"
+tokio = { version = "1", features = ["rt-multi-thread", "sync"] }
