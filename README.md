@@ -11,6 +11,7 @@ Purity Wallet Connect is a family of specifications that lets applications use a
 | [`specs/`](specs/) | The specification documents |
 | [`pwc-schema/`](pwc-schema/) | JSON Schemas (2020-12), the machine-readable registry and their generators |
 | [`pwc-testkit/`](pwc-testkit/) | Test vectors, PSBT fixtures, the LOCAL conformance runner, a mock Provider and a minimal Client |
+| [`pwc-provider/`](pwc-provider/) | A Rust Provider implementing Core and LOCAL, with an in-memory demo wallet (requirements in [`input/`](input/), design in [`docs/`](docs/)) |
 
 ## Documents
 
@@ -39,6 +40,13 @@ Python 3.10 or later. The schema check needs the `jsonschema` and `referencing` 
 python3 pwc-schema/check_schema.py specs/PWC-Core-v0.2.1-EN.md specs/PWC-Transport-Local-v0.1.0-EN.md specs/PWC-Transport-Remote-v0.1.0-EN.md
 python3 pwc-testkit/run_vectors.py
 python3 pwc-testkit/check_family.py specs
+```
+
+The Rust Provider needs a Rust toolchain; its tests include a run of the LOCAL runner against the demo binary:
+
+```text
+cd pwc-provider && cargo test
+cargo run -- --dir /tmp/pwc/run --approve auto
 ```
 
 The LOCAL runner, the mock Provider and the PSBT fixture checker are described in [`pwc-testkit/README.md`](pwc-testkit/README.md) and in PWC-CONFORMANCE-001 §4.

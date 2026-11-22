@@ -1,0 +1,110 @@
+# Architecture: pwc-provider
+
+## 1. Modules
+
+```text
+pwc-provider/
+├── Cargo.toml
+├── src/
+│   ├── lib.rs          module declarations
+│   ├── main.rs         demo binary: arguments, approval modes, startup
+│   ├── error.rs        ErrorCode (36 codes) and PwcError
+│   ├── types.rs        semantic types (validated when parsed), shared wire types, fee formula
+│   ├── methods.rs      method registry and parameter structures
+│   ├── backend.rs      WalletBackend trait and its data types
+│   ├── memory.rs       MemoryBackend: simulated wallets and chains
+│   ├── balance.rs      balance computation (Core §4.3)
+│   ├── psbt.rs         raw PSBT key-value parsing, combine, finalize, signing status, size estimates
+│   ├── message.rs      BIP-322 simple and legacy message signatures
+│   ├── prompt.rs       approval request types
+│   ├── provider/
+│   │   ├── mod.rs      Provider, Config, state, order of checks, events, save and load
+│   │   ├── grants.rs   grant coverage and narrowing
+│   │   ├── operations.rs Operation states, idempotency records, reservations
+│   │   └── handlers.rs check 10 of each method
+│   └── local.rs        LOCAL transport: endpoint, peer check, frames, JSON-RPC, handshake
+└── tests/              integration tests over the Unix socket
+```
+
+## 2. Layers
+
+```text
+Host wallet / demo binary
+   │  Prompt channel (approval)   save_state / with_state   notify(BackendEvent)
+   ▼
+local.rs ──frames, handshake──► Provider (order of checks, grants, Operations, idempotency, reservations, events)
+                                   │
+                                   ▼
+                             WalletBackend trait ◄── MemoryBackend
+```
+
+- **local.rs** handles only the transport: endpoint, peer user, frames, the JSON-RPC envelope, the `local.*` methods and time limits. After authentication it passes Core methods to `Provider::handle`.
+- **Provider** is transport-independent and owns the Core semantics: order of checks, grants, the Operation state machine, idempotency, reservations, pagination cursors, event fan-out and the approval flow.
+- **WalletBackend** owns wallet data and keys: wallet and account inventory, balances, addresses, UTXOs, history, output ownership, coin selection and PSBT construction, signing, broadcast and message signing.
+
+## 3. Order of checks
+
+`Provider::handle(session, method, params)` follows Core §8 exactly:
+
+| Step | Check | On failure |
+|---|---|---|
+| 1 | Authenticated (ensured by local.rs) | `UNAUTHENTICATED` |
+| 2 | Request quota (not implemented) | — |
+| 3 | Method in the registry | `UNSUPPORTED_METHOD` |
+| 4 | Parameter syntax; size limits | `INVALID_ARGUMENT`; `PAYLOAD_TOO_LARGE` |
+| 5 | Idempotency record: an exact retry gets the original response | `IDEMPOTENCY_CONFLICT` |
+| 6 | An active grant holds the scope | `PERMISSION_REVOKED` / `PERMISSION_REQUIRED` |
+| 7 | The wallet or account exists and a grant covers it | `WALLET_NOT_FOUND` / `ACCOUNT_NOT_FOUND`, fixed content |
+| 8 | Wallet state | `WALLET_LOCKED` / `STATE_UNAVAILABLE` |
+| 9 | Unfinished Operations; approval prompt rate | `RATE_LIMITED` |
+| 10 | Method-specific checks, including grant constraints | the method's codes |
+
+A successful request writes its idempotency record. A request that fails with a direct error writes none.
+
+## 4. Approval
+
+`Provider::new` returns `(Arc<Provider>, PromptReceiver)`. When the User must decide, the Provider sends a `Prompt` on the channel; each `Prompt` carries a oneshot reply:
+
+| Prompt | Reply |
+|---|---|
+| `Pairing` | `bool` |
+| `Permissions` | `Option<GrantChoice>`; `None` refuses |
+| `SignPsbt` | `bool` |
+| `SignMessage` | `bool` |
+
+- A host that drops the reply refuses the request.
+- The Provider withdraws a prompt by dropping its receiving end (connection closed, canceled, expired, grant revoked). The host can observe this with `reply.is_closed()`.
+- The Provider narrows the User's grant choice: scopes are intersected with the request, expiry and constraints are never looser than requested, and resources never exceed those requested when the request listed any.
+
+Each Operation awaiting approval has a task that waits for the first of: the User's reply, expiry, a cancellation signal. After approval the request is authorized again, and the wallet state checked, before anything is signed.
+
+## 5. State and concurrency
+
+- All mutable Provider state lives in one `Mutex<Inner>`, and each request runs under it. Requests are therefore serialized, so requests competing for the same UTXO cannot race (Core §9.3).
+- Backend calls are made under the lock. The backend never calls back into the Provider, so this cannot deadlock.
+- Each connection has a bounded output channel and a writer task. Responses use `send().await`; events use `try_send`, and a full channel closes that connection (LOCAL §8).
+- A pending pairing prompt runs in its own task, which the connection aborts when it closes; aborting drops the reply's receiver and so withdraws the prompt.
+
+## 6. State snapshot
+
+The persistent part of the state serializes to a JSON snapshot:
+
+```text
+Snapshot { version: 1, cursor_key, clients, grants, operations, idempotency, reservations }
+```
+
+Not included: live sessions, rate-limit counters and waiting tasks. All times are UTC timestamps and compare normally after loading.
+
+## 7. Dependencies
+
+| Crate | Use |
+|---|---|
+| tokio | Unix sockets, timers, channels, signals |
+| serde, serde_json | Wire format and snapshot |
+| bitcoin 0.32 | Addresses, transactions, PSBT, sighash, secp256k1, HMAC/SHA-256, legacy message signatures |
+| miniscript 13 | `psbt.finalize` only |
+| base64 | Canonical padded base64 |
+| getrandom | Randomness for secrets, nonces and identifiers |
+| time | RFC 3339 timestamps |
+| libc | `geteuid` |
+| jsonschema, tempfile (tests only) | Validating output against the strict schema; temporary endpoint directories |

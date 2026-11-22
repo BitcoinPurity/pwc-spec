@@ -1,0 +1,16 @@
+//! PWC Provider: PWC-CORE-001 v0.2.1 over PWC-TRANSPORT-LOCAL-001 v0.1.0.
+
+pub mod backend;
+pub mod balance;
+pub mod error;
+pub mod local;
+pub mod memory;
+pub mod message;
+pub mod methods;
+pub mod prompt;
+pub mod provider;
+pub mod psbt;
+pub mod types;
+
+/// LOCAL §3.1 provider identifier.
+pub const PROVIDER_ID: &str = "pwc-provider";
