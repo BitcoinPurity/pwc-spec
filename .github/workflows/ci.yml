@@ -22,6 +22,9 @@ jobs:
       - run: .venv/bin/python pwc-testkit/run_vectors.py
       - run: .venv/bin/python pwc-testkit/check_family.py specs
 
+  # Every use of Swatinem/rust-cache sets cache-bin to "false". With the default, its save step deletes from
+  # ~/.cargo/bin the programs that were there before the job, cargo among them. The agents share that directory,
+  # so a job running at the same time then fails with "cargo: command not found".
   provider:
     name: Rust Provider
     runs-on: ubuntu-latest
@@ -37,6 +40,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: pwc-provider
+          cache-bin: "false"
       - run: cargo fmt --check
       - run: cargo clippy --all-targets --locked -- -D warnings
       # The tests include tests/runner.rs, which runs pwc-testkit/local_runner.py with the runner's python3.
@@ -57,6 +61,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: pwc-client
+          cache-bin: "false"
       - run: cargo fmt --check
       - run: cargo clippy --all-targets --locked -- -D warnings
       # The feature that exports the interface through UniFFI; pwc-client-ffi builds the bindings.
@@ -81,6 +86,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: pwc-client-ffi
+          cache-bin: "false"
       - run: cargo fmt --check
       - run: cargo clippy --all-targets --locked -- -D warnings
       # tests/python.rs generates the Python module and runs tests/test_bindings.py with the runner's python3.
@@ -101,6 +107,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: pwc-provider
+          cache-bin: "false"
       - run: cargo install cargo-llvm-cov --version 0.9.2 --locked
       - run: cargo llvm-cov --locked --no-report
       # Reported only; coverage does not fail the build.
