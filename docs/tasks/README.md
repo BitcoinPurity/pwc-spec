@@ -18,3 +18,16 @@ Requirements: `input/requirements.md`. Each task writes its failing tests first,
 Test files are in `pwc-provider/tests/`. C-15 and C-54 (an accepted and a repeated broadcast) need a signed transaction and are checked by the end-to-end test in `core_sign.rs`.
 
 Not applicable: C-21 (no external signer), L-13 (a Client-side test), L-24 (Windows), L-29 to L-34 (delegation; L-29's `UNSUPPORTED_OPERATION` is checked in `core_access.rs`). L-02 needs a second operating-system user and remains a manual test.
+
+## Java Provider SDK
+
+Requirements: `input/requirements.md` §5. Tests are JUnit 5 tests in `pwc-provider-java/src/test/java/`; `ForwardingBackend` is a Java backend over the in-memory one, and `DemoRunnerTest` runs `pwc-testkit/local_runner.py` against the Java demo program.
+
+| Task | Title | Milestone | Status |
+|---|---|---|---|
+| [TASK-011](TASK-011.md) | Java SDK scaffold and native library loading | M10 | Done |
+| [TASK-012](TASK-012.md) | Provider, LOCAL server and pairing prompts from Java | M11 | Done |
+| [TASK-013](TASK-013.md) | In-memory backend and permission prompts | M12 | Done |
+| [TASK-014](TASK-014.md) | Java wallet backends | M13 | Done |
+| [TASK-015](TASK-015.md) | Signing prompts and events | M14 | Done |
+| [TASK-016](TASK-016.md) | State, demo program and CI | M15 | Done |

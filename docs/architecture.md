@@ -1,4 +1,4 @@
-# Architecture: pwc-provider
+# Architecture: pwc-provider and pwc-provider-java
 
 ## 1. Modules
 
@@ -108,3 +108,80 @@ Not included: live sessions, rate-limit counters and waiting tasks. All times ar
 | time | RFC 3339 timestamps |
 | libc | `geteuid` |
 | jsonschema, tempfile (tests only) | Validating output against the strict schema; temporary endpoint directories |
+
+## 8. Java Provider SDK
+
+### 8.1 Modules
+
+```text
+pwc-provider-java/
+├── settings.gradle.kts, build.gradle.kts, gradlew   Gradle 9.1.0
+├── native/                    Rust cdylib pwc-provider-jni (path dependency on ../../pwc-provider)
+│   └── src/
+│       ├── lib.rs             JNI_OnLoad, the shared runtime, error and panic mapping, Config
+│       ├── convert.rs         Java values to Rust values and back; the class cache
+│       ├── records.rs         backend records in both directions
+│       ├── provider.rs        native methods of Provider, LocalServer and Prompt
+│       ├── memory.rs          native methods of MemoryBackend
+│       ├── backend.rs         JavaBackend: WalletBackend over a Java object
+│       └── prompts.rs         the prompt thread and reply handles
+└── src/main/java/org/bitcoinpurity/pwc/provider/
+    ├── Native.java            every native method; loads the library from the jar
+    ├── NativeHandle.java      owns a native pointer; frees it on close or by a Cleaner
+    ├── Provider.java, Config.java, Limits.java, RateLimit.java, LocalServer.java
+    ├── Prompt.java and its four subclasses, PromptHandler.java, request records
+    ├── WalletBackend.java, MemoryBackend.java, backend records and enums, BackendEvent.java
+    ├── ErrorCode.java, PwcException.java, StateException.java, EndpointException.java
+    └── demo/Main.java         demo program
+```
+
+### 8.2 Layers
+
+```text
+Java host wallet
+   │ Provider, LocalServer, MemoryBackend       ▲ PromptHandler.onPrompt     ▲ WalletBackend calls
+   ▼                                            │                            │
+Native.java ──JNI──► pwc-provider-jni ──────────┴── prompt thread            JavaBackend
+                          │                                                  ▲
+                          ▼                                                  │
+                     pwc-provider: Provider, local::bind/serve ──────────────┘ (or MemoryBackend directly)
+```
+
+- All native methods are static methods of `Native`. Java objects that own native memory hold a `NativeHandle`: a pointer to a `Box` on the Rust side, freed exactly once by `close()` or by a `Cleaner`.
+- One multi-thread tokio runtime, created on first use, runs every server and connection. Each native call enters it.
+- `Provider.create` with a `MemoryBackend` passes its `Arc<MemoryBackend>` to the Rust Provider. With any other backend it passes a `JavaBackend`, which holds a global reference to the Java object.
+- `JavaBackend` attaches the calling tokio thread to the JVM as a daemon thread and runs each call inside a JNI local frame, so references do not accumulate on long-lived threads.
+- A dedicated thread, attached as a daemon, receives from the `PromptReceiver` and calls the Java dispatcher with a `Prompt` object. The object holds a reply handle: a `Box` with the `oneshot::Sender`. Answering takes the sender out and sends; freeing the handle without an answer drops the sender, which refuses the prompt. `isWithdrawn` is `Sender::is_closed`.
+- `LocalServer.start` calls `local::bind` and spawns `local::serve`. `close` aborts that task and waits until it has ended, so the socket file is gone when `close` returns.
+- Rust panics never cross the boundary: each native function catches them and throws `IllegalStateException`.
+- Classes are looked up through the class loader of `Native`, remembered at `JNI_OnLoad`, so that threads started by Rust find the SDK and bitcoinj classes under any class loader.
+- A Java backend must not call the Provider: its methods run while the Provider holds its lock (section 5).
+
+### 8.3 Value mapping
+
+| Rust | Java |
+|---|---|
+| `Id`, `Text`, `Network`, `Scope`, `Address` | `String`, validated with the Rust `Deserialize` rules when entering Rust |
+| `Hash256`, `bitcoin::Txid` | `Sha256Hash` (display byte order, as `Sha256Hash.wrap(hex)`) |
+| `bitcoin::OutPoint`, `Reserved` | `TransactionOutPoint`, `Set<TransactionOutPoint>` |
+| `bitcoin::Script`, `Hex` of a script | `Script` (`Script.parse`); `OutputSummary.scriptPubKey` stays a hex `String` as in Rust |
+| `bitcoin::TxOut`, `(ScriptBuf, u64)` | `TransactionOutput` with no parent transaction |
+| `bitcoin::Transaction` | `Transaction` (consensus serialization) |
+| `bitcoin::Psbt` | `byte[]` (BIP-174 serialization) |
+| `Sats`, `SignedSats`, `u64` | `long` |
+| `u32` | `int`; a negative value is refused when entering Rust |
+| `Timestamp` | `Instant`, millisecond precision |
+| `Option<T>` field | nullable field; `Option<T>` return value of a backend method: `Optional<T>` / `OptionalLong` |
+| `&'static str` values | enums: `SyncState`, `AddressRole`, `AddressState`, `UtxoRestriction`, `TransactionStatus`; `AccountInfo.methods` are method names looked up in the Rust method registry, unknown names are dropped |
+| `Vec<Value>` of `Provider::grants` | `List<Grant>` |
+| `PwcError` | `PwcException` |
+| `sign_psbt(&mut Psbt, ..) -> Vec<u32>` | `SignedPsbt signPsbt(String, byte[], List<Integer>)`; the returned PSBT replaces the input |
+
+### 8.4 Dependencies
+
+| Component | Use |
+|---|---|
+| `jni` 0.21.1 | JNI functions and calls into the JVM |
+| `pwc-provider`, tokio, bitcoin, serde_json, time | As in section 7 |
+| bitcoinj-core 0.17.1 (`api`) | Bitcoin types of the Java interface |
+| JUnit 5, Jackson (tests only) | Tests and the test LOCAL Client |

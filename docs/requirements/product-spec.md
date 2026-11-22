@@ -1,4 +1,4 @@
-# Product specification: pwc-provider
+# Product specification: pwc-provider and pwc-provider-java
 
 Kept consistent with `input/requirements.md`. The specifications in `specs/` are authoritative; this document records only this implementation's choices.
 
@@ -76,3 +76,35 @@ The `limits` values are in `docs/api-contract.md`.
 - `mainnet` and `signet` are in-memory simulations too.
 - There is no official runner for the Core C-xx tests; this project's integration tests cover them, which is not a claim of official conformance.
 - No Taproot, multisignature or delegation. `psbt.combine` returns `PSBT_CONFLICT` for conflicting Taproot signature fields without verifying them.
+
+## 6. Java Provider SDK
+
+Kept consistent with `input/requirements.md` §5. The Java SDK is a JNI binding of the library above: every protocol behavior, value and limit in sections 2 to 5 applies unchanged.
+
+### 6.1 Deliverables
+
+| Deliverable | Description |
+|---|---|
+| Java library `pwc-provider-java` | Package `org.bitcoinpurity.pwc.provider`: Provider, LOCAL server, prompts, backend interface, in-memory backend. The jar contains the native library `pwc_provider_jni` for the build platform |
+| JNI crate `pwc-provider-jni` | `pwc-provider-java/native/`, a `cdylib` over `pwc-provider/` |
+| Demo program | `org.bitcoinpurity.pwc.provider.demo.Main`, with the options of the Rust demo binary; `./gradlew run` or the `installDist` start script |
+
+### 6.2 Features
+
+- **Provider**: created from a `WalletBackend`, a `Config` and a `PromptHandler`, or restored from a snapshot. `saveState`, `pairedClients`, `grants`, `revokeGrant`, `unpairClient` and `notify` behave as their Rust counterparts.
+- **Config**: `Config.defaults()` returns the Rust `Config::default()` values, read from the native library; a builder changes single fields.
+- **LOCAL server**: `LocalServer.start` binds the endpoint as in section 2.1 and serves in the background; `close` stops accepting and removes the socket file. Connections already open keep running until the Client closes them, as in Rust.
+- **Prompts**: each prompt reaches the `PromptHandler` on one dedicated thread, in order. The handler may answer at once or later, from any thread. `isWithdrawn()` tells whether the Provider withdrew it. A prompt that is never answered is refused when it is garbage-collected; a handler that throws refuses its prompt.
+- **Java backend**: a host implements `WalletBackend` in Java with bitcoinj types. An exception thrown by a backend method that can fail becomes the request's error: `PwcException` keeps its code, message, details and `retryable`; any other exception gives `INTERNAL_ERROR`. A method that cannot fail in the Rust trait (`wallets`, `account`, `addresses`, `ownsScript`, `isUnspent`, `feeEstimate`, `ownedOutput`) is treated as returning nothing when it throws, and the exception is printed.
+- **In-memory backend**: `MemoryBackend.demo()` and all the simulation controls of section 2.3. It implements `WalletBackend`, so a host can wrap it; passed to a Provider directly, it is used without Java callbacks.
+- **Resources**: `Provider`, `LocalServer` and `MemoryBackend` are `AutoCloseable`; native memory is also released when they are garbage-collected.
+
+### 6.3 Requirements on the host
+
+- Java 25 or later. Run with `--enable-native-access=ALL-UNNAMED` to avoid the JVM's native-access warning.
+- bitcoinj logs through SLF4J; the host chooses the SLF4J provider.
+
+### 6.4 Known limitations
+
+- The jar works only on the operating system and processor it was built on.
+- The library does not create PSBTs or signatures for a Java backend; a Java backend does that itself.
