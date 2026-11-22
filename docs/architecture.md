@@ -256,3 +256,4 @@ The public interface keeps to these rules so that a later binding crate needs no
 | getrandom | Nonces, pairing codes, idempotency keys |
 | libc | `geteuid` |
 | jsonschema, tempfile (tests only) | Validating frames against `pwc-schema/`; temporary endpoint directories |
+| pwc-provider (tests only) | The Provider for the end-to-end tests |

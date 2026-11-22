@@ -42,6 +42,27 @@ jobs:
       # The tests include tests/runner.rs, which runs pwc-testkit/local_runner.py with the runner's python3.
       - run: cargo test --locked
 
+  client:
+    name: Rust Client
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: pwc-client
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.97.0"
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: pwc-client
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets --locked -- -D warnings
+      # The tests include tests/provider.rs, which runs the library against pwc-provider, and
+      # tests/mock_provider.rs, which runs pwc-testkit/mock_local_provider.py with the runner's python3.
+      - run: cargo test --locked
+
   coverage:
     name: Coverage
     runs-on: ubuntu-latest

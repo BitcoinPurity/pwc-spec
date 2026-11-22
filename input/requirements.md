@@ -108,7 +108,9 @@ The library is the single implementation of the protocol logic. SDKs for other l
 | Methods | A typed function for every Core method, and a raw `request(method, params)` |
 | Credential storage | A `CredentialStore` interface implemented by the host; the crate ships a file store (mode 0600) |
 | Idempotency keys | Supplied by the application for every intended action; the library offers a generator and never chooses a key by itself |
-| Dependencies | None on `pwc-provider`; developed on `main` independently of the Provider |
+| Dependencies | The library does not depend on `pwc-provider`; the tests use it as a development dependency |
+| End-to-end tests | Against the Rust Provider of `pwc-provider/` with its in-memory wallet, started inside the test process, with the test answering the Provider's approval prompts |
+| Continuous integration | A `client` job in `.github/workflows/ci.yml`: `cargo fmt --check`, `cargo clippy -D warnings` and `cargo test` for `pwc-client` |
 | Method | Test first |
 
 ## 3. Out of scope
@@ -118,12 +120,13 @@ The library is the single implementation of the protocol logic. SDKs for other l
 - Windows named pipes; the REMOTE, BROWSER and MOBILE transports.
 - Typed functions for delegated principals (LOCAL §5.8); `request` can send them.
 - Operating-system credential stores (Keychain, Secret Service): the host implements `CredentialStore`.
-- A continuous-integration workflow, and end-to-end tests against the Rust Provider, until that Provider is on `main`.
 
 ## 4. Acceptance
 
 - `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` and `cargo test` pass in `pwc-client/`.
 - Every request the library sends validates against `pwc-schema/`; every result fixture used by the tests validates against the strict schema before the library parses it.
 - The library pairs, authenticates and calls Core methods against `pwc-testkit/mock_local_provider.py`.
+- Against the Rust Provider, the library completes the flow of the Client guide: pair, reconnect, obtain a grant, read the account, create, sign, finalize and broadcast a transaction, sign and verify a message, receive events, and handle a refusal, a revocation and unpairing.
+- The `client` job of GitHub Actions passes.
 - Test L-13 holds: after a wrong `server_proof` the Client sends nothing further and closes.
 - The repository's existing `run_vectors.py`, `check_schema.py` and `check_family.py` give the same results as before.

@@ -147,8 +147,13 @@ Kept consistent with `input/requirements.md` §5. The Java SDK is a JNI binding 
 - `list_all_addresses`, `list_all_utxos` and `list_all_transactions` follow `next_cursor` to the last page.
 - `subscribe_events` returns a stream that the application reads by pulling. A reader that falls more than 256 events behind is told that events were missed.
 
-## 3. Known limitations
+## 3. Tests and continuous integration
+
+- Unit and integration tests run against a scripted Provider inside the tests, against the test kit's mock Provider, and end to end against the Rust Provider of `pwc-provider/` with its in-memory wallet.
+- The `client` job of `.github/workflows/ci.yml` runs `cargo fmt --check`, `cargo clippy -D warnings` and `cargo test` for `pwc-client`.
+
+## 4. Known limitations
 
 - No automatic reconnection.
-- The test kit's mock Provider never approves a permission request, so signing and broadcast flows are tested only against fixtures validated by the strict schema.
+- The end-to-end tests use the Provider's in-memory wallet; no test runs against a wallet connected to a real node.
 - macOS and Linux only.
