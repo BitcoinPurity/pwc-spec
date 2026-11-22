@@ -31,3 +31,15 @@ Requirements: `input/requirements.md` §5. Tests are JUnit 5 tests in `pwc-provi
 | [TASK-014](TASK-014.md) | Java wallet backends | M13 | Done |
 | [TASK-015](TASK-015.md) | Signing prompts and events | M14 | Done |
 | [TASK-016](TASK-016.md) | State, demo program and CI | M15 | Done |
+
+## Java Provider SDK 0.2
+
+Requirements: `input/requirements.md` §6.
+
+| Task | Title | Milestone | Status |
+|---|---|---|---|
+| [TASK-017](TASK-017.md) | MIT license for all code | M16 | To do |
+| [TASK-018](TASK-018.md) | Windows named pipe endpoint | M17 | To do |
+| [TASK-019](TASK-019.md) | Java interface without bitcoinj | M18 | To do |
+| [TASK-020](TASK-020.md) | Native loading, JPMS module and Windows in the Java SDK | M19 | To do |
+| [TASK-021](TASK-021.md) | Five-platform jar, publishing and CI | M20 | To do |

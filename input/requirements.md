@@ -85,3 +85,47 @@ Let a Java host wallet embed the Rust Provider through a JNI binding, with the w
 - `cargo fmt --check` and `cargo clippy -D warnings` are clean for the JNI crate.
 - The `pwc-provider` library is unchanged, and its CI jobs pass while the Java SDK job runs at the same time.
 - CI has a job for the Java SDK.
+
+## 6. Java Provider SDK 0.2: Windows, portable interface and distribution
+
+Prepares the SDK for embedding in PurityWallet desktop (`PurityWallet/PurityWalletPC`). The wallet itself is not changed here. Where this section and section 5 differ, this section applies.
+
+### 6.1 Goal
+
+- The LOCAL transport also runs on Windows, over a named pipe (LOCAL §3.3, §3.4, test L-24), in the Rust library, its demo binary and the Java SDK.
+- The Java interface uses only Java types, byte arrays and strings; the SDK has no third-party Java dependency.
+- The SDK loads its native library from `java.library.path` first, and from the jar otherwise.
+- The SDK is a JPMS module.
+- One jar carries the native libraries of every supported platform.
+- The jar is published to GitHub Packages.
+- All code in this repository is licensed under MIT.
+
+### 6.2 Decisions
+
+| Item | Decision |
+|---|---|
+| Windows endpoint | `\\.\pipe\pwc-<sid>-<provider_id>`. The first instance is created with `FILE_FLAG_FIRST_PIPE_INSTANCE`, `PIPE_REJECT_REMOTE_CLIENTS`, byte mode and a protected DACL granting access to the user's SID only |
+| Existing pipe name | If the name exists, the Provider connects to it and checks the server process's SID: the same SID means another instance is running (`ALREADY_RUNNING`); any other SID, or no answer, means the name is taken and is not used (`NAME_TAKEN`) |
+| Windows peer check | `GetNamedPipeClientProcessId` and the process token's user SID; executable from `QueryFullProcessImageNameW` |
+| macOS peer executable | `proc_pidpath` |
+| Java value types | Transaction ids: lower-case hex `String`s in display order. Outpoints: `OutPoint(String txid, int vout)`. Scripts, transactions and PSBTs: `byte[]`. Outputs: `TxOut(long valueSats, byte[] scriptPubKey)` |
+| Java endpoint selection | `LocalServer.start(provider)` and `start(provider, providerId)` use the platform's default endpoint; `start(provider, dir, providerId)` exists on macOS and Linux only |
+| Native library | Name `pwc_provider_jni`. Jar resources `org/bitcoinpurity/pwc/provider/native/<os>-<arch>/`, with `<os>` one of `linux`, `macos`, `windows` and `<arch>` one of `x86_64`, `aarch64` |
+| Platforms in the published jar | linux-x86_64, linux-aarch64, macos-x86_64, macos-aarch64, windows-x86_64 |
+| JPMS module | `org.bitcoinpurity.pwc.provider`, exporting `org.bitcoinpurity.pwc.provider` |
+| Publishing | Maven coordinates `org.bitcoinpurity.pwc:pwc-provider-java:<version>` on `https://maven.pkg.github.com/BitcoinPurity/pwc-spec`. CI publishes on a tag `pwc-provider-java-v<version>`, with a token from a Buildkite secret. Version 0.2.0 |
+| License | MIT for all code: `pwc-provider/`, `pwc-provider-java/`, the scripts in `pwc-schema/` and `pwc-testkit/`. Documents, schemas, the registry and test vectors stay CC BY 4.0 |
+| CI | Rust tests on Linux and Windows. Java SDK build and tests on all five platforms, then one jar with all five native libraries |
+
+### 6.3 Out of scope
+
+- PurityWallet changes.
+- Windows support in the Python test kit (`pwc_local_client.py`, `local_runner.py`), which opens `AF_UNIX` sockets only. Its run against the demo programs stays on macOS and Linux.
+- Code signing of the native libraries.
+
+### 6.4 Acceptance
+
+- `cargo test` in `pwc-provider/` passes on Linux and on Windows; the Windows tests cover the pipe name, the DACL, `ALREADY_RUNNING`, the peer check and the protocol over the pipe.
+- `./gradlew build` in `pwc-provider-java/` passes on all five platforms.
+- The assembled jar contains the five native libraries, has a `module-info.class` and depends on no other artifact.
+- `cargo clippy -D warnings` is clean for Linux and for the Windows target.
