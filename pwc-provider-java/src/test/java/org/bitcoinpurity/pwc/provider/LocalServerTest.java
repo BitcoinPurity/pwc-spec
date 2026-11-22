@@ -83,9 +83,14 @@ class LocalServerTest {
     @DisabledOnOs(OS.WINDOWS)
     void defaultDirectoryIsUnderTheUsersDirectories() {
         Path dir = LocalServer.defaultDirectory().orElseThrow();
-        String runtime = System.getenv("XDG_RUNTIME_DIR");
-        assertTrue(dir.endsWith("pwc") && runtime != null && dir.startsWith(runtime)
-                || dir.endsWith(Path.of(".pwc", "run")), dir.toString());
+        Path home = Path.of(System.getProperty("user.home"));
+        if (System.getProperty("os.name").startsWith("Mac")) {
+            assertEquals(home.resolve(Path.of("Library", "Application Support", "PWC", "run")), dir);
+        } else {
+            String runtime = System.getenv("XDG_RUNTIME_DIR");
+            assertTrue(dir.endsWith("pwc") && runtime != null && dir.startsWith(runtime)
+                    || dir.equals(home.resolve(Path.of(".pwc", "run"))), dir.toString());
+        }
         assertEquals("pwc-provider", LocalServer.PROVIDER_ID);
     }
 
