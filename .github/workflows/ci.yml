@@ -14,12 +14,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # The agent's own python3; a virtual environment avoids installing into an externally managed system Python.
-      # actions/setup-python is not used because it needs a GitHub token, which this pipeline does not issue.
-      - run: python3 -m venv .venv && .venv/bin/python -m pip install jsonschema referencing
-      - run: .venv/bin/python pwc-schema/check_schema.py specs/PWC-Core-v0.2.1-EN.md specs/PWC-Transport-Local-v0.1.0-EN.md specs/PWC-Transport-Remote-v0.1.0-EN.md
-      - run: .venv/bin/python pwc-testkit/run_vectors.py
-      - run: .venv/bin/python pwc-testkit/check_family.py specs
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install jsonschema referencing
+      - run: python pwc-schema/check_schema.py specs/PWC-Core-v0.2.1-EN.md specs/PWC-Transport-Local-v0.1.0-EN.md specs/PWC-Transport-Remote-v0.1.0-EN.md
+      - run: python pwc-testkit/run_vectors.py
+      - run: python pwc-testkit/check_family.py specs
 
   provider:
     name: Rust Provider
