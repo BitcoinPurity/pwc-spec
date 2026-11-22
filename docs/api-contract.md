@@ -197,7 +197,7 @@ Package `org.bitcoinpurity.pwc.provider`. Sections 1 to 4 apply unchanged. "Null
 | `LocalServer.start(Provider, Path dir)`, `start(Provider, Path dir, String providerId)` | `local::bind` and `local::serve` | Throws `EndpointException` with kind `UNSAFE_DIRECTORY`, `PATH_TOO_LONG`, `ALREADY_RUNNING` or `IO` and the path |
 | `Path path()`, `void close()` | `Endpoint::path`, dropping `serve` | `close` returns after the socket file is removed |
 
-`Config` (record, `Config.defaults()`, `Config.builder()`, `toBuilder()`): `providerName`, `providerVersion`, `limits`, `helloTimeout`, `authTimeout`, `pairingTimeout`, `approvalTimeout`, `reservationTtl` (`Duration`), `pairingLimit`, `authFailureLimit` (`RateLimit(int max, Duration window)`), `authFailureDelay`, `promptLimit`, `eventBuffer` (`int`). `Limits` (record, `Limits.defaults()`, builder): `maxPageSize`, `maxPsbtBytes`, `maxCombinePsbts`, `maxRawTransactionBytes`, `maxMessageBytes`, `maxConcurrentOperations`, `operationRetentionSeconds`, `highFeeRate` (`long`, sat/kvB).
+`Config` (record, `Config.defaults()`, `toBuilder()`): `providerName`, `providerVersion`, `limits`, `helloTimeout`, `authTimeout`, `pairingTimeout`, `approvalTimeout`, `reservationTtl` (`Duration`), `pairingLimit`, `authFailureLimit` (`RateLimit(int max, Duration window)`), `authFailureDelay`, `promptLimit`, `eventBuffer` (`int`). `Limits` (record, `Limits.defaults()`, `toBuilder()`): `maxPageSize`, `maxPsbtBytes`, `maxCombinePsbts`, `maxRawTransactionBytes`, `maxMessageBytes`, `maxConcurrentOperations`, `operationRetentionSeconds`, `highFeeRate` (`long`, sat/kvB).
 
 `PairedClient(clientId, claimedName, claimedDescription nullable, Instant pairedAt, Instant lastConnectedAt, PeerInfo peer)`. `Grant(grantId, clientId, network, List<String> scopes, walletIds, accountIds, Instant createdAt, Instant expiresAt nullable, GrantStatus status, GrantConstraints constraints nullable)`; `GrantStatus`: `ACTIVE`, `REVOKED`, `EXPIRED`.
 
@@ -252,4 +252,4 @@ Enums: `WalletKind`, `WalletState`, `ScriptType`, `MessageFormat` (`BIP322_SIMPL
 
 ### 5.4 Demo program
 
-`java --enable-native-access=ALL-UNNAMED -cp <classpath> org.bitcoinpurity.pwc.provider.demo.Main [--dir DIR] [--approve ask|auto] [--approve-delay-ms N]`, with the behavior of section 2.4 of the product specification.
+`java --enable-native-access=ALL-UNNAMED -cp <classpath> org.bitcoinpurity.pwc.provider.demo.Main [--dir DIR] [--approve ask|auto] [--approve-delay-ms N]`, with the behavior of section 2.4 of the product specification. `./gradlew run --args="--approve auto"` runs it; `./gradlew installDist` writes the start script `build/install/pwc-provider-java/bin/pwc-provider-java`, which uses `JAVA_HOME`.

@@ -16,7 +16,14 @@ pub const SYNC_STATES: [&str; 4] = ["synced", "syncing", "offline", "unknown"];
 pub const ADDRESS_ROLES: [&str; 3] = ["receive", "change", "unknown"];
 pub const ADDRESS_STATES: [&str; 3] = ["unused", "used", "unknown"];
 pub const UTXO_RESTRICTIONS: [&str; 5] = ["frozen", "locked", "immature", "unconfirmed", "unknown"];
-pub const TRANSACTION_STATUSES: [&str; 6] = ["unconfirmed", "confirmed", "conflicted", "replaced", "dropped", "unknown"];
+pub const TRANSACTION_STATUSES: [&str; 6] = [
+    "unconfirmed",
+    "confirmed",
+    "conflicted",
+    "replaced",
+    "dropped",
+    "unknown",
+];
 
 fn ids<'l, T: AsRef<str>>(env: &mut JNIEnv<'l>, items: &[T]) -> Result<JObject<'l>> {
     strings(env, items)
@@ -43,7 +50,11 @@ pub fn wallet_info<'l>(env: &mut JNIEnv<'l>, w: &WalletInfo) -> Result<JObject<'
     new(
         env,
         "WalletInfo",
-        &sig(&format!("{STRING}{STRING}{STRING}{}{}{LIST}", t("WalletKind"), t("WalletState"))),
+        &sig(&format!(
+            "{STRING}{STRING}{STRING}{}{}{LIST}",
+            t("WalletKind"),
+            t("WalletState")
+        )),
         &[
             (&id).into(),
             (&name).into(),
@@ -81,7 +92,12 @@ pub fn account_info<'l>(env: &mut JNIEnv<'l>, a: &AccountInfo) -> Result<JObject
 pub fn balance<'l>(env: &mut JNIEnv<'l>, b: &Balance) -> Result<JObject<'l>> {
     let c = &b.components;
     let mut args = Vec::new();
-    for v in [c.confirmed_sats, c.pending_self_sats, c.pending_external_sats, c.pending_outgoing_sats] {
+    for v in [
+        c.confirmed_sats,
+        c.pending_self_sats,
+        c.pending_external_sats,
+        c.pending_outgoing_sats,
+    ] {
         args.push(JValue::Long(u64_long(v.0)?));
     }
     args.push(JValue::Long(c.unconfirmed_delta_sats.0));
@@ -91,15 +107,30 @@ pub fn balance<'l>(env: &mut JNIEnv<'l>, b: &Balance) -> Result<JObject<'l>> {
     let components = new(env, "BalanceComponents", "(JJJJJJJJ)V", &args)?;
     let state = enum_value(env, "SyncState", b.sync.state)?;
     let tip = integer(env, b.sync.tip_height.map(u32_int).transpose()?)?;
-    let sync = new(env, "SyncStatus", &sig(&format!("{}{INTEGER}", t("SyncState"))), &[(&state).into(), (&tip).into()])?;
+    let sync = new(
+        env,
+        "SyncStatus",
+        &sig(&format!("{}{INTEGER}", t("SyncState"))),
+        &[(&state).into(), (&tip).into()],
+    )?;
     let id = string(env, b.account_id.as_str())?;
     let network = string(env, &b.network)?;
     let updated = instant(env, b.updated_at)?;
     new(
         env,
         "Balance",
-        &sig(&format!("{STRING}{STRING}{}{INSTANT}{}", t("BalanceComponents"), t("SyncStatus"))),
-        &[(&id).into(), (&network).into(), (&components).into(), (&updated).into(), (&sync).into()],
+        &sig(&format!(
+            "{STRING}{STRING}{}{INSTANT}{}",
+            t("BalanceComponents"),
+            t("SyncStatus")
+        )),
+        &[
+            (&id).into(),
+            (&network).into(),
+            (&components).into(),
+            (&updated).into(),
+            (&sync).into(),
+        ],
     )
 }
 
@@ -113,7 +144,11 @@ pub fn address_record<'l>(env: &mut JNIEnv<'l>, a: &AddressRecord) -> Result<JOb
     new(
         env,
         "AddressRecord",
-        &sig(&format!("{STRING}{STRING}{STRING}{}{}{STRING}", t("AddressRole"), t("AddressState"))),
+        &sig(&format!(
+            "{STRING}{STRING}{STRING}{}{}{STRING}",
+            t("AddressRole"),
+            t("AddressState")
+        )),
         &[
             (&id).into(),
             (&network).into(),
@@ -251,7 +286,12 @@ pub fn signed_psbt<'l>(env: &mut JNIEnv<'l>, psbt: &bitcoin::Psbt, signed: &[u32
         indexes.push(u32_int(*i)?);
     }
     let indexes = ints(env, indexes)?;
-    new(env, "SignedPsbt", &sig(&format!("[B{LIST}")), &[(&b).into(), (&indexes).into()])
+    new(
+        env,
+        "SignedPsbt",
+        &sig(&format!("[B{LIST}")),
+        &[(&b).into(), (&indexes).into()],
+    )
 }
 
 // ---------------------------------------------------------------------------------------------------------
@@ -293,7 +333,12 @@ pub fn from_account_info(env: &mut JNIEnv, a: &JObject) -> Result<AccountInfo> {
     let script_type = obj(env, a, "scriptType", &t("ScriptType"))?;
     let methods = string_list_field(env, a, "methods")?
         .iter()
-        .filter_map(|m| pwc_provider::methods::METHODS.iter().find(|s| s.name == m).map(|s| s.name))
+        .filter_map(|m| {
+            pwc_provider::methods::METHODS
+                .iter()
+                .find(|s| s.name == m)
+                .map(|s| s.name)
+        })
         .collect();
     Ok(AccountInfo {
         account_id: parse(str_field(env, a, "accountId")?)?,
@@ -422,7 +467,7 @@ pub fn from_created_psbt(env: &mut JNIEnv, c: &JObject) -> Result<CreatedPsbt> {
     let change = obj(env, c, "changeOutputIndexes", LIST)?;
     let inputs = obj(env, c, "inputs", LIST)?;
     Ok(CreatedPsbt {
-        psbt: bitcoin::Psbt::deserialize(&psbt).map_err(|e| invalid(e))?,
+        psbt: bitcoin::Psbt::deserialize(&psbt).map_err(invalid)?,
         fee: u64_field(env, c, "fee")?,
         vsize: u64_field(env, c, "vsize")?,
         change_output_indexes: int_list(env, &change)?,
@@ -435,7 +480,7 @@ pub fn from_signed_psbt(env: &mut JNIEnv, s: &JObject) -> Result<(bitcoin::Psbt,
     let psbt = bytes_field(env, s, "psbt")?;
     let signed = obj(env, s, "signedInputs", LIST)?;
     Ok((
-        bitcoin::Psbt::deserialize(&psbt).map_err(|e| invalid(e))?,
+        bitcoin::Psbt::deserialize(&psbt).map_err(invalid)?,
         int_list(env, &signed)?,
     ))
 }

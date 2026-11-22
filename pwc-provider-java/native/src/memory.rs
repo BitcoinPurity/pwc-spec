@@ -20,7 +20,9 @@ pub extern "system" fn Java_org_bitcoinpurity_pwc_provider_Native_memoryDemo<'l>
     mut env: JNIEnv<'l>,
     _: JClass<'l>,
 ) -> jlong {
-    native(&mut env, 0, |_| Ok(into_ptr::<MemoryHandle>(Arc::new(MemoryBackend::demo()))))
+    native(&mut env, 0, |_| {
+        Ok(into_ptr::<MemoryHandle>(Arc::new(MemoryBackend::demo())))
+    })
 }
 
 #[no_mangle]
@@ -30,7 +32,10 @@ pub extern "system" fn Java_org_bitcoinpurity_pwc_provider_Native_memoryFree<'l>
     m: jlong,
 ) {
     // SAFETY: called once by the Java handle's cleaner.
-    native(&mut env, (), |_| Ok(unsafe { free::<MemoryHandle>(m) }))
+    native(&mut env, (), |_| {
+        unsafe { free::<MemoryHandle>(m) };
+        Ok(())
+    })
 }
 
 /// # Safety
@@ -104,7 +109,13 @@ pub extern "system" fn Java_org_bitcoinpurity_pwc_provider_Native_memoryAddAccou
         let account = id(env, &account_id)?;
         let name: Text = parse(text(env, &name)?)?;
         let script_type: ScriptType = from_serde_enum(env, &script_type, '_')?;
-        let id = b.add_account(&wallet, account.as_str(), name.as_str(), script_type, can_sign != JNI_FALSE);
+        let id = b.add_account(
+            &wallet,
+            account.as_str(),
+            name.as_str(),
+            script_type,
+            can_sign != JNI_FALSE,
+        );
         Ok(string(env, id.as_str())?.into_raw())
     })
 }

@@ -176,7 +176,13 @@ impl WalletBackend for JavaBackend {
     fn addresses(&self, account_id: &str) -> Vec<AddressRecord> {
         self.call("addresses", |env, o| {
             let id = string(env, account_id)?;
-            let l = self.method(env, o, "addresses", &format!("({STRING_ARG})Ljava/util/List;"), &[(&id).into()])?;
+            let l = self.method(
+                env,
+                o,
+                "addresses",
+                &format!("({STRING_ARG})Ljava/util/List;"),
+                &[(&id).into()],
+            )?;
             items(env, &l, from_address_record)
         })
         .unwrap_or_default()
@@ -222,7 +228,9 @@ impl WalletBackend for JavaBackend {
             let id = string(env, account_id)?;
             let p = outpoint(env, o)?;
             let sig = format!("({STRING_ARG}{OUTPOINT})Z");
-            Ok(env.call_method(b, "isUnspent", sig, &[(&id).into(), (&p).into()])?.z()?)
+            Ok(env
+                .call_method(b, "isUnspent", sig, &[(&id).into(), (&p).into()])?
+                .z()?)
         })
         .unwrap_or(false)
     }

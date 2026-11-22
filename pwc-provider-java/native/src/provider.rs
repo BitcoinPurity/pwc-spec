@@ -92,7 +92,9 @@ pub extern "system" fn Java_org_bitcoinpurity_pwc_provider_Native_providerCreate
     config: JObject<'l>,
     dispatcher: JObject<'l>,
 ) -> jlong {
-    native(&mut env, 0, |env| open(env, memory, &backend, &config, &dispatcher, None))
+    native(&mut env, 0, |env| {
+        open(env, memory, &backend, &config, &dispatcher, None)
+    })
 }
 
 #[no_mangle]
@@ -117,7 +119,10 @@ pub extern "system" fn Java_org_bitcoinpurity_pwc_provider_Native_providerFree<'
     provider: jlong,
 ) {
     // SAFETY: called once by the Java handle's cleaner.
-    native(&mut env, (), |_| Ok(unsafe { free::<ProviderHandle>(provider) }))
+    native(&mut env, (), |_| {
+        unsafe { free::<ProviderHandle>(provider) };
+        Ok(())
+    })
 }
 
 /// # Safety
@@ -180,7 +185,7 @@ pub extern "system" fn Java_org_bitcoinpurity_pwc_provider_Native_providerPaired
 fn json_timestamp(v: &Value) -> Result<Option<Timestamp>> {
     match v {
         Value::Null => Ok(None),
-        v => serde_json::from_value(v.clone()).map(Some).map_err(|e| invalid(e)),
+        v => serde_json::from_value(v.clone()).map(Some).map_err(invalid),
     }
 }
 
@@ -204,7 +209,7 @@ fn grant<'l>(env: &mut JNIEnv<'l>, g: &Value) -> Result<JObject<'l>> {
     let status = enum_value(env, "GrantStatus", &text("status"))?;
     let constraints = match g.get("constraints") {
         Some(c) => {
-            let c = serde_json::from_value(c.clone()).map_err(|e| invalid(e))?;
+            let c = serde_json::from_value(c.clone()).map_err(invalid)?;
             prompts::constraints(env, Some(&c))?
         }
         None => JObject::null(),
@@ -413,7 +418,9 @@ pub extern "system" fn Java_org_bitcoinpurity_pwc_provider_Native_promptIsWithdr
     h: jlong,
 ) -> jboolean {
     // SAFETY: the Java Prompt keeps its handle alive during the call.
-    native(&mut env, JNI_FALSE, |_| Ok(prompts::is_withdrawn(unsafe { prompts::handle(h) }).into()))
+    native(&mut env, JNI_FALSE, |_| {
+        Ok(prompts::is_withdrawn(unsafe { prompts::handle(h) }).into())
+    })
 }
 
 #[no_mangle]
@@ -450,5 +457,8 @@ pub extern "system" fn Java_org_bitcoinpurity_pwc_provider_Native_promptFree<'l>
     h: jlong,
 ) {
     // SAFETY: called once by the Java handle's cleaner.
-    native(&mut env, (), |_| Ok(unsafe { free::<prompts::ReplyHandle>(h) }))
+    native(&mut env, (), |_| {
+        unsafe { free::<prompts::ReplyHandle>(h) };
+        Ok(())
+    })
 }

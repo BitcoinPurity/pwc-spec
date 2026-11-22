@@ -118,8 +118,11 @@ pwc-provider-java/
 ├── settings.gradle.kts, build.gradle.kts, gradlew   Gradle 9.1.0
 ├── native/                    Rust cdylib pwc-provider-jni (path dependency on ../../pwc-provider)
 │   └── src/
-│       ├── lib.rs             JNI_OnLoad, the shared runtime, exported functions of Native.java
-│       ├── convert.rs         Java values to Rust values and back
+│       ├── lib.rs             JNI_OnLoad, the shared runtime, error and panic mapping, Config
+│       ├── convert.rs         Java values to Rust values and back; the class cache
+│       ├── records.rs         backend records in both directions
+│       ├── provider.rs        native methods of Provider, LocalServer and Prompt
+│       ├── memory.rs          native methods of MemoryBackend
 │       ├── backend.rs         JavaBackend: WalletBackend over a Java object
 │       └── prompts.rs         the prompt thread and reply handles
 └── src/main/java/org/bitcoinpurity/pwc/provider/
@@ -151,6 +154,8 @@ Native.java ──JNI──► pwc-provider-jni ──────────�
 - A dedicated thread, attached as a daemon, receives from the `PromptReceiver` and calls the Java dispatcher with a `Prompt` object. The object holds a reply handle: a `Box` with the `oneshot::Sender`. Answering takes the sender out and sends; freeing the handle without an answer drops the sender, which refuses the prompt. `isWithdrawn` is `Sender::is_closed`.
 - `LocalServer.start` calls `local::bind` and spawns `local::serve`. `close` aborts that task and waits until it has ended, so the socket file is gone when `close` returns.
 - Rust panics never cross the boundary: each native function catches them and throws `IllegalStateException`.
+- Classes are looked up through the class loader of `Native`, remembered at `JNI_OnLoad`, so that threads started by Rust find the SDK and bitcoinj classes under any class loader.
+- A Java backend must not call the Provider: its methods run while the Provider holds its lock (section 5).
 
 ### 8.3 Value mapping
 

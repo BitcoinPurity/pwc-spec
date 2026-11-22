@@ -28,10 +28,13 @@ final class Harness implements AutoCloseable {
     final Provider provider;
     final LocalServer server;
     final BlockingQueue<Prompt> prompts;
+    private final boolean ownsMemory;
 
-    private Harness(MemoryBackend memory, Provider provider, BlockingQueue<Prompt> prompts) throws Exception {
+    private Harness(MemoryBackend memory, Provider provider, BlockingQueue<Prompt> prompts, boolean ownsMemory)
+            throws Exception {
         this.tmp = Files.createTempDirectory("pwc");
         this.memory = memory;
+        this.ownsMemory = ownsMemory;
         this.provider = provider;
         this.prompts = prompts;
         this.server = LocalServer.start(provider, tmp.resolve("run"));
@@ -49,12 +52,12 @@ final class Harness implements AutoCloseable {
     static Harness start(Config config, Function<MemoryBackend, WalletBackend> backend) throws Exception {
         MemoryBackend memory = MemoryBackend.demo();
         BlockingQueue<Prompt> prompts = new LinkedBlockingQueue<>();
-        return new Harness(memory, Provider.create(backend.apply(memory), config, prompts::add), prompts);
+        return new Harness(memory, Provider.create(backend.apply(memory), config, prompts::add), prompts, true);
     }
 
-    /** Serves an existing Provider whose prompts arrive in {@code prompts}. */
+    /** Serves an existing Provider whose prompts arrive in {@code prompts}; {@code memory} stays open. */
     static Harness serve(MemoryBackend memory, Provider provider, BlockingQueue<Prompt> prompts) throws Exception {
-        return new Harness(memory, provider, prompts);
+        return new Harness(memory, provider, prompts, false);
     }
 
     Path socket() {
@@ -140,7 +143,9 @@ final class Harness implements AutoCloseable {
     public void close() throws IOException {
         server.close();
         provider.close();
-        memory.close();
+        if (ownsMemory) {
+            memory.close();
+        }
         try (Stream<Path> files = Files.walk(tmp)) {
             files.sorted(Comparator.reverseOrder()).forEach(p -> p.toFile().delete());
         }

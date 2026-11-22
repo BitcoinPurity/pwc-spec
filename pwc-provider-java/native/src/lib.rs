@@ -77,7 +77,7 @@ fn throw(env: &mut JNIEnv, error: Error) {
         return;
     }
     let built = match error {
-        Error::Jni(e) => Err((("java/lang/IllegalStateException"), e.to_string())),
+        Error::Jni(e) => Err(("java/lang/IllegalStateException", e.to_string())),
         Error::Invalid(m) => Err(("java/lang/IllegalArgumentException", m)),
         Error::Throw { class, message } => Err((class, message)),
         Error::Pwc(e) => Ok(pwc_exception(env, &e)),
@@ -117,11 +117,7 @@ fn kinded_exception<'l>(
                 &[(&k).into(), (&m).into(), (&p).into()],
             )?)
         }
-        None => Ok(env.new_object(
-            &c,
-            format!("(L{kind_class};{STRING})V"),
-            &[(&k).into(), (&m).into()],
-        )?),
+        None => Ok(env.new_object(&c, format!("(L{kind_class};{STRING})V"), &[(&k).into(), (&m).into()])?),
     }
 }
 
@@ -136,7 +132,12 @@ fn class_constant<'l>(env: &mut JNIEnv<'l>, class: &str, constant: &str) -> Resu
 fn rate_limit<'l>(env: &mut JNIEnv<'l>, r: RateLimit) -> Result<JObject<'l>> {
     let window = duration(env, r.window)?;
     let max = i32::try_from(r.max).map_err(|_| invalid("rate limit too large"))?;
-    new(env, "RateLimit", &format!("(I{DURATION})V"), &[JValue::Int(max), (&window).into()])
+    new(
+        env,
+        "RateLimit",
+        &format!("(I{DURATION})V"),
+        &[JValue::Int(max), (&window).into()],
+    )
 }
 
 fn config_to_java<'l>(env: &mut JNIEnv<'l>, c: &Config) -> Result<JObject<'l>> {
@@ -172,7 +173,9 @@ fn config_to_java<'l>(env: &mut JNIEnv<'l>, c: &Config) -> Result<JObject<'l>> {
     new(
         env,
         "Config",
-        &format!("({STRING}{STRING}L{PKG}Limits;{DURATION}{DURATION}{DURATION}{DURATION}{DURATION}{rl}{rl}{DURATION}{rl}I)V"),
+        &format!(
+            "({STRING}{STRING}L{PKG}Limits;{DURATION}{DURATION}{DURATION}{DURATION}{DURATION}{rl}{rl}{DURATION}{rl}I)V"
+        ),
         &[
             (&name).into(),
             (&version).into(),

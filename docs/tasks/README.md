@@ -21,13 +21,13 @@ Not applicable: C-21 (no external signer), L-13 (a Client-side test), L-24 (Wind
 
 ## Java Provider SDK
 
-Requirements: `input/requirements.md` §5. Tests are JUnit 5 tests in `pwc-provider-java/src/test/java/`.
+Requirements: `input/requirements.md` §5. Tests are JUnit 5 tests in `pwc-provider-java/src/test/java/`; `ForwardingBackend` is a Java backend over the in-memory one, and `DemoRunnerTest` runs `pwc-testkit/local_runner.py` against the Java demo program.
 
 | Task | Title | Milestone | Status |
 |---|---|---|---|
-| [TASK-011](TASK-011.md) | Java SDK scaffold and native library loading | M10 | To do |
-| [TASK-012](TASK-012.md) | Provider, LOCAL server and pairing prompts from Java | M11 | To do |
-| [TASK-013](TASK-013.md) | In-memory backend and permission prompts | M12 | To do |
-| [TASK-014](TASK-014.md) | Java wallet backends | M13 | To do |
-| [TASK-015](TASK-015.md) | Signing prompts and events | M14 | To do |
-| [TASK-016](TASK-016.md) | State, demo program and CI | M15 | To do |
+| [TASK-011](TASK-011.md) | Java SDK scaffold and native library loading | M10 | Done |
+| [TASK-012](TASK-012.md) | Provider, LOCAL server and pairing prompts from Java | M11 | Done |
+| [TASK-013](TASK-013.md) | In-memory backend and permission prompts | M12 | Done |
+| [TASK-014](TASK-014.md) | Java wallet backends | M13 | Done |
+| [TASK-015](TASK-015.md) | Signing prompts and events | M14 | Done |
+| [TASK-016](TASK-016.md) | State, demo program and CI | M15 | Done |

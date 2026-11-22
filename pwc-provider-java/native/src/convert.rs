@@ -15,7 +15,6 @@ use serde_json::Value;
 
 pub const PKG: &str = "org/bitcoinpurity/pwc/provider/";
 pub const STRING: &str = "Ljava/lang/String;";
-pub const OBJECT: &str = "Ljava/lang/Object;";
 pub const LIST: &str = "Ljava/util/List;";
 pub const INSTANT: &str = "Ljava/time/Instant;";
 pub const DURATION: &str = "Ljava/time/Duration;";
@@ -24,7 +23,6 @@ pub const LONG: &str = "Ljava/lang/Long;";
 pub const SHA256: &str = "Lorg/bitcoinj/base/Sha256Hash;";
 pub const OUTPOINT: &str = "Lorg/bitcoinj/core/TransactionOutPoint;";
 pub const SCRIPT: &str = "Lorg/bitcoinj/script/Script;";
-pub const TXOUT: &str = "Lorg/bitcoinj/core/TransactionOutput;";
 pub const TRANSACTION: &str = "Lorg/bitcoinj/core/Transaction;";
 
 /// Why a native call or a call into Java did not produce a value.
@@ -36,7 +34,10 @@ pub enum Error {
     /// A Java value Rust cannot accept, thrown as `IllegalArgumentException`.
     Invalid(String),
     /// Thrown as `class` with `message`.
-    Throw { class: &'static str, message: String },
+    Throw {
+        class: &'static str,
+        message: String,
+    },
     /// Thrown as `class`, built by its `(Kind kind, String message[, String path])` constructor.
     Kind {
         class: &'static str,
@@ -148,9 +149,7 @@ pub fn ints<'l>(env: &mut JNIEnv<'l>, items: impl IntoIterator<Item = i32>) -> R
 pub fn enum_value<'l>(env: &mut JNIEnv<'l>, name: &str, value: &str) -> Result<JObject<'l>> {
     let c = sdk(env, name)?;
     let constant = value.to_uppercase().replace('-', "_");
-    Ok(env
-        .get_static_field(&c, constant, format!("L{PKG}{name};"))?
-        .l()?)
+    Ok(env.get_static_field(&c, constant, format!("L{PKG}{name};"))?.l()?)
 }
 
 /// A serde-serialized unit enum as the SDK enum `name`.
@@ -308,7 +307,12 @@ pub fn transaction<'l>(env: &mut JNIEnv<'l>, tx: &bitcoin::Transaction) -> Resul
         .l()?;
     let c = class(env, "org/bitcoinj/core/Transaction")?;
     Ok(env
-        .call_static_method(&c, "read", format!("(Ljava/nio/ByteBuffer;){TRANSACTION}"), &[(&buffer).into()])?
+        .call_static_method(
+            &c,
+            "read",
+            format!("(Ljava/nio/ByteBuffer;){TRANSACTION}"),
+            &[(&buffer).into()],
+        )?
         .l()?)
 }
 
@@ -322,7 +326,12 @@ pub fn pwc_exception<'l>(env: &mut JNIEnv<'l>, e: &PwcError) -> Result<JObject<'
         env,
         "PwcException",
         &format!("(L{PKG}ErrorCode;{STRING}{STRING}Ljava/lang/Boolean;)V"),
-        &[(&code).into(), (&message).into(), (&details).into(), (&retryable).into()],
+        &[
+            (&code).into(),
+            (&message).into(),
+            (&details).into(),
+            (&retryable).into(),
+        ],
     )
 }
 
@@ -501,7 +510,7 @@ pub fn from_instant(env: &mut JNIEnv, t: &JObject) -> Result<Timestamp> {
     let millis = env.call_method(t, "toEpochMilli", "()J", &[])?.j()?;
     time::OffsetDateTime::from_unix_timestamp_nanos(millis as i128 * 1_000_000)
         .map(Timestamp)
-        .map_err(|e| invalid(e))
+        .map_err(invalid)
 }
 
 pub fn opt_instant_field(env: &mut JNIEnv, o: &JObject, name: &str) -> Result<Option<Timestamp>> {
@@ -548,7 +557,7 @@ pub fn from_sha256(env: &mut JNIEnv, h: &JObject) -> Result<String> {
 
 pub fn txid(env: &mut JNIEnv, h: &JObject) -> Result<bitcoin::Txid> {
     let s = from_sha256(env, h)?;
-    bitcoin::Txid::from_str(&s).map_err(|e| invalid(e))
+    bitcoin::Txid::from_str(&s).map_err(invalid)
 }
 
 pub fn from_outpoint(env: &mut JNIEnv, o: &JObject) -> Result<bitcoin::OutPoint> {
@@ -601,7 +610,7 @@ pub fn from_txout(env: &mut JNIEnv, o: &JObject) -> Result<bitcoin::TxOut> {
 pub fn from_transaction(env: &mut JNIEnv, t: &JObject) -> Result<bitcoin::Transaction> {
     let b = obj(env, t, "serialize", "[B")?;
     let b = get_bytes(env, &b)?;
-    deserialize(&b).map_err(|e| invalid(e))
+    deserialize(&b).map_err(invalid)
 }
 
 /// The `PwcError` carried by a `PwcException`.
@@ -612,7 +621,7 @@ pub fn from_pwc_exception(env: &mut JNIEnv, e: &JObject) -> Result<PwcError> {
     let details = opt_str_field(env, e, "details")?
         .map(|d| serde_json::from_str::<Value>(&d))
         .transpose()
-        .map_err(|e| invalid(e))?;
+        .map_err(invalid)?;
     let retryable = obj(env, e, "retryable", "Ljava/lang/Boolean;")?;
     let retryable = if retryable.is_null() {
         None

@@ -67,7 +67,12 @@ pub fn peer<'l>(env: &mut JNIEnv<'l>, p: &PeerInfo) -> Result<JObject<'l>> {
         }
         None => JObject::null(),
     };
-    new(env, "PeerInfo", &format!("({INTEGER}Ljava/nio/file/Path;)V"), &[(&pid).into(), (&exe).into()])
+    new(
+        env,
+        "PeerInfo",
+        &format!("({INTEGER}Ljava/nio/file/Path;)V"),
+        &[(&pid).into(), (&exe).into()],
+    )
 }
 
 fn requester<'l>(env: &mut JNIEnv<'l>, r: &Requester) -> Result<JObject<'l>> {
