@@ -2,6 +2,10 @@
 //! `org.bitcoinpurity.pwc.provider.Native`.
 
 mod convert;
+mod memory;
+mod prompts;
+mod provider;
+mod records;
 
 use std::ffi::c_void;
 use std::panic::{catch_unwind, AssertUnwindSafe};
