@@ -3,6 +3,7 @@ name = "pwc-provider-jni"
 version = "0.1.0"
 edition = "2021"
 description = "JNI binding of pwc-provider for the Java Provider SDK"
+license = "MIT"
 publish = false
 
 [lib]

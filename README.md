@@ -65,4 +65,4 @@ Changes are proposed and reviewed as described in PWC-GOVERNANCE-001 §4. Report
 
 ## License
 
-The documents and the data files (schemas, registry, test vectors) are licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). The license of the scripts in `pwc-schema/` and `pwc-testkit/` is not yet assigned (PWC-GOVERNANCE-001 §2.2).
+The documents and the data files (schemas, registry, test vectors) are licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). All code, that is the scripts in `pwc-schema/` and `pwc-testkit/`, `pwc-provider/` and `pwc-provider-java/`, is licensed under the [MIT License](LICENSE) (PWC-GOVERNANCE-001 §2.2).

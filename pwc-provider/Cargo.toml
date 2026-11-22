@@ -3,6 +3,7 @@ name = "pwc-provider"
 version = "0.1.0"
 edition = "2021"
 description = "PWC Provider: Core v0.2.1 over the LOCAL transport v0.1.0"
+license = "MIT"
 publish = false
 
 [dependencies]
