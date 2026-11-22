@@ -128,11 +128,28 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v4
-      # Each platform's artifact lands in natives/<platform>/. The runner's adapter requires a name or a pattern.
+      # One download per platform into natives/<platform>/: the runner's adapter merges pattern downloads into
+      # one directory, which would lose the platform directories.
       - uses: actions/download-artifact@v4
         with:
-          pattern: "*"
-          path: pwc-provider-java/natives
+          name: linux-x86_64
+          path: pwc-provider-java/natives/linux-x86_64
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux-aarch64
+          path: pwc-provider-java/natives/linux-aarch64
+      - uses: actions/download-artifact@v4
+        with:
+          name: macos-x86_64
+          path: pwc-provider-java/natives/macos-x86_64
+      - uses: actions/download-artifact@v4
+        with:
+          name: macos-aarch64
+          path: pwc-provider-java/natives/macos-aarch64
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-x86_64
+          path: pwc-provider-java/natives/windows-x86_64
       # One jar with the native libraries of the five platforms.
       - run: ci/assemble.sh
       - uses: actions/upload-artifact@v4
