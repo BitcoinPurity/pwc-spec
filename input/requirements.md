@@ -41,4 +41,4 @@ The specifications define no HTTP interface. The LOCAL transport forbids any TCP
 - With the demo binary in automatic-approval mode, `pwc-testkit/local_runner.py --pair --allow-destructive` reports no failure.
 - The process has no TCP or UDP listener.
 - The repository's existing `run_vectors.py` and `check_schema.py` give the same results as before.
-- The CI workflow (`.github/workflows/ci.yml`, run by Buildkite) runs on every push to any branch and on manual dispatch: the specification check scripts, and `cargo fmt --check`, `cargo clippy -D warnings` and `cargo test` for `pwc-provider`.
+- The CI workflow (`.github/workflows/ci.yml`, run by Buildkite) runs on every push to any branch and on manual dispatch: the specification check scripts, and `cargo fmt --check`, `cargo clippy -D warnings` and `cargo test` for `pwc-provider`, and a line-coverage report of the test suite in the job summary, without a threshold.
