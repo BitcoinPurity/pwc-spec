@@ -12,31 +12,43 @@ import java.util.Set;
 
 /** The native methods of the JNI library, which is loaded from the jar. */
 final class Native {
-    static {
-        load();
-    }
+    /** Where the library was loaded from: {@code "java.library.path"} or {@code "jar"}. */
+    static final String loadedFrom = load();
 
     private Native() {}
 
-    @SuppressWarnings("restricted")
-    private static void load() {
-        String osName = System.getProperty("os.name").toLowerCase(Locale.ROOT);
-        String os = osName.startsWith("mac") ? "macos" : osName;
+    /** The jar's directory name for this platform: {@code <os>-<arch>}. */
+    static String platform() {
+        String name = System.getProperty("os.name").toLowerCase(Locale.ROOT);
+        String os = name.startsWith("mac") ? "macos" : name.startsWith("windows") ? "windows" : name;
         String arch = switch (System.getProperty("os.arch")) {
             case "amd64" -> "x86_64";
             case "arm64" -> "aarch64";
             default -> System.getProperty("os.arch");
         };
-        String file = os.equals("macos") ? "libpwc_provider_jni.dylib" : "libpwc_provider_jni.so";
-        String resource = "native/" + os + "-" + arch + "/" + file;
+        return os + "-" + arch;
+    }
+
+    /** Loads {@code pwc_provider_jni} from {@code java.library.path}, or else the copy in the jar. */
+    @SuppressWarnings("restricted")
+    private static String load() {
+        try {
+            System.loadLibrary("pwc_provider_jni");
+            return "java.library.path";
+        } catch (UnsatisfiedLinkError notOnPath) {
+            // Not installed next to the application: use the jar's copy.
+        }
+        String file = System.mapLibraryName("pwc_provider_jni");
+        String resource = "native/" + platform() + "/" + file;
         try (InputStream in = Native.class.getResourceAsStream(resource)) {
             if (in == null) {
-                throw new UnsatisfiedLinkError("this jar has no native library for " + os + "-" + arch);
+                throw new UnsatisfiedLinkError("this jar has no native library for " + platform());
             }
             Path copy = Files.createTempFile("pwc_provider_jni", file.substring(file.lastIndexOf('.')));
             copy.toFile().deleteOnExit();
             Files.copy(in, copy, StandardCopyOption.REPLACE_EXISTING);
             System.load(copy.toString());
+            return "jar";
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -70,6 +82,7 @@ final class Native {
 
     static native String serverDefaultDirectory();
 
+    /** {@code dir} is null for the platform's default endpoint. */
     static native long serverStart(long provider, String dir, String providerId) throws EndpointException;
 
     static native String serverPath(long server);

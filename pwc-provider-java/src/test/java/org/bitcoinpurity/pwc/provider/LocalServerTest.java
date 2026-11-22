@@ -11,7 +11,11 @@ import java.nio.channels.SocketChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.DisabledOnOs;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.io.TempDir;
 
 class LocalServerTest {
@@ -19,6 +23,7 @@ class LocalServerTest {
     Path tmp;
 
     @Test
+    @DisabledOnOs(OS.WINDOWS)
     void endpointDirectoryAndSocketPermissions() throws Exception {
         try (MemoryBackend memory = MemoryBackend.demo();
                 Provider provider = Provider.create(memory, Config.defaults(), Prompt::reject)) {
@@ -32,6 +37,7 @@ class LocalServerTest {
     }
 
     @Test
+    @DisabledOnOs(OS.WINDOWS)
     void endpointErrors() throws Exception {
         Path open = Files.createDirectory(tmp.resolve("open"));
         Files.setPosixFilePermissions(open, PosixFilePermissions.fromString("rwxr-xr-x"));
@@ -57,6 +63,7 @@ class LocalServerTest {
     }
 
     @Test
+    @DisabledOnOs(OS.WINDOWS)
     void staleSocketReplaced() throws Exception {
         Path dir = Files.createDirectory(tmp.resolve("run"), PosixFilePermissions.asFileAttribute(
                 PosixFilePermissions.fromString("rwx------")));
@@ -73,11 +80,43 @@ class LocalServerTest {
     }
 
     @Test
+    @DisabledOnOs(OS.WINDOWS)
     void defaultDirectoryIsUnderTheUsersDirectories() {
         Path dir = LocalServer.defaultDirectory().orElseThrow();
         String runtime = System.getenv("XDG_RUNTIME_DIR");
         assertTrue(dir.endsWith("pwc") && runtime != null && dir.startsWith(runtime)
                 || dir.endsWith(Path.of(".pwc", "run")), dir.toString());
         assertEquals("pwc-provider", LocalServer.PROVIDER_ID);
+    }
+
+    @Test
+    void defaultEndpointOfThePlatform() throws Exception {
+        String id = "pwc-test-" + UUID.randomUUID();
+        try (MemoryBackend memory = MemoryBackend.demo();
+                Provider provider = Provider.create(memory, Config.defaults(), Prompt::reject);
+                LocalServer server = LocalServer.start(provider, id)) {
+            if (Harness.WINDOWS) {
+                assertTrue(server.path().toString().startsWith("\\\\.\\pipe\\pwc-S-1-"), server.path().toString());
+                assertTrue(server.path().toString().endsWith("-" + id), server.path().toString());
+            } else {
+                assertEquals(LocalServer.defaultDirectory().orElseThrow().resolve(id + ".sock"), server.path());
+            }
+            new LocalClient(server.path()).close();
+        }
+    }
+
+    @Test
+    @EnabledOnOs(OS.WINDOWS)
+    void windowsEndpoint() throws Exception {
+        assertTrue(LocalServer.defaultDirectory().isEmpty());
+        String id = "pwc-test-" + UUID.randomUUID();
+        try (MemoryBackend memory = MemoryBackend.demo();
+                Provider provider = Provider.create(memory, Config.defaults(), Prompt::reject);
+                LocalServer server = LocalServer.start(provider, id)) {
+            EndpointException running = assertThrows(EndpointException.class, () -> LocalServer.start(provider, id));
+            assertEquals(EndpointException.Kind.ALREADY_RUNNING, running.kind());
+            assertEquals(server.path(), running.path());
+            assertThrows(UnsupportedOperationException.class, () -> LocalServer.start(provider, tmp, id));
+        }
     }
 }

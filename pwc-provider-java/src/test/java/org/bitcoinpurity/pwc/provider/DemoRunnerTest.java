@@ -11,9 +11,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.DisabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.io.TempDir;
 
-/** Runs the LOCAL conformance runner of {@code pwc-testkit/} against the Java demo program. */
+/** Runs the LOCAL conformance runner of {@code pwc-testkit/}, which opens AF_UNIX sockets only, against the demo. */
+@DisabledOnOs(OS.WINDOWS)
 class DemoRunnerTest {
     @Test
     void localRunnerReportsNoFailures(@TempDir Path tmp) throws Exception {
