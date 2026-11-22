@@ -29,7 +29,7 @@ The specifications define no HTTP interface. The LOCAL transport forbids any TCP
 ## 3. Out of scope
 
 - Delegated principals (LOCAL §5.8): `local.openDelegate`, `local.delegated` and `local.closeDelegate` return `UNSUPPORTED_OPERATION`, and `local.hello` reports `delegation: false`.
-- Windows named pipes; the REMOTE, BROWSER and MOBILE transports.
+- The REMOTE, BROWSER and MOBILE transports. (Windows named pipes were out of scope here and are added in section 6.)
 - The `awaiting_unlock` state: Operation-returning methods on a locked wallet fail with `WALLET_LOCKED`.
 - Request quotas (Core §8 check 2, a MAY).
 - Taproot, multisignature accounts, hardware signers.

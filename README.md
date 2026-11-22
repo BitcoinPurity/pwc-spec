@@ -50,7 +50,7 @@ cd pwc-provider && cargo test
 cargo run -- --dir /tmp/pwc/run --approve auto
 ```
 
-The Java Provider SDK needs Java 25 and the same Rust toolchain; Gradle builds the native library and runs the tests, including the LOCAL runner against the Java demo program:
+The Java Provider SDK needs Java 25 and the same Rust toolchain; Gradle builds the native library and runs the tests, including the LOCAL runner against the Java demo program on macOS and Linux. It runs on Linux, macOS and Windows (over a named pipe), and is published as `org.bitcoinpurity.pwc:pwc-provider-java` on GitHub Packages with the native libraries of five platforms:
 
 ```text
 cd pwc-provider-java && ./gradlew build

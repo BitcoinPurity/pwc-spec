@@ -16,7 +16,8 @@ Kept consistent with `input/requirements.md`. The specifications in `specs/` are
 - The endpoint directory is chosen as in LOCAL §3.2, or given with `--dir`. It must belong to the current user and grant no permission to group or others, or the Provider refuses to start. The socket file has mode 0600.
 - If the socket path is longer than the operating system allows, the Provider refuses to start and does not fall back to another location.
 - If a socket file exists, the Provider tries to connect to it. A refused connection means a stale file, which is replaced; an accepted one means another instance is running, and the Provider refuses to start.
-- Every connection is checked for the peer's operating-system user and closed at once if it is another user.
+- On Windows the endpoint is the named pipe `\\.\pipe\pwc-<sid>-pwc-provider` (LOCAL §3.3), whose DACL grants the user's SID only, and `--dir` is not accepted. If the name exists, the Provider checks the SID of its server process: the same SID means another instance is running, any other SID that the name is taken. In both cases it refuses to start.
+- Every connection is checked for the peer's operating-system user and closed at once if it is another user. The peer's process id and executable are recorded on Linux, macOS and Windows.
 - Frames: one JSON-RPC 2.0 object per line; `max_frame_bytes` is 1048576.
 - Handshake: `local.hello`, then `local.pair` or `local.authenticate`, within 10 and 60 seconds.
 - The pairing code has 6 digits. A pairing prompt unanswered for 300 seconds fails with `OPERATION_EXPIRED`; if the connection closes, the prompt is withdrawn and no credential is created.
@@ -79,13 +80,14 @@ The `limits` values are in `docs/api-contract.md`.
 
 ## 6. Java Provider SDK
 
-Kept consistent with `input/requirements.md` §5. The Java SDK is a JNI binding of the library above: every protocol behavior, value and limit in sections 2 to 5 applies unchanged.
+Kept consistent with `input/requirements.md` §5 and §6. The Java SDK is a JNI binding of the library above: every protocol behavior, value and limit in sections 2 to 5 applies unchanged.
 
 ### 6.1 Deliverables
 
 | Deliverable | Description |
 |---|---|
-| Java library `pwc-provider-java` | Package `org.bitcoinpurity.pwc.provider`: Provider, LOCAL server, prompts, backend interface, in-memory backend. The jar contains the native library `pwc_provider_jni` for the build platform |
+| Java library `pwc-provider-java` | JPMS module and package `org.bitcoinpurity.pwc.provider`: Provider, LOCAL server, prompts, backend interface, in-memory backend. No dependencies. The published jar contains the native library `pwc_provider_jni` for linux-x86_64, linux-aarch64, macos-x86_64, macos-aarch64 and windows-x86_64; a local build contains that of the build platform |
+| Maven artifact | `org.bitcoinpurity.pwc:pwc-provider-java` on GitHub Packages (`https://maven.pkg.github.com/BitcoinPurity/pwc-spec`), published by CI from a tag `pwc-provider-java-v<version>` |
 | JNI crate `pwc-provider-jni` | `pwc-provider-java/native/`, a `cdylib` over `pwc-provider/` |
 | Demo program | `org.bitcoinpurity.pwc.provider.demo.Main`, with the options of the Rust demo binary; `./gradlew run` or the `installDist` start script |
 
@@ -95,16 +97,17 @@ Kept consistent with `input/requirements.md` §5. The Java SDK is a JNI binding 
 - **Config**: `Config.defaults()` returns the Rust `Config::default()` values, read from the native library; a builder changes single fields.
 - **LOCAL server**: `LocalServer.start` binds the endpoint as in section 2.1 and serves in the background; `close` stops accepting and removes the socket file. Connections already open keep running until the Client closes them, as in Rust.
 - **Prompts**: each prompt reaches the `PromptHandler` on one dedicated thread, in order. The handler may answer at once or later, from any thread. `isWithdrawn()` tells whether the Provider withdrew it. A prompt that is never answered is refused when it is garbage-collected; a handler that throws refuses its prompt.
-- **Java backend**: a host implements `WalletBackend` in Java with bitcoinj types. An exception thrown by a backend method that can fail becomes the request's error: `PwcException` keeps its code, message, details and `retryable`; any other exception gives `INTERNAL_ERROR`. A method that cannot fail in the Rust trait (`wallets`, `account`, `addresses`, `ownsScript`, `isUnspent`, `feeEstimate`, `ownedOutput`) is treated as returning nothing when it throws, and the exception is printed.
+- **Java backend**: a host implements `WalletBackend` in Java with Java types, byte arrays and hex strings. An exception thrown by a backend method that can fail becomes the request's error: `PwcException` keeps its code, message, details and `retryable`; any other exception gives `INTERNAL_ERROR`. A method that cannot fail in the Rust trait (`wallets`, `account`, `addresses`, `ownsScript`, `isUnspent`, `feeEstimate`, `ownedOutput`) is treated as returning nothing when it throws, and the exception is printed.
 - **In-memory backend**: `MemoryBackend.demo()` and all the simulation controls of section 2.3. It implements `WalletBackend`, so a host can wrap it; passed to a Provider directly, it is used without Java callbacks.
 - **Resources**: `Provider`, `LocalServer` and `MemoryBackend` are `AutoCloseable`; native memory is also released when they are garbage-collected.
 
 ### 6.3 Requirements on the host
 
 - Java 25 or later. Run with `--enable-native-access=ALL-UNNAMED` to avoid the JVM's native-access warning.
-- bitcoinj logs through SLF4J; the host chooses the SLF4J provider.
+- The native library is loaded from `java.library.path` when it is there, for example installed next to a packaged application so that it can be signed; otherwise the jar's copy is extracted to a temporary file and loaded.
+- As a module, enable native access with `--enable-native-access=org.bitcoinpurity.pwc.provider`, or the name of the module it is merged into.
 
 ### 6.4 Known limitations
 
-- The jar works only on the operating system and processor it was built on.
+- Platforms other than the five of the published jar are not supported.
 - The library does not create PSBTs or signatures for a Java backend; a Java backend does that itself.

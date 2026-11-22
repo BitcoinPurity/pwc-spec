@@ -1,15 +1,17 @@
 plugins {
     `java-library`
     application
+    `maven-publish`
 }
 
 group = "org.bitcoinpurity.pwc"
-version = "0.1.0"
+version = "0.2.0"
 
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(25)
     }
+    withSourcesJar()
 }
 
 repositories {
@@ -78,4 +80,37 @@ application {
     mainModule = "org.bitcoinpurity.pwc.provider"
     mainClass = "org.bitcoinpurity.pwc.provider.demo.Main"
     applicationDefaultJvmArgs = listOf("--enable-native-access=org.bitcoinpurity.pwc.provider")
+}
+
+publishing {
+    publications {
+        create<MavenPublication>("sdk") {
+            from(components["java"])
+            pom {
+                name = "PWC Provider SDK for Java"
+                description = "The Rust PWC Provider (Core v0.2.1 over LOCAL v0.1.0) for Java host wallets, through JNI"
+                url = "https://github.com/BitcoinPurity/pwc-spec"
+                licenses {
+                    license {
+                        name = "MIT License"
+                        url = "https://opensource.org/license/mit"
+                    }
+                }
+                scm {
+                    url = "https://github.com/BitcoinPurity/pwc-spec"
+                }
+            }
+        }
+    }
+    repositories {
+        // CI publishes with a token from the environment (input/requirements.md §6.2).
+        maven {
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/BitcoinPurity/pwc-spec")
+            credentials {
+                username = System.getenv("PWC_PACKAGES_USER")
+                password = System.getenv("PWC_PACKAGES_TOKEN")
+            }
+        }
+    }
 }

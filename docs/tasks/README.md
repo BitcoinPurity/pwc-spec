@@ -17,7 +17,7 @@ Requirements: `input/requirements.md`. Each task writes its failing tests first,
 
 Test files are in `pwc-provider/tests/`. C-15 and C-54 (an accepted and a repeated broadcast) need a signed transaction and are checked by the end-to-end test in `core_sign.rs`.
 
-Not applicable: C-21 (no external signer), L-13 (a Client-side test), L-24 (Windows), L-29 to L-34 (delegation; L-29's `UNSUPPORTED_OPERATION` is checked in `core_access.rs`). L-02 needs a second operating-system user and remains a manual test.
+Not applicable: C-21 (no external signer), L-13 (a Client-side test), L-29 to L-34 (delegation; L-29's `UNSUPPORTED_OPERATION` is checked in `core_access.rs`). L-02 needs a second operating-system user and remains a manual test. L-24 is covered on Windows by `tests/windows_pipe.rs` (TASK-018), except a pipe created by another user, which needs a second user and remains manual.
 
 ## Java Provider SDK
 
@@ -38,8 +38,8 @@ Requirements: `input/requirements.md` §6.
 
 | Task | Title | Milestone | Status |
 |---|---|---|---|
-| [TASK-017](TASK-017.md) | MIT license for all code | M16 | To do |
-| [TASK-018](TASK-018.md) | Windows named pipe endpoint | M17 | To do |
-| [TASK-019](TASK-019.md) | Java interface without bitcoinj | M18 | To do |
-| [TASK-020](TASK-020.md) | Native loading, JPMS module and Windows in the Java SDK | M19 | To do |
-| [TASK-021](TASK-021.md) | Five-platform jar, publishing and CI | M20 | To do |
+| [TASK-017](TASK-017.md) | MIT license for all code | M16 | Done |
+| [TASK-018](TASK-018.md) | Windows named pipe endpoint | M17 | Done |
+| [TASK-019](TASK-019.md) | Java interface without bitcoinj | M18 | Done |
+| [TASK-020](TASK-020.md) | Native loading, JPMS module and Windows in the Java SDK | M19 | Done |
+| [TASK-021](TASK-021.md) | Five-platform jar, publishing and CI | M20 | Done |
