@@ -1,0 +1,102 @@
+name: CI
+
+# Runs on every push to any branch, which covers pull requests from branches of this repository.
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  spec:
+    name: Specification checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Uses the agent's own python3, which needs the venv module (python3-venv on Debian). The virtual environment
+      # avoids installing into an externally managed system Python. actions/setup-python is not used because it
+      # needs a GitHub workflow token, and token requests for this pipeline are rejected.
+      - run: python3 -m venv .venv && .venv/bin/python -m pip install jsonschema referencing
+      - run: .venv/bin/python pwc-schema/check_schema.py specs/PWC-Core-v0.2.1-EN.md specs/PWC-Transport-Local-v0.1.0-EN.md specs/PWC-Transport-Remote-v0.1.0-EN.md
+      - run: .venv/bin/python pwc-testkit/run_vectors.py
+      - run: .venv/bin/python pwc-testkit/check_family.py specs
+
+  provider:
+    name: Rust Provider
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: pwc-provider
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.97.0"
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: pwc-provider
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets --locked -- -D warnings
+      # The tests include tests/runner.rs, which runs pwc-testkit/local_runner.py with the runner's python3.
+      - run: cargo test --locked
+
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: pwc-provider
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.97.0"
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: pwc-provider
+      - run: cargo install cargo-llvm-cov --version 0.9.2 --locked
+      - run: cargo llvm-cov --locked --no-report
+      # Reported only; coverage does not fail the build.
+      - run: |
+          cargo llvm-cov report --summary-only | tee coverage.txt
+          if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            { echo "## Coverage of pwc-provider"; echo; echo '```text'; cat coverage.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  java-sdk:
+    name: Java Provider SDK
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: pwc-provider-java
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.97.0"
+          components: rustfmt, clippy
+      # One step with a private CARGO_HOME: the Swatinem/rust-cache save step of the other jobs on the same agent
+      # deletes the crate sources in the shared ~/.cargo/registry/src, possibly while this job compiles them.
+      # Temurin JDK 25 is downloaded here because actions/setup-java needs a GitHub workflow token, which this
+      # pipeline does not get (see the spec job); the Gradle wrapper downloads Gradle itself. The tests include
+      # DemoRunnerTest, which runs pwc-testkit/local_runner.py with the agent's python3.
+      - run: |
+          export CARGO_HOME="$(mktemp -d)"
+          trap 'rm -rf "$CARGO_HOME"' EXIT
+          (cd native && cargo fmt --check && cargo clippy --all-targets --locked -- -D warnings)
+          arch=$(uname -m); case "$arch" in x86_64) arch=x64;; arm64) arch=aarch64;; esac
+          jdk="$HOME/.cache/pwc-jdk-25-$arch"
+          if [ ! -x "$jdk/bin/java" ]; then
+            mkdir -p "$jdk"
+            curl -fsSL "https://api.adoptium.net/v3/binary/latest/25/ga/linux/$arch/jdk/hotspot/normal/eclipse" \
+              | tar -xz -C "$jdk" --strip-components=1
+          fi
+          export JAVA_HOME="$jdk" PATH="$jdk/bin:$PATH"
+          java -version
+          # The absolute path bash resolves, because the JVM does not expand entries such as ~/.cargo/bin in PATH.
+          export CARGO="$(command -v cargo)"
+          echo "cargo: $CARGO; PATH entries with cargo: $(echo "$PATH" | tr ':' '\n' | grep cargo | tr '\n' ' ')"
+          ./gradlew build --no-daemon
