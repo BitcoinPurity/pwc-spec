@@ -78,17 +78,15 @@ jobs:
         with:
           toolchain: "1.97.0"
           components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: pwc-provider-java/native
-      - run: cargo fmt --check
-        working-directory: pwc-provider-java/native
-      - run: cargo clippy --all-targets --locked -- -D warnings
-        working-directory: pwc-provider-java/native
-      # A Temurin JDK 25 downloaded here, because actions/setup-java needs a GitHub workflow token, which this
-      # pipeline does not get (see the spec job). The Gradle wrapper downloads Gradle itself. The tests include
+      # One step with a private CARGO_HOME: the Swatinem/rust-cache save step of the other jobs on the same agent
+      # deletes the crate sources in the shared ~/.cargo/registry/src, possibly while this job compiles them.
+      # Temurin JDK 25 is downloaded here because actions/setup-java needs a GitHub workflow token, which this
+      # pipeline does not get (see the spec job); the Gradle wrapper downloads Gradle itself. The tests include
       # DemoRunnerTest, which runs pwc-testkit/local_runner.py with the agent's python3.
       - run: |
+          export CARGO_HOME="$(mktemp -d)"
+          trap 'rm -rf "$CARGO_HOME"' EXIT
+          (cd native && cargo fmt --check && cargo clippy --all-targets --locked -- -D warnings)
           arch=$(uname -m); case "$arch" in x86_64) arch=x64;; arm64) arch=aarch64;; esac
           jdk="$HOME/.cache/pwc-jdk-25-$arch"
           if [ ! -x "$jdk/bin/java" ]; then
