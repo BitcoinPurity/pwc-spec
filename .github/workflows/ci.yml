@@ -111,7 +111,12 @@ jobs:
           components: rustfmt, clippy
       # Builds and tests on this platform; see the script for the private CARGO_HOME, the JDK and $CARGO.
       - run: ci/build.sh ${{ matrix.platform }}
-      - run: buildkite-agent artifact upload "natives/${{ matrix.platform }}/*"
+      # The Buildkite GitHub Actions runner gives run steps no agent token, so artifacts go through the actions.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform }}
+          path: pwc-provider-java/natives/${{ matrix.platform }}/
+          if-no-files-found: error
 
   java-sdk-jar:
     name: Java Provider SDK jar
@@ -123,10 +128,17 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v4
-      - run: buildkite-agent artifact download "natives/*/*" .
+      # Each platform's artifact lands in natives/<platform>/.
+      - uses: actions/download-artifact@v4
+        with:
+          path: pwc-provider-java/natives
       # One jar with the native libraries of the five platforms.
       - run: ci/assemble.sh
-      - run: buildkite-agent artifact upload "build/libs/*.jar"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pwc-provider-java-jar
+          path: pwc-provider-java/build/libs/*.jar
+          if-no-files-found: error
       - if: startsWith(github.ref, 'refs/tags/pwc-provider-java-v')
         env:
           PWC_PACKAGES_USER: ${{ github.actor }}
