@@ -45,7 +45,7 @@ The specifications define no HTTP interface. The LOCAL transport forbids any TCP
 
 ## 5. Java Provider SDK
 
-Added after the Rust Provider. It builds on `pwc-provider/` and changes nothing in it.
+Added after the Rust Provider. It builds on `pwc-provider/` and changes nothing in its library. One of its tests is changed: L-22 (`tests/events.rs`) let its "fast" Client fall behind on a busy machine, so the test now lets that Client catch up after every 50 events.
 
 ### 5.1 Goal
 
@@ -83,5 +83,5 @@ Let a Java host wallet embed the Rust Provider through a JNI binding, with the w
 - `./gradlew build` in `pwc-provider-java/` passes. Its tests cover every class of the Java interface, the Java backend callbacks for all backend methods, and the four prompt kinds.
 - The Java demo program in automatic-approval mode passes `pwc-testkit/local_runner.py --pair --allow-destructive` with no failure.
 - `cargo fmt --check` and `cargo clippy -D warnings` are clean for the JNI crate.
-- `pwc-provider/` is unchanged, and its CI job still passes.
+- The `pwc-provider` library is unchanged, and its CI jobs pass while the Java SDK job runs at the same time.
 - CI has a job for the Java SDK.

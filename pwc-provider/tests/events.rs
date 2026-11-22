@@ -2,6 +2,9 @@
 
 mod common;
 
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+
 use common::Harness;
 use pwc_provider::backend::{BackendEvent, WalletState};
 use pwc_provider::provider::Config;
@@ -187,21 +190,34 @@ async fn l22_slow_client_is_disconnected() {
     let (mut slow, _, _) = h.client(&["events:read", "balances:read"]).await;
     let (mut fast, _, _) = h.client(&["events:read", "balances:read"]).await;
     let total = 5_000;
+    let read = Arc::new(AtomicUsize::new(0));
+    let counter = read.clone();
     let reader = tokio::spawn(async move {
-        let mut n = 0;
-        while n < total {
+        while counter.load(Ordering::SeqCst) < total {
             assert_eq!(fast.next_event().await["event_type"], "account.balanceChanged");
-            n += 1;
+            counter.fetch_add(1, Ordering::SeqCst);
         }
-        n
     });
-    for i in 0..total {
+    // After every 50 events the fast Client is let catch up, so that it never has more than 50 of its 64 buffered
+    // frames outstanding however slowly the machine runs; the slow Client never reads.
+    for i in 1..=total {
         h.provider.notify(balance_changed("a-regtest-wpkh"));
         if i % 50 == 0 {
-            tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+            tokio::time::timeout(common::WAIT, async {
+                while read.load(Ordering::SeqCst) < i {
+                    tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+                }
+            })
+            .await
+            .expect("the fast Client keeps up");
         }
     }
-    assert_eq!(reader.await.unwrap(), total, "the fast Client received every event");
+    reader.await.unwrap();
+    assert_eq!(
+        read.load(Ordering::SeqCst),
+        total,
+        "the fast Client received every event"
+    );
     let mut received = 0;
     while slow.recv().await.is_some() {
         received += 1;
