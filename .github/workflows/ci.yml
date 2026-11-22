@@ -128,9 +128,10 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v4
-      # Each platform's artifact lands in natives/<platform>/.
+      # Each platform's artifact lands in natives/<platform>/. The runner's adapter requires a name or a pattern.
       - uses: actions/download-artifact@v4
         with:
+          pattern: "*"
           path: pwc-provider-java/natives
       # One jar with the native libraries of the five platforms.
       - run: ci/assemble.sh
