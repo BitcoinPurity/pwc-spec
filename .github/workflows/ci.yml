@@ -118,7 +118,9 @@ jobs:
         with:
           workspaces: pwc-provider
           cache-bin: "false"
-      - run: cargo install cargo-llvm-cov --version 0.9.2 --locked
+      # Built in the job's own directory. By default cargo install builds under the temporary directory, which the
+      # agents share, and a build there lost its files while it ran.
+      - run: cargo install cargo-llvm-cov --version 0.9.2 --locked --target-dir target/cargo-llvm-cov-install
       - run: cargo llvm-cov --locked --no-report
       # Reported only; coverage does not fail the build.
       - run: |
