@@ -30,6 +30,7 @@ const EVENT_BUFFER: usize = 256;
 
 /// A Provider's socket in an endpoint directory.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
 pub struct Endpoint {
     pub provider_id: String,
     pub path: PathBuf,
@@ -64,6 +65,7 @@ fn resolve_directory(xdg: Option<OsString>, home: Option<OsString>) -> Result<Pa
 }
 
 /// The endpoint directory of LOCAL §3.2 for the current user.
+#[cfg_attr(feature = "uniffi", uniffi::export)]
 pub fn endpoint_directory() -> Result<PathBuf, Error> {
     resolve_directory(std::env::var_os("XDG_RUNTIME_DIR"), std::env::var_os("HOME"))
 }
@@ -155,6 +157,7 @@ fn unhex32(s: &str) -> Option<[u8; 32]> {
 
 /// Six random decimal digits for `local.pair` (LOCAL §5.3). Show the code to the User, who compares it with
 /// the one in the wallet's prompt.
+#[cfg_attr(feature = "uniffi", uniffi::export)]
 pub fn pairing_code() -> String {
     loop {
         let v = u32::from_le_bytes(random());

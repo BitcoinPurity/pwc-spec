@@ -7,6 +7,7 @@ macro_rules! error_codes {
     ($($variant:ident => $name:literal),* $(,)?) => {
         /// The error codes of Core §10. A code this version does not define, such as a `vendor.*` extension, is `Other`.
         #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+        #[cfg_attr(feature = "uniffi", derive(uniffi::Enum))]
         pub enum ErrorCode {
             $($variant,)*
             Other(String),
@@ -85,6 +86,7 @@ impl<'de> Deserialize<'de> for ErrorCode {
 
 /// The `PwcError` of Core §10. Branch on `code`, never on `message`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
 pub struct PwcError {
     pub code: ErrorCode,
     pub message: String,
@@ -95,6 +97,7 @@ pub struct PwcError {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Error))]
 pub enum Error {
     /// An error from the Provider: the answer to a request, or the `error` of a terminal Operation.
     Pwc(PwcError),

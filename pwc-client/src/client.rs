@@ -18,6 +18,7 @@ const POLL_INTERVAL: Duration = Duration::from_secs(1);
 
 /// A new random `Id` for an `idempotency_key`. Make one for each intended action and keep it until the action
 /// is finished: every retry of that action, also after reconnecting, must carry the same key (Core §9.3).
+#[cfg_attr(feature = "uniffi", uniffi::export)]
 pub fn idempotency_key() -> String {
     hex(&random::<16>())
 }
@@ -33,15 +34,18 @@ struct Inner {
 /// An authenticated session with a Provider. Cloning gives another handle to the same connection; any number
 /// of requests may be outstanding at once.
 #[derive(Clone)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Object))]
 pub struct Client {
     inner: Arc<Inner>,
 }
 
 /// Events pushed by the Provider, read by pulling. It delivers the events that arrive after it was created.
+#[cfg_attr(feature = "uniffi", derive(uniffi::Object))]
 pub struct EventStream {
     events: tokio::sync::Mutex<broadcast::Receiver<PwcEvent>>,
 }
 
+#[cfg_attr(feature = "uniffi", uniffi::export(async_runtime = "tokio"))]
 impl EventStream {
     /// The next event. `EventsMissed` means this reader fell behind and events were discarded: query the
     /// authoritative state again, then keep reading. `ConnectionClosed` ends the stream.
@@ -146,6 +150,21 @@ impl Client {
         Ok(client.with_store(store))
     }
 
+    async fn call<T: DeserializeOwned>(&self, method: &str, params: Value) -> Result<T, Error> {
+        let result = self.request(method, params).await?;
+        serde_json::from_value(result).map_err(|e| Error::Protocol(format!("result of {method}: {e}")))
+    }
+
+    /// A stream of the events that arrive from now on. Events reach only a Client holding `events:read`.
+    pub fn subscribe_events(&self) -> EventStream {
+        EventStream {
+            events: tokio::sync::Mutex::new(self.inner.link.subscribe()),
+        }
+    }
+}
+
+#[cfg_attr(feature = "uniffi", uniffi::export(async_runtime = "tokio"))]
+impl Client {
     /// What the Provider said in `local.hello`.
     pub fn hello(&self) -> HelloInfo {
         self.inner.hello.clone()
@@ -162,11 +181,6 @@ impl Client {
     /// Sends one request and returns its `result`. `params` must be a JSON object.
     pub async fn request(&self, method: &str, params: Value) -> Result<Value, Error> {
         self.inner.link.request(method, params).await
-    }
-
-    async fn call<T: DeserializeOwned>(&self, method: &str, params: Value) -> Result<T, Error> {
-        let result = self.request(method, params).await?;
-        serde_json::from_value(result).map_err(|e| Error::Protocol(format!("result of {method}: {e}")))
     }
 
     /// Closes the connection. Grants and Operations belong to the `client_id` and survive (LOCAL §5.5).
@@ -362,13 +376,6 @@ impl Client {
     pub async fn cancel_operation(&self, operation_id: &str, idempotency_key: &str) -> Result<Operation, Error> {
         let params = json!({"operation_id": operation_id, "idempotency_key": idempotency_key});
         self.call("operation.cancel", params).await
-    }
-
-    /// A stream of the events that arrive from now on. Events reach only a Client holding `events:read`.
-    pub fn subscribe_events(&self) -> EventStream {
-        EventStream {
-            events: tokio::sync::Mutex::new(self.inner.link.subscribe()),
-        }
     }
 
     /// Returns the Operation once it is terminal, or `Timeout` after `timeout`. It asks again when the

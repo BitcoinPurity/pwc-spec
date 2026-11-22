@@ -377,3 +377,31 @@ An accessor returns `Pwc(error)` for an Operation in state `rejected`, `expired`
 | Request time limit | None; `local.pair` waits for the User | LOCAL §5.3 |
 | Amounts in a result that are not canonical | The result is refused with `Protocol` | Core §3.2 |
 | Timestamps | Kept as text; not parsed | Core §3.2 |
+
+# Python binding of the Client (pwc-client-ffi)
+
+The Python module `pwc_client` has the interface of the Client section above, with these differences.
+
+| Rust | Python |
+|---|---|
+| `endpoint_directory() -> PathBuf` | `endpoint_directory() -> str` |
+| `discover(&Path) -> Vec<Endpoint>` | `discover(dir: str) -> list[Endpoint]`; `Endpoint.path` is a `str` |
+| `Client::connect(&endpoint, store).await` | `await Client.connect(endpoint, store)` |
+| `Client::pair(&endpoint, store, params).await` | `await Client.pair(endpoint, store, params)` |
+| `client.request(method, serde_json::Value)` | `await client.request(method, dict)`, returning the result as Python objects |
+| `Duration` | `datetime.timedelta` |
+| `Option<T>` | `T` or `None` |
+| `Result<T, Error>` | Returns `T` or raises a subclass of `Error` |
+| `EventStream::next().await` | `await stream.next()` |
+| `impl CredentialStore for T` | A subclass of `CredentialStore` with `load(provider_id)`, `save(credential)`, `delete(provider_id)` |
+| `FileCredentialStore::new(dir)` | `file_credential_store(dir)` |
+| `Connection`, `client_proof`, `server_proof` | Not available |
+
+Variants of `Error` and their values:
+
+| Variant | Values |
+|---|---|
+| `Error.Pwc` | `e[0]`: the `PwcError` |
+| `Error.Rpc` | `e.code`, `e.message` |
+| `Error.UnsafeEndpoint`, `Error.Protocol`, `Error.Io` | `e[0]`: the text |
+| The others | None |

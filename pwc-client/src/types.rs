@@ -81,6 +81,7 @@ decimal_string!(signed_sats, i64, parse_signed_sats, "SignedSats");
 decimal_string!(fee_rate, u64, parse_fee_rate, "FeeRate");
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Enum))]
 #[serde(rename_all = "kebab-case")]
 pub enum ScriptType {
     P2pkh,
@@ -94,6 +95,7 @@ pub enum ScriptType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Enum))]
 #[serde(rename_all = "kebab-case")]
 pub enum MessageFormat {
     Bip322Simple,
@@ -102,12 +104,14 @@ pub enum MessageFormat {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
 pub struct OutPoint {
     pub txid: String,
     pub vout: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Enum))]
 #[serde(rename_all = "snake_case")]
 pub enum SyncState {
     Synced,
@@ -117,6 +121,7 @@ pub enum SyncState {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
 pub struct SyncStatus {
     pub state: SyncState,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -124,6 +129,7 @@ pub struct SyncStatus {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Enum))]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum FeePolicy {
     /// A fee rate in sat/kvB: 1250 is 1.25 sat/vB.
@@ -137,6 +143,7 @@ pub enum FeePolicy {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Enum))]
 #[serde(rename_all = "snake_case")]
 pub enum Platform {
     Desktop,
@@ -146,6 +153,7 @@ pub enum Platform {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
 pub struct ProviderInfo {
     pub name: String,
     pub version: String,
@@ -153,6 +161,7 @@ pub struct ProviderInfo {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
 pub struct Limits {
     pub max_page_size: u64,
     pub max_psbt_bytes: u64,
@@ -166,6 +175,7 @@ pub struct Limits {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
 pub struct Capabilities {
     pub pwc_version: String,
     pub provider: ProviderInfo,
@@ -180,6 +190,7 @@ pub struct Capabilities {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Enum))]
 #[serde(rename_all = "snake_case")]
 pub enum WalletKind {
     Software,
@@ -190,6 +201,7 @@ pub enum WalletKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Enum))]
 #[serde(rename_all = "snake_case")]
 pub enum WalletState {
     Ready,
@@ -199,6 +211,7 @@ pub enum WalletState {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
 pub struct WalletSummary {
     pub wallet_id: String,
     pub display_name: String,
@@ -209,6 +222,7 @@ pub struct WalletSummary {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
 pub struct AccountSummary {
     pub account_id: String,
     pub wallet_id: String,
@@ -222,6 +236,7 @@ pub struct AccountSummary {
 /// Core §4.3. The effective value is `confirmed_sats + unconfirmed_delta_sats`; show `spendable_sats` as the
 /// amount available to send.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
 pub struct Balance {
     pub account_id: String,
     pub network: String,
@@ -246,6 +261,7 @@ pub struct Balance {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Enum))]
 #[serde(rename_all = "snake_case")]
 pub enum AddressRole {
     Receive,
@@ -254,6 +270,7 @@ pub enum AddressRole {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Enum))]
 #[serde(rename_all = "snake_case")]
 pub enum AddressState {
     Unused,
@@ -262,6 +279,7 @@ pub enum AddressState {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
 pub struct AddressRecord {
     pub account_id: String,
     pub network: String,
@@ -273,6 +291,7 @@ pub struct AddressRecord {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Enum))]
 #[serde(rename_all = "snake_case")]
 pub enum UtxoRestriction {
     Frozen,
@@ -283,6 +302,7 @@ pub enum UtxoRestriction {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
 pub struct Utxo {
     pub txid: String,
     pub vout: u32,
@@ -304,6 +324,7 @@ pub struct Utxo {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Enum))]
 #[serde(rename_all = "snake_case")]
 pub enum TransactionStatus {
     Unconfirmed,
@@ -315,6 +336,7 @@ pub enum TransactionStatus {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
 pub struct TransactionRecord {
     pub account_id: String,
     pub network: String,
@@ -337,12 +359,14 @@ pub struct TransactionRecord {
 
 /// The result of `psbt.combine`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
 pub struct PsbtObject {
     pub psbt: String,
     pub psbt_version: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
 pub struct CreatePsbtResult {
     pub psbt: String,
     pub psbt_version: u32,
@@ -359,6 +383,7 @@ pub struct CreatePsbtResult {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Enum))]
 #[serde(rename_all = "snake_case")]
 pub enum SigningStatus {
     Partial,
@@ -367,6 +392,7 @@ pub enum SigningStatus {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
 pub struct SignPsbtResult {
     pub psbt: String,
     pub psbt_version: u32,
@@ -377,6 +403,7 @@ pub struct SignPsbtResult {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
 pub struct FinalizePsbtResult {
     pub psbt: String,
     pub psbt_version: u32,
@@ -388,6 +415,7 @@ pub struct FinalizePsbtResult {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
 pub struct SignMessageResult {
     pub signature: String,
     pub format: MessageFormat,
@@ -395,6 +423,7 @@ pub struct SignMessageResult {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
 pub struct GrantConstraints {
     #[serde(default, skip_serializing_if = "Option::is_none", with = "positive_sats::option")]
     pub max_amount_sats_per_request: Option<u64>,
@@ -403,6 +432,7 @@ pub struct GrantConstraints {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Enum))]
 #[serde(rename_all = "snake_case")]
 pub enum GrantStatus {
     Active,
@@ -411,6 +441,7 @@ pub enum GrantStatus {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
 pub struct Grant {
     pub grant_id: String,
     pub client_id: String,
@@ -427,6 +458,7 @@ pub struct Grant {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
 pub struct SessionInfo {
     pub session_id: String,
     pub client_id: String,
@@ -437,6 +469,7 @@ pub struct SessionInfo {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Enum))]
 #[serde(rename_all = "snake_case")]
 pub enum OperationState {
     Queued,
@@ -452,6 +485,7 @@ pub enum OperationState {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
 pub struct Operation {
     pub operation_id: String,
     pub method: String,
@@ -480,12 +514,6 @@ struct TxidResult {
 }
 
 impl Operation {
-    /// True in the states `completed`, `rejected`, `expired`, `canceled` and `failed`, which never change again.
-    pub fn is_terminal(&self) -> bool {
-        use OperationState::*;
-        matches!(self.state, Completed | Rejected | Expired | Canceled | Failed)
-    }
-
     fn completed<T: DeserializeOwned>(&self) -> Result<T, Error> {
         if let Some(e) = &self.error {
             return Err(Error::Pwc(e.clone()));
@@ -495,6 +523,15 @@ impl Operation {
         }
         let result = self.result.clone().ok_or(Error::ResultUnavailable)?;
         serde_json::from_value(result).map_err(|e| Error::Protocol(format!("result of {}: {e}", self.method)))
+    }
+}
+
+#[cfg_attr(feature = "uniffi", uniffi::export)]
+impl Operation {
+    /// True in the states `completed`, `rejected`, `expired`, `canceled` and `failed`, which never change again.
+    pub fn is_terminal(&self) -> bool {
+        use OperationState::*;
+        matches!(self.state, Completed | Rejected | Expired | Canceled | Failed)
     }
 
     /// The grants made by a completed `session.requestPermissions`. They may be fewer than requested.
@@ -522,6 +559,7 @@ impl Operation {
 
 /// Core §4.8 and §8.6. Events are hints; the read methods give the authoritative state.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
 pub struct PwcEvent {
     pub event_id: String,
     pub event_type: String,
@@ -534,6 +572,7 @@ pub struct PwcEvent {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
 pub struct AddressPage {
     pub addresses: Vec<AddressRecord>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -541,6 +580,7 @@ pub struct AddressPage {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
 pub struct UtxoPage {
     pub utxos: Vec<Utxo>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -548,6 +588,7 @@ pub struct UtxoPage {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
 pub struct TransactionPage {
     pub transactions: Vec<TransactionRecord>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -556,6 +597,7 @@ pub struct TransactionPage {
 
 /// Parameters of `session.requestPermissions` (Core §8.1). Ask only for the scopes the application needs.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
 pub struct RequestPermissionsParams {
     pub scopes: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -572,6 +614,7 @@ pub struct RequestPermissionsParams {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
 pub struct Payment {
     pub address: String,
     #[serde(with = "positive_sats")]
@@ -579,6 +622,7 @@ pub struct Payment {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
 pub struct CreatePsbtParams {
     pub account_id: String,
     pub outputs: Vec<Payment>,
@@ -591,6 +635,7 @@ pub struct CreatePsbtParams {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
 pub struct SignPsbtParams {
     pub account_id: String,
     pub psbt: String,
@@ -600,6 +645,7 @@ pub struct SignPsbtParams {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
 pub struct SignMessageParams {
     pub account_id: String,
     pub address: String,
@@ -609,6 +655,7 @@ pub struct SignMessageParams {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
 pub struct VerifyMessageParams {
     pub network: String,
     pub address: String,
@@ -619,6 +666,7 @@ pub struct VerifyMessageParams {
 
 /// The Provider named in a `local.hello` result (LOCAL §5.2).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
 pub struct LocalProvider {
     pub name: String,
     pub version: String,
@@ -626,6 +674,7 @@ pub struct LocalProvider {
 
 /// The result of `local.hello` (LOCAL §5.2), without the nonce.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
 pub struct HelloInfo {
     pub protocol: String,
     pub pwc_version: String,
@@ -638,6 +687,7 @@ pub struct HelloInfo {
 /// Parameters of `local.pair` (LOCAL §5.3). `pairing_code` comes from `pairing_code()` and is shown to the User
 /// before `pair` is called.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
 pub struct PairParams {
     pub client_name: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]

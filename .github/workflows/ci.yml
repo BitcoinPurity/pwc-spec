@@ -59,8 +59,31 @@ jobs:
           workspaces: pwc-client
       - run: cargo fmt --check
       - run: cargo clippy --all-targets --locked -- -D warnings
+      # The feature that exports the interface through UniFFI; pwc-client-ffi builds the bindings.
+      - run: cargo clippy --all-targets --all-features --locked -- -D warnings
       # The tests include tests/provider.rs, which runs the library against pwc-provider, and
       # tests/mock_provider.rs, which runs pwc-testkit/mock_local_provider.py with the runner's python3.
+      - run: cargo test --locked
+      - run: cargo test --locked --all-features
+
+  client-ffi:
+    name: Client bindings
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: pwc-client-ffi
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.97.0"
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: pwc-client-ffi
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets --locked -- -D warnings
+      # tests/python.rs generates the Python module and runs tests/test_bindings.py with the runner's python3.
       - run: cargo test --locked
 
   coverage:

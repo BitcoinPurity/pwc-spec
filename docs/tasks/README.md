@@ -44,3 +44,12 @@ Requirements: `input/requirements.md` §5. Tests are JUnit 5 tests in `pwc-provi
 | [TASK-CLIENT-006](TASK-CLIENT-006.md) | End-to-end tests against the Rust Provider, and CI | L-20; Client Guide §2, §3, §7, §8 | Done |
 
 Test files are in `pwc-client/tests/`. Client tasks are numbered `TASK-CLIENT-0xx`.
+
+# Python binding of the Client (pwc-client-ffi)
+
+| Task | Title | Status |
+|---|---|---|
+| [TASK-FFI-001](TASK-FFI-001.md) | UniFFI annotations and adapters in pwc-client | Done |
+| [TASK-FFI-002](TASK-FFI-002.md) | pwc-client-ffi, the Python module and its test | Done |
+
+The Python test is `pwc-client-ffi/tests/test_bindings.py`, run by `pwc-client-ffi/tests/python.rs`.
