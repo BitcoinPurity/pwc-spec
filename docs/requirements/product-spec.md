@@ -68,7 +68,7 @@ The `limits` values are in `docs/api-contract.md`.
 
 ## 4. Continuous integration
 
-`.github/workflows/ci.yml` has two jobs: specification checks (`check_schema.py`, `run_vectors.py`, `check_family.py`) and the Rust Provider (`cargo fmt --check`, `cargo clippy -D warnings` and `cargo test`, which includes running `local_runner.py` against the demo binary). The Rust toolchain is pinned to 1.97.0.
+`.github/workflows/ci.yml` runs on every push to any branch and on manual dispatch; Buildkite executes it, and it receives only `push` events. It has three jobs: specification checks (`check_schema.py`, `run_vectors.py`, `check_family.py`); the Rust Provider (`cargo fmt --check`, `cargo clippy -D warnings` and `cargo test`, which includes running `local_runner.py` against the demo binary); and coverage, which runs the same tests under `cargo-llvm-cov` and writes the per-file coverage table to the job summary (`$GITHUB_STEP_SUMMARY`) and the log. Coverage is reported only and never fails the build. The Rust toolchain is pinned to 1.97.0.
 
 ## 5. Known limitations
 
