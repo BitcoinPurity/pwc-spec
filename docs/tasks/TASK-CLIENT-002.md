@@ -1,4 +1,4 @@
-# TASK-012: LOCAL endpoints and authentication proofs
+# TASK-CLIENT-002: LOCAL endpoints and authentication proofs
 
 ## Goal
 

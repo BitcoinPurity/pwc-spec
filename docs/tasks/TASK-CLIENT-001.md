@@ -1,4 +1,4 @@
-# TASK-011: Crate scaffold, errors and wire types
+# TASK-CLIENT-001: Crate scaffold, errors and wire types
 
 ## Goal
 

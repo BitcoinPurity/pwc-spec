@@ -1,4 +1,4 @@
-//! TASK-015: credential store, `connect` and `pair`, waiting for an Operation, pagination.
+//! TASK-CLIENT-005: credential store, `connect` and `pair`, waiting for an Operation, pagination.
 
 mod common;
 

@@ -1,4 +1,4 @@
-# TASK-013: Connection, handshake and events
+# TASK-CLIENT-003: Connection, handshake and events
 
 ## Goal
 

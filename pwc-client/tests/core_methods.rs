@@ -1,4 +1,4 @@
-//! TASK-014: one typed function per Core method. The fake Provider checks every request against the schema.
+//! TASK-CLIENT-004: one typed function per Core method. The fake Provider checks every request against the schema.
 
 mod common;
 

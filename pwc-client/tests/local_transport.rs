@@ -1,4 +1,4 @@
-//! TASK-012 and TASK-013: endpoints, proofs, handshake, framing, error mapping and events.
+//! TASK-CLIENT-002 and TASK-CLIENT-003: endpoints, proofs, handshake, framing, error mapping and events.
 
 mod common;
 
