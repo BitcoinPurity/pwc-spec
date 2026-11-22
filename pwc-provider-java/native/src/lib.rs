@@ -1,6 +1,7 @@
 //! JNI binding of `pwc-provider` for the Java Provider SDK. Every exported function is a static method of
 //! `org.bitcoinpurity.pwc.provider.Native`.
 
+mod backend;
 mod convert;
 mod memory;
 mod prompts;

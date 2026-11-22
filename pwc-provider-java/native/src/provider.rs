@@ -47,8 +47,7 @@ fn backend(env: &mut JNIEnv, memory: jlong, java: &JObject) -> Result<Arc<dyn Wa
         // SAFETY: the Java caller passes the live handle of a MemoryBackend it keeps reachable.
         return Ok(unsafe { get::<MemoryHandle>(memory) }.clone());
     }
-    let _ = (env, java);
-    Err(invalid("Java backends are not implemented yet"))
+    Ok(Arc::new(crate::backend::JavaBackend::new(env, java)?))
 }
 
 fn open(
