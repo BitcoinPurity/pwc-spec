@@ -1,0 +1,5 @@
+# JSON values are text at the boundary (src/ffi.rs); each binding turns them into its own objects.
+[bindings.python.custom_types.Value]
+imports = ["json"]
+lift = "json.loads({})"
+lower = "json.dumps({})"

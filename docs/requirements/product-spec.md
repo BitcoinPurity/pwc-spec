@@ -157,3 +157,27 @@ Kept consistent with `input/requirements.md` §5. The Java SDK is a JNI binding 
 - No automatic reconnection.
 - The end-to-end tests use the Provider's in-memory wallet; no test runs against a wallet connected to a real node.
 - macOS and Linux only.
+
+# Python binding of the Client (pwc-client-ffi)
+
+## 1. Deliverables
+
+| Deliverable | Description |
+|---|---|
+| Feature `uniffi` of `pwc_client` | The UniFFI annotations of the public interface and the few adapters a binding needs |
+| Library `pwc_client_ffi` | The C dynamic library that the generated bindings load |
+| Program `uniffi-bindgen` | Generates the bindings from the built library |
+
+## 2. Using it from Python
+
+- Build and generate as `pwc-client-ffi/README.md` says. The result is `pwc_client.py` and the shared library in one directory; put that directory on the Python path and `import pwc_client`.
+- Every method that is `async` in Rust is a coroutine; call it with `await` inside an `asyncio` event loop.
+- Records are Python data classes with the Rust field names. Amounts are `int`. Enumerations are Python enumerations; an enumeration whose variants carry data, such as `FeePolicy` and `ErrorCode`, has one class per variant.
+- A failure raises `pwc_client.Error`; each variant is a subclass, such as `Error.Pwc`, `Error.NotPaired` and `Error.ConnectionClosed`. `Error.Pwc` carries the `PwcError` as `e[0]`; its `code` is an `ErrorCode`.
+- `CredentialStore` is a base class with `load`, `save` and `delete`. An exception raised by an implementation that is not a `pwc_client.Error` becomes `Error.Io` with the exception's text.
+- The result of a terminal Operation is read with the methods of `Operation`, as in Rust.
+
+## 3. Known limitations
+
+- No wheel: the application ships the generated module and the shared library itself.
+- macOS and Linux only.

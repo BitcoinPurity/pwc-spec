@@ -257,3 +257,53 @@ The public interface keeps to these rules so that a later binding crate needs no
 | libc | `geteuid` |
 | jsonschema, tempfile (tests only) | Validating frames against `pwc-schema/`; temporary endpoint directories |
 | pwc-provider (tests only) | The Provider for the end-to-end tests |
+
+# Python binding of the Client (pwc-client-ffi)
+
+## 1. Layout
+
+```text
+pwc-client/
+├── uniffi.toml         how JSON values and paths appear in each language
+└── src/ffi.rs          feature `uniffi`: scaffolding, custom types, adapters
+
+pwc-client-ffi/
+├── Cargo.toml          cdylib; depends on pwc-client with the feature `uniffi`
+├── README.md           how to build and generate
+├── src/lib.rs          re-exports the scaffolding of pwc-client
+├── src/bin/uniffi-bindgen.rs
+└── tests/
+    ├── python.rs       builds the bindings, starts a Provider, runs the Python program
+    └── test_bindings.py
+```
+
+## 2. Where the annotations are
+
+The types and methods are annotated where they are defined, with `cfg_attr(feature = "uniffi", ...)`, so the binding cannot drift from the Rust interface and no type is declared twice. `pwc-client-ffi` only links the library into a C dynamic library and re-exports its scaffolding, which makes `pwc_client` the single generated module.
+
+## 3. Adapters (`src/ffi.rs`)
+
+The Rust interface was designed for this, so only what UniFFI cannot express directly is adapted:
+
+| Rust interface | In the binding | Reason |
+|---|---|---|
+| `serde_json::Value` | Custom type over a string; `uniffi.toml` converts it with the language's JSON module | Not a UniFFI type |
+| `PathBuf` in `Endpoint` | Custom type over a string | Not a UniFFI type |
+| `discover(&Path)` | A function of the same name taking a string | Borrowed path |
+| `Client::connect(&Endpoint, ...)`, `Client::pair(...)` | Constructors of the same names taking the record by value | Borrowed record |
+| `Client::subscribe_events() -> EventStream` | Returns a shared handle | Objects cross the boundary as shared handles |
+| `CredentialStore` with `&str` parameters | A trait of the same name with `String` parameters, wrapped to implement the Rust trait | Foreign implementations take owned values |
+| `FileCredentialStore::new` | The function `file_credential_store`, returning a `CredentialStore` | So that it can be passed where a store is expected |
+| `Connection` | Not exposed | Its methods consume the connection |
+
+## 4. Runtime
+
+Asynchronous methods are exported with UniFFI's Tokio support: the library runs them on its own runtime and completes the foreign future, so the Python event loop is never blocked. Calls into a Python `CredentialStore` are synchronous and short.
+
+## 5. Dependencies
+
+| Crate | Use |
+|---|---|
+| uniffi 0.32 (`tokio`) | Optional dependency of `pwc-client` |
+| uniffi 0.32 (`cli`) | The binding generator program in `pwc-client-ffi` |
+| pwc-provider, tempfile, tokio (tests only) | The Provider for the Python test |

@@ -12,6 +12,7 @@ use crate::local::valid_provider_id;
 /// What a Client keeps after pairing (LOCAL §5.3). `client_secret` is 64 hexadecimal characters; never log it,
 /// pass it on a command line or put it in an environment variable (LOCAL §7).
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
 pub struct Credential {
     pub provider_id: String,
     pub client_id: String,

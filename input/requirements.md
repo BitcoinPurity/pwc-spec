@@ -130,3 +130,36 @@ The library is the single implementation of the protocol logic. SDKs for other l
 - The `client` job of GitHub Actions passes.
 - Test L-13 holds: after a wrong `server_proof` the Client sends nothing further and closes.
 - The repository's existing `run_vectors.py`, `check_schema.py` and `check_family.py` give the same results as before.
+
+# Python binding of the Client (pwc-client-ffi)
+
+## 1. Goal
+
+Let Python applications import the Client. The binding is generated from `pwc-client` with UniFFI, so the protocol logic stays in the Rust library. Python is the first language; the same annotations serve the other languages UniFFI generates later.
+
+## 2. Decisions
+
+| Item | Decision |
+|---|---|
+| Generator | UniFFI 0.32, procedural macros, library mode |
+| Annotations | In `pwc-client`, behind the optional feature `uniffi`; without the feature the library is unchanged and has no UniFFI dependency |
+| Shared library | The crate `pwc-client-ffi/` builds the C dynamic library and holds the binding generator program |
+| Python module | `pwc_client`, one generated file next to the shared library |
+| Interface | The same names as the Rust interface: `Client` with the 24 Core methods, `request`, the helpers, `EventStream`, the data types and `Error` |
+| Asynchronous methods | Python coroutines, run on the library's own Tokio runtime |
+| JSON values | `request` parameters and results, `Operation.result`, `PwcEvent.payload` and `PwcError.details` are Python objects (`dict`, `list`, ...), converted with the `json` module |
+| Credential storage | The application implements `CredentialStore` in Python, for example over the `keyring` package; the file store is also available |
+| Low-level handshake | `Connection` is not exposed; Python uses `Client.connect` and `Client.pair` |
+| Method | Test first |
+
+## 3. Out of scope
+
+- Bindings for other languages.
+- Packaging as a wheel and publishing to a package index.
+- Windows.
+
+## 4. Acceptance
+
+- `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` and `cargo test` pass in `pwc-client-ffi/`, and `pwc-client` passes the same with and without the feature `uniffi`.
+- `cargo test` in `pwc-client-ffi/` generates the Python module and runs a Python program against the Rust Provider of `pwc-provider/`: pair with a credential store written in Python, reconnect, obtain a grant, read the account, create, sign, finalize and broadcast a transaction, receive an event, and handle errors by their code.
+- GitHub Actions runs these checks.

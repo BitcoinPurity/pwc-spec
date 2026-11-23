@@ -35,6 +35,8 @@
 pub mod client;
 pub mod credential;
 pub mod error;
+#[cfg(feature = "uniffi")]
+mod ffi;
 pub mod local;
 pub mod types;
 
@@ -43,3 +45,6 @@ pub use credential::{Credential, CredentialStore, FileCredentialStore};
 pub use error::{Error, ErrorCode, PwcError};
 pub use local::{discover, endpoint_directory, pairing_code, Connection, Endpoint};
 pub use types::*;
+
+#[cfg(feature = "uniffi")]
+uniffi::setup_scaffolding!();
