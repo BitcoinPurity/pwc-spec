@@ -57,7 +57,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: pwc-provider
-      - run: cargo install cargo-llvm-cov --version 0.9.2 --locked
+      # Builds in the job's own directory: cargo install's default build directory under the agent's shared TMPDIR
+      # lost files during the build (build 33).
+      - run: cargo install cargo-llvm-cov --version 0.9.2 --locked --target-dir target/cargo-install
       - run: cargo llvm-cov --locked --no-report
       # Reported only; coverage does not fail the build.
       - run: |
@@ -157,8 +159,43 @@ jobs:
           name: pwc-provider-java-jar
           path: pwc-provider-java/build/libs/*.jar
           if-no-files-found: error
-      - if: startsWith(github.ref, 'refs/tags/pwc-provider-java-v')
-        env:
+
+  # A job of its own: the runner's adapter resolves every secret a job references before the job starts, even in
+  # steps that would be skipped, so the secret is referenced only by a job that runs on tags.
+  java-sdk-publish:
+    name: Publish the Java Provider SDK
+    needs: java-sdk-jar
+    if: startsWith(github.ref, 'refs/tags/pwc-provider-java-v')
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: pwc-provider-java
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      # One download per platform into natives/<platform>/: the runner's adapter merges pattern downloads into
+      # one directory, which would lose the platform directories.
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux-x86_64
+          path: pwc-provider-java/natives/linux-x86_64
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux-aarch64
+          path: pwc-provider-java/natives/linux-aarch64
+      - uses: actions/download-artifact@v4
+        with:
+          name: macos-x86_64
+          path: pwc-provider-java/natives/macos-x86_64
+      - uses: actions/download-artifact@v4
+        with:
+          name: macos-aarch64
+          path: pwc-provider-java/natives/macos-aarch64
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-x86_64
+          path: pwc-provider-java/natives/windows-x86_64
+      - env:
           PWC_PACKAGES_USER: ${{ github.actor }}
           PWC_PACKAGES_TOKEN: ${{ secrets.PWC_PACKAGES_TOKEN }}
         run: ci/assemble.sh --publish "${{ github.ref_name }}"
