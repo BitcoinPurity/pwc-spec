@@ -5,8 +5,13 @@
 set -euo pipefail
 . "$(dirname "$0")/jdk.sh"
 
+# The artifact download may nest each library below natives/<platform>/; bring it to natives/<platform>/<library>.
+echo "downloaded:"; find natives -type f | sort
 for p in $PLATFORMS; do
-    test -f "natives/$p/$(library_file "$p")" || { echo "missing natives/$p/$(library_file "$p")" >&2; exit 1; }
+    f=$(library_file "$p")
+    found=$(find "natives/$p" -type f -name "$f" 2>/dev/null | head -n 1)
+    [ -n "$found" ] || { echo "missing $f under natives/$p" >&2; exit 1; }
+    [ "$found" = "natives/$p/$f" ] || mv "$found" "natives/$p/$f"
 done
 jdk_install
 natives="$PWD/natives"
