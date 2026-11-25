@@ -1,0 +1,23 @@
+[package]
+name = "pwc-client-ffi"
+version = "0.1.0"
+edition = "2021"
+description = "C dynamic library and binding generator for pwc-client (UniFFI)"
+license = "MIT"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "src/bin/uniffi-bindgen.rs"
+
+[dependencies]
+pwc-client = { path = "../pwc-client", features = ["uniffi"] }
+uniffi = { version = "0.32", features = ["cli"] }
+
+[dev-dependencies]
+pwc-provider = { path = "../pwc-provider" }
+tempfile = "3"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }

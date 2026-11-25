@@ -43,3 +43,25 @@ Requirements: `input/requirements.md` §6.
 | [TASK-019](TASK-019.md) | Java interface without bitcoinj | M18 | Done |
 | [TASK-020](TASK-020.md) | Native loading, JPMS module and Windows in the Java SDK | M19 | Done |
 | [TASK-021](TASK-021.md) | Five-platform jar, publishing and CI | M20 | Done |
+
+# PWC LOCAL Client (Rust)
+
+| Task | Title | Tests covered | Status |
+|---|---|---|---|
+| [TASK-CLIENT-001](TASK-CLIENT-001.md) | Crate scaffold, errors and wire types | C-22, C-26 (amount types) | Done |
+| [TASK-CLIENT-002](TASK-CLIENT-002.md) | LOCAL endpoints and authentication proofs | L-12; LOCAL §3.2, §3.5 (Client side) | Done |
+| [TASK-CLIENT-003](TASK-CLIENT-003.md) | Connection, handshake and events | L-13; LOCAL §4, §5.2 to §5.4, §8 (Client side) | Done |
+| [TASK-CLIENT-004](TASK-CLIENT-004.md) | Typed Core methods | Core §8 (all 24 methods) | Done |
+| [TASK-CLIENT-005](TASK-CLIENT-005.md) | Helpers and the mock Provider | LOCAL §5.6, §5.7, §7; Client Guide §2 to §4 | Done |
+| [TASK-CLIENT-006](TASK-CLIENT-006.md) | End-to-end tests against the Rust Provider, and CI | L-20; Client Guide §2, §3, §7, §8 | Done |
+
+Test files are in `pwc-client/tests/`. Client tasks are numbered `TASK-CLIENT-0xx`.
+
+# Python binding of the Client (pwc-client-ffi)
+
+| Task | Title | Status |
+|---|---|---|
+| [TASK-FFI-001](TASK-FFI-001.md) | UniFFI annotations and adapters in pwc-client | Done |
+| [TASK-FFI-002](TASK-FFI-002.md) | pwc-client-ffi, the Python module and its test | Done |
+
+The Python test is `pwc-client-ffi/tests/test_bindings.py`, run by `pwc-client-ffi/tests/python.rs`.

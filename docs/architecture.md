@@ -199,3 +199,125 @@ Native.java ──JNI──► pwc-provider-jni ──────────�
   - `java-sdk-publish` runs only on a tag `pwc-provider-java-v<version>`, after `java-sdk-jar`, and publishes with `ci/assemble.sh --publish <tag>`, using the `PWC_PACKAGES_TOKEN` secret. It is a job of its own because the runner resolves every secret a job references before the job starts.
 - `provider-windows` runs the Rust tests on Windows, where they run over the named pipe.
 - Jobs on one Buildkite agent share the home directory, so every Rust job outside Windows sets its own `CARGO_HOME` under the job's workspace before installing the toolchain; the toolchains in `~/.rustup` stay shared.
+
+# PWC LOCAL Client (Rust)
+
+## 1. Modules
+
+```text
+pwc-client/
+├── Cargo.toml
+├── src/
+│   ├── lib.rs          module declarations and re-exports
+│   ├── error.rs        ErrorCode, PwcError, Error
+│   ├── types.rs        Core wire types, method parameters and results
+│   ├── local.rs        LOCAL transport: endpoint directory, discovery, frames, JSON-RPC, handshake
+│   ├── client.rs       Client: raw request, typed Core methods, helpers
+│   └── credential.rs   Credential, CredentialStore, FileCredentialStore
+└── tests/              integration tests over Unix sockets
+```
+
+## 2. Layers
+
+```text
+Application / future language SDK
+   │  typed methods, helpers            CredentialStore (implemented by the host)
+   ▼
+client.rs ──request(method, params)──► local.rs (Connection) ──frames──► Provider
+```
+
+- **local.rs** owns the transport: the directory check, the socket, frames, the JSON-RPC envelope, `local.hello`, `local.pair`, `local.authenticate` and the proofs.
+- **client.rs** owns everything above `request`: serialization of parameters, parsing of results, and the helpers. It does not know about sockets.
+
+There is no transport trait: LOCAL is the only transport. One is introduced when a second transport is added.
+
+## 3. Connection
+
+- A connection has one reader task. It reads frames, hands each response to the waiting request through a oneshot channel keyed by `id`, and sends each `pwc.event` notification into a broadcast channel of capacity 256.
+- Writes go through a mutex around the socket's write half, one frame at a time.
+- When the socket closes or a frame cannot be parsed, the reader task ends and every waiting request gets `ConnectionClosed`.
+- `id` values are integers counted per connection, so an outstanding `id` is never reused.
+
+## 4. Foreign-function readiness
+
+The public interface keeps to these rules so that a later binding crate needs no adapter logic:
+
+| Rule | Reason |
+|---|---|
+| `Client` is a cheap-to-clone handle; every method takes `&self` | Maps to a foreign object |
+| No lifetimes, generics or borrowed return values in public signatures | Binding generators cannot express them |
+| Data types are records and enumerations with public fields | Map to foreign records |
+| One `Error` enumeration | Maps to one foreign exception type |
+| Events are pulled with `EventStream::next` | No callback crosses the boundary |
+| `CredentialStore` is the only interface the host implements | Maps to a foreign trait backed by the platform's credential store |
+
+`serde_json::Value` appears in `request`, `Operation::result` and `PwcEvent::payload`; a binding passes it as JSON text.
+
+## 5. Types
+
+- Amounts and fee rates are integers in Rust (`u64`, `i64`) and canonical decimal strings on the wire. Parsing rejects non-canonical forms and values above 2100000000000000 (fee rates: 1000000000).
+- Timestamps, hashes, hex, base64, addresses, identifiers and cursors stay strings in their wire form.
+- Results accept unknown members (Core §3.1). Optional members are omitted, never `null`.
+- Error codes outside Core §10 parse as `ErrorCode::Other`.
+
+## 6. Dependencies
+
+| Crate | Use |
+|---|---|
+| tokio | Unix sockets, tasks, channels, timers |
+| serde, serde_json | Wire format |
+| hmac, sha2 | Authentication proofs, compared in constant time |
+| getrandom | Nonces, pairing codes, idempotency keys |
+| libc | `geteuid` |
+| jsonschema, tempfile (tests only) | Validating frames against `pwc-schema/`; temporary endpoint directories |
+| pwc-provider (tests only) | The Provider for the end-to-end tests |
+
+# Python binding of the Client (pwc-client-ffi)
+
+## 1. Layout
+
+```text
+pwc-client/
+├── uniffi.toml         how JSON values and paths appear in each language
+└── src/ffi.rs          feature `uniffi`: scaffolding, custom types, adapters
+
+pwc-client-ffi/
+├── Cargo.toml          cdylib; depends on pwc-client with the feature `uniffi`
+├── README.md           how to build and generate
+├── src/lib.rs          re-exports the scaffolding of pwc-client
+├── src/bin/uniffi-bindgen.rs
+└── tests/
+    ├── python.rs       builds the bindings, starts a Provider, runs the Python program
+    └── test_bindings.py
+```
+
+## 2. Where the annotations are
+
+The types and methods are annotated where they are defined, with `cfg_attr(feature = "uniffi", ...)`, so the binding cannot drift from the Rust interface and no type is declared twice. `pwc-client-ffi` only links the library into a C dynamic library and re-exports its scaffolding, which makes `pwc_client` the single generated module.
+
+## 3. Adapters (`src/ffi.rs`)
+
+The Rust interface was designed for this, so only what UniFFI cannot express directly is adapted:
+
+| Rust interface | In the binding | Reason |
+|---|---|---|
+| `serde_json::Value` | Custom type over a string; `uniffi.toml` converts it with the language's JSON module | Not a UniFFI type |
+| `PathBuf` in `Endpoint` | Custom type over a string | Not a UniFFI type |
+| `discover(&Path)` | A function of the same name taking a string | Borrowed path |
+| `Client::connect(&Endpoint, ...)`, `Client::pair(...)` | Constructors of the same names taking the record by value | Borrowed record |
+| `Client::subscribe_events() -> EventStream` | Returns a shared handle | Objects cross the boundary as shared handles |
+| `CredentialStore` with `&str` parameters | A trait of the same name with `String` parameters, wrapped to implement the Rust trait | Foreign implementations take owned values |
+| `FileCredentialStore::new` | The function `file_credential_store`, returning a `CredentialStore` | So that it can be passed where a store is expected |
+| `Connection` | Not exposed | Its methods consume the connection |
+
+## 4. Runtime
+
+Asynchronous methods are exported with UniFFI's Tokio support: the library runs them on its own runtime and completes the foreign future, so the Python event loop is never blocked. Calls into a Python `CredentialStore` are synchronous and short.
+
+## 5. Dependencies
+
+| Crate | Use |
+|---|---|
+| uniffi 0.32 (`tokio`) | Optional dependency of `pwc-client` |
+| uniffi 0.32 (`cli`) | The binding generator program in `pwc-client-ffi` |
+| pwc-provider, tempfile, tokio (tests only) | The Provider for the Python test |

@@ -111,3 +111,76 @@ Kept consistent with `input/requirements.md` §5 and §6. The Java SDK is a JNI 
 
 - Platforms other than the five of the published jar are not supported.
 - The library does not create PSBTs or signatures for a Java backend; a Java backend does that itself.
+
+# PWC LOCAL Client (Rust)
+
+## 1. Deliverable
+
+| Deliverable | Description |
+|---|---|
+| Library `pwc_client` | For applications and for future language SDKs: LOCAL transport (Client side), typed Core methods, credential store interface, helpers |
+
+## 2. Features
+
+### 2.1 Discovery and connection
+
+- `endpoint_directory()` gives the endpoint directory of LOCAL §3.2; `discover(dir)` lists the `*.sock` files in it as endpoints.
+- Before connecting, the endpoint directory must belong to the current user and grant nothing to group or others; otherwise the library does not connect.
+- `Connection::open` connects and sends `local.hello`. The Provider's name, version, `max_frame_bytes` and `delegation` are available from the connection.
+
+### 2.2 Pairing and authentication
+
+- `pairing_code()` returns 6 random decimal digits. The application shows the code, then calls `pair`, which returns when the User decides in the wallet.
+- `authenticate` sends a fresh nonce and the client proof, and compares the server proof in constant time. On a mismatch it closes the connection without sending anything further.
+- `Client::connect` and `Client::pair` do the same using a `CredentialStore`: `connect` fails with `NotPaired` when the store holds no credential for the Provider; `pair` saves the new credential; `unpair` deletes it.
+- `FileCredentialStore` keeps one file per `provider_id`, created with mode 0600.
+- The library never logs or prints a secret, proof or nonce.
+
+### 2.3 Requests
+
+- Any number of requests may be outstanding on a connection; responses are matched by `id`.
+- A request larger than the Provider's `max_frame_bytes` is refused locally.
+- One typed function per Core method (see `docs/api-contract.md`), and `request(method, params)` for anything else.
+- A completed Operation's result is read with a typed accessor for its method. An Operation that ended in another terminal state gives its `PwcError`.
+
+### 2.4 Helpers
+
+- `idempotency_key()` returns a new random `Id`.
+- `wait_operation` returns the Operation once it is terminal. It wakes on the Operation's `operation.stateChanged` event and otherwise polls once per second, until a caller-given time limit.
+- `list_all_addresses`, `list_all_utxos` and `list_all_transactions` follow `next_cursor` to the last page.
+- `subscribe_events` returns a stream that the application reads by pulling. A reader that falls more than 256 events behind is told that events were missed.
+
+## 3. Tests and continuous integration
+
+- Unit and integration tests run against a scripted Provider inside the tests, against the test kit's mock Provider, and end to end against the Rust Provider of `pwc-provider/` with its in-memory wallet.
+- The `client` job of `.github/workflows/ci.yml` runs `cargo fmt --check`, `cargo clippy -D warnings` and `cargo test` for `pwc-client`.
+
+## 4. Known limitations
+
+- No automatic reconnection.
+- The end-to-end tests use the Provider's in-memory wallet; no test runs against a wallet connected to a real node.
+- macOS and Linux only.
+
+# Python binding of the Client (pwc-client-ffi)
+
+## 1. Deliverables
+
+| Deliverable | Description |
+|---|---|
+| Feature `uniffi` of `pwc_client` | The UniFFI annotations of the public interface and the few adapters a binding needs |
+| Library `pwc_client_ffi` | The C dynamic library that the generated bindings load |
+| Program `uniffi-bindgen` | Generates the bindings from the built library |
+
+## 2. Using it from Python
+
+- Build and generate as `pwc-client-ffi/README.md` says. The result is `pwc_client.py` and the shared library in one directory; put that directory on the Python path and `import pwc_client`.
+- Every method that is `async` in Rust is a coroutine; call it with `await` inside an `asyncio` event loop.
+- Records are Python data classes with the Rust field names. Amounts are `int`. Enumerations are Python enumerations; an enumeration whose variants carry data, such as `FeePolicy` and `ErrorCode`, has one class per variant.
+- A failure raises `pwc_client.Error`; each variant is a subclass, such as `Error.Pwc`, `Error.NotPaired` and `Error.ConnectionClosed`. `Error.Pwc` carries the `PwcError` as `e[0]`; its `code` is an `ErrorCode`.
+- `CredentialStore` is a base class with `load`, `save` and `delete`. An exception raised by an implementation that is not a `pwc_client.Error` becomes `Error.Io` with the exception's text.
+- The result of a terminal Operation is read with the methods of `Operation`, as in Rust.
+
+## 3. Known limitations
+
+- No wheel: the application ships the generated module and the shared library itself.
+- macOS and Linux only.

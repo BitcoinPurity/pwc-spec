@@ -13,6 +13,8 @@ Purity Wallet Connect is a family of specifications that lets applications use a
 | [`pwc-testkit/`](pwc-testkit/) | Test vectors, PSBT fixtures, the LOCAL conformance runner, a mock Provider and a minimal Client |
 | [`pwc-provider/`](pwc-provider/) | A Rust Provider implementing Core and LOCAL, with an in-memory demo wallet (requirements in [`input/`](input/), design in [`docs/`](docs/)) |
 | [`pwc-provider-java/`](pwc-provider-java/) | The Java Provider SDK: a JNI binding of `pwc-provider/` for Java host wallets, with a demo program |
+| [`pwc-client/`](pwc-client/) | A Rust Client library: Core v0.2.1 over the LOCAL transport; see [`docs/api-contract.md`](docs/api-contract.md) |
+| [`pwc-client-ffi/`](pwc-client-ffi/) | Bindings of `pwc-client/` for other languages, generated with UniFFI; Python first |
 
 ## Documents
 
@@ -65,4 +67,4 @@ Changes are proposed and reviewed as described in PWC-GOVERNANCE-001 §4. Report
 
 ## License
 
-The documents and the data files (schemas, registry, test vectors) are licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). All code, that is the scripts in `pwc-schema/` and `pwc-testkit/`, `pwc-provider/` and `pwc-provider-java/`, is licensed under the [MIT License](LICENSE) (PWC-GOVERNANCE-001 §2.2).
+The documents and the data files (schemas, registry, test vectors) are licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). All code, that is the scripts in `pwc-schema/` and `pwc-testkit/`, `pwc-provider/`, `pwc-provider-java/`, `pwc-client/` and `pwc-client-ffi/`, is licensed under the [MIT License](LICENSE) (PWC-GOVERNANCE-001 §2.2).
