@@ -11,7 +11,8 @@ use pwc_provider::local::{self, EndpointError};
 use pwc_provider::provider::Config;
 use windows_sys::Win32::Foundation::LocalFree;
 use windows_sys::Win32::Security::Authorization::{
-    ConvertSecurityDescriptorToStringSecurityDescriptorW, GetSecurityInfo, SDDL_REVISION_1, SE_KERNEL_OBJECT,
+    ConvertSecurityDescriptorToStringSecurityDescriptorW, ConvertSidToStringSidW, ConvertStringSidToSidW,
+    GetSecurityInfo, SDDL_REVISION_1, SE_KERNEL_OBJECT,
 };
 use windows_sys::Win32::Security::DACL_SECURITY_INFORMATION;
 
@@ -44,12 +45,39 @@ fn dacl(handle: std::os::windows::io::RawHandle) -> String {
         )
     };
     assert_ne!(ok, 0, "ConvertSecurityDescriptorToStringSecurityDescriptorW");
+    let s = wide_to_string(text);
+    // SAFETY: both were allocated by the system.
+    unsafe {
+        LocalFree(text.cast());
+        LocalFree(descriptor);
+    }
+    s
+}
+
+fn wide_to_string(text: *const u16) -> String {
     // SAFETY: `text` is a NUL-terminated wide string allocated by the system.
     unsafe {
         let len = (0..).take_while(|&i| *text.add(i) != 0).count();
-        let s = String::from_utf16_lossy(std::slice::from_raw_parts(text, len));
+        String::from_utf16_lossy(std::slice::from_raw_parts(text, len))
+    }
+}
+
+/// An SDDL account, which may be an alias such as `SY` for LocalSystem, as an `S-1-...` string.
+fn account_sid(sddl_account: &str) -> String {
+    let wide: Vec<u16> = sddl_account.encode_utf16().chain([0]).collect();
+    let mut sid = std::ptr::null_mut();
+    // SAFETY: `wide` is NUL-terminated; the SID and the string are freed below.
+    unsafe {
+        assert_ne!(
+            ConvertStringSidToSidW(wide.as_ptr(), &mut sid),
+            0,
+            "ConvertStringSidToSidW {sddl_account}"
+        );
+        let mut text = std::ptr::null_mut();
+        assert_ne!(ConvertSidToStringSidW(sid, &mut text), 0, "ConvertSidToStringSidW");
+        let s = wide_to_string(text);
         LocalFree(text.cast());
-        LocalFree(descriptor);
+        LocalFree(sid);
         s
     }
 }
@@ -67,7 +95,10 @@ async fn pipe_name_and_dacl_grant_the_user_only() {
     let sddl = dacl(client.as_raw_handle());
     assert!(sddl.starts_with("D:P"), "protected DACL: {sddl}");
     assert_eq!(sddl.matches("(A;").count(), 1, "one allow entry: {sddl}");
-    assert!(sddl.contains(sid), "{sddl}");
+    // The one entry's account, after the last `;` of `(A;;rights;;;account)`; SDDL writes well-known accounts as
+    // aliases, such as `SY` when the tests run as LocalSystem.
+    let account = sddl.trim_end_matches(')').rsplit(';').next().unwrap();
+    assert_eq!(account_sid(account), sid, "{sddl}");
 }
 
 #[tokio::test]
