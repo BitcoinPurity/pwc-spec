@@ -37,7 +37,19 @@ final class Harness implements AutoCloseable {
         this.ownsMemory = ownsMemory;
         this.provider = provider;
         this.prompts = prompts;
-        this.server = LocalServer.start(provider, tmp.resolve("run"));
+        this.server = start(provider, tmp);
+    }
+
+    static final boolean WINDOWS = System.getProperty("os.name").startsWith("Windows");
+
+    /**
+     * Serves on a temporary directory on macOS and Linux; on Windows, whose pipe namespace every test shares, on a
+     * pipe with its own provider id.
+     */
+    static LocalServer start(Provider provider, Path tmp) throws EndpointException {
+        return WINDOWS
+                ? LocalServer.start(provider, "pwc-test-" + UUID.randomUUID())
+                : LocalServer.start(provider, tmp.resolve("run"), LocalServer.PROVIDER_ID);
     }
 
     static Harness start() throws Exception {

@@ -1,6 +1,6 @@
 # PWC test kit
 
-Described in PWC-CONFORMANCE-001 §3 to §5. Python 3.10 or later. Vector files are CC BY 4.0; the license of the scripts is not yet assigned (PWC-GOVERNANCE-001, G-01).
+Described in PWC-CONFORMANCE-001 §3 to §5. Python 3.10 or later. Vector files are CC BY 4.0; the scripts are MIT (PWC-GOVERNANCE-001 §2.2).
 
 | File | Purpose |
 |---|---|

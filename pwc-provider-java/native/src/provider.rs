@@ -1,6 +1,6 @@
 //! Native methods of `Provider`, `LocalServer` and `Prompt`.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use jni::objects::{JClass, JObject, JString};
@@ -303,11 +303,11 @@ fn event_from_java(env: &mut JNIEnv, e: &JObject) -> Result<BackendEvent> {
             account_id: id(env, "accountId")?,
         })
     } else {
-        let txid = obj(env, e, "txid", SHA256)?;
+        let txid = str_field(env, e, "txid")?;
         let status = enum_field(env, e, "status", "TransactionStatus", '_')?;
         Ok(BackendEvent::TransactionChanged {
             account_id: id(env, "accountId")?,
-            txid: from_sha256(env, &txid)?,
+            txid: parse::<pwc_provider::types::Hash256>(txid)?.0,
             status: static_str(&status, &TRANSACTION_STATUSES)?,
         })
     }
@@ -337,7 +337,10 @@ pub extern "system" fn Java_org_bitcoinpurity_pwc_provider_Native_serverDefaultD
     _: JClass<'l>,
 ) -> jstring {
     native(&mut env, std::ptr::null_mut(), |env| {
+        #[cfg(unix)]
         let dir = local::default_directory();
+        #[cfg(windows)]
+        let dir: Option<PathBuf> = None;
         Ok(opt_string(env, dir.as_ref().map(|d| d.to_string_lossy()).as_deref())?.into_raw())
     })
 }
@@ -347,6 +350,7 @@ fn endpoint_error(e: EndpointError) -> Error {
         EndpointError::UnsafeDirectory(p) => ("UNSAFE_DIRECTORY", p),
         EndpointError::PathTooLong(p) => ("PATH_TOO_LONG", p),
         EndpointError::AlreadyRunning(p) => ("ALREADY_RUNNING", p),
+        EndpointError::NameTaken(p) => ("NAME_TAKEN", p),
         EndpointError::Io(p, _) => ("IO", p),
     };
     Error::Kind {
@@ -355,6 +359,32 @@ fn endpoint_error(e: EndpointError) -> Error {
         path: Some(path.to_string_lossy().into_owned()),
         message: e.to_string(),
     }
+}
+
+/// The endpoint in `dir`, or the platform's default endpoint when `dir` is `None`.
+#[cfg(unix)]
+fn bind(dir: Option<String>, provider_id: &str) -> Result<local::Endpoint> {
+    let dir = match dir {
+        Some(d) => PathBuf::from(d),
+        None => local::default_directory().ok_or_else(|| Error::Kind {
+            class: "org/bitcoinpurity/pwc/provider/EndpointException",
+            kind: "IO",
+            message: "cannot determine the endpoint directory: neither XDG_RUNTIME_DIR nor HOME is usable".into(),
+            path: Some(String::new()),
+        })?,
+    };
+    local::bind(&dir, provider_id).map_err(endpoint_error)
+}
+
+#[cfg(windows)]
+fn bind(dir: Option<String>, provider_id: &str) -> Result<local::Endpoint> {
+    if dir.is_some() {
+        return Err(Error::Throw {
+            class: "java/lang/UnsupportedOperationException",
+            message: "Windows endpoints are named pipes and have no directory".into(),
+        });
+    }
+    local::bind_pipe(provider_id).map_err(endpoint_error)
 }
 
 #[no_mangle]
@@ -366,9 +396,9 @@ pub extern "system" fn Java_org_bitcoinpurity_pwc_provider_Native_serverStart<'l
     provider_id: JString<'l>,
 ) -> jlong {
     native(&mut env, 0, |env| {
-        let dir = get_string(env, &dir)?;
+        let dir = get_opt_string(env, &dir)?;
         let id = get_string(env, &provider_id)?;
-        let endpoint = local::bind(Path::new(&dir), &id).map_err(endpoint_error)?;
+        let endpoint = bind(dir, &id)?;
         let path = endpoint.path().to_path_buf();
         // SAFETY: the Java Provider keeps its handle alive during the call.
         let provider = unsafe { get::<ProviderHandle>(p) }.clone();

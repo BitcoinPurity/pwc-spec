@@ -52,7 +52,7 @@ cd pwc-provider && cargo test
 cargo run -- --dir /tmp/pwc/run --approve auto
 ```
 
-The Java Provider SDK needs Java 25 and the same Rust toolchain; Gradle builds the native library and runs the tests, including the LOCAL runner against the Java demo program:
+The Java Provider SDK needs Java 25 and the same Rust toolchain; Gradle builds the native library and runs the tests, including the LOCAL runner against the Java demo program on macOS and Linux. It runs on Linux, macOS and Windows (over a named pipe), and is published as `org.bitcoinpurity.pwc:pwc-provider-java` on GitHub Packages with the native libraries of four platforms (Linux x86_64 and aarch64, macOS on Apple silicon, Windows x86_64):
 
 ```text
 cd pwc-provider-java && ./gradlew build
@@ -67,4 +67,4 @@ Changes are proposed and reviewed as described in PWC-GOVERNANCE-001 §4. Report
 
 ## License
 
-The documents and the data files (schemas, registry, test vectors) are licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). The license of the scripts in `pwc-schema/` and `pwc-testkit/` is not yet assigned (PWC-GOVERNANCE-001 §2.2).
+The documents and the data files (schemas, registry, test vectors) are licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). All code, that is the scripts in `pwc-schema/` and `pwc-testkit/`, `pwc-provider/`, `pwc-provider-java/`, `pwc-client/` and `pwc-client-ffi/`, is licensed under the [MIT License](LICENSE) (PWC-GOVERNANCE-001 §2.2).

@@ -12,11 +12,6 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.OptionalLong;
 import java.util.Set;
-import org.bitcoinj.base.Coin;
-import org.bitcoinj.base.Sha256Hash;
-import org.bitcoinj.core.Transaction;
-import org.bitcoinj.core.TransactionOutPoint;
-import org.bitcoinj.core.TransactionOutput;
 import org.junit.jupiter.api.Test;
 
 class MemoryBackendTest {
@@ -73,11 +68,11 @@ class MemoryBackendTest {
             assertFalse(u.isChange());
             assertTrue(m.ownsScript(WPKH, u.scriptPubKey()));
             assertFalse(m.ownsScript(PKH, u.scriptPubKey()));
-            TransactionOutPoint outpoint = new TransactionOutPoint(u.vout(), u.txid());
+            OutPoint outpoint = new OutPoint(u.txid(), u.vout());
             assertTrue(m.isUnspent(WPKH, outpoint));
-            TransactionOutput owned = m.ownedOutput(WPKH, outpoint).orElseThrow();
-            assertEquals(Coin.valueOf(1_000_000), owned.getValue());
-            assertArrayEquals(u.scriptPubKey().program(), owned.getScriptBytes());
+            TxOut owned = m.ownedOutput(WPKH, outpoint).orElseThrow();
+            assertEquals(1_000_000, owned.valueSats());
+            assertArrayEquals(u.scriptPubKey(), owned.scriptPubKey());
 
             Utxo reserved = m.utxos(WPKH, Set.of(outpoint)).stream()
                     .filter(x -> x.txid().equals(u.txid()) && x.vout() == u.vout())
@@ -99,11 +94,11 @@ class MemoryBackendTest {
     @Test
     void simulationControls() throws Exception {
         try (MemoryBackend m = MemoryBackend.demo()) {
-            Sha256Hash pending = m.receive(WPKH, 40_000, 0);
+            String pending = m.receive(WPKH, 40_000, 0);
             assertEquals(40_000, m.balance(WPKH, Set.of()).components().pendingExternalSats());
             assertEquals(TransactionStatus.UNCONFIRMED, status(m, pending));
 
-            Sha256Hash conflicting = m.receiveConflicting(WPKH, pending, 30_000);
+            String conflicting = m.receiveConflicting(WPKH, pending, 30_000);
             m.replace("regtest", pending, conflicting);
             TransactionRecord replaced = record(m, pending);
             assertEquals(TransactionStatus.REPLACED, replaced.status());
@@ -111,7 +106,7 @@ class MemoryBackendTest {
             m.dropPending("regtest", conflicting);
             assertEquals(TransactionStatus.DROPPED, status(m, conflicting));
 
-            Sha256Hash next = m.receive(WPKH, 25_000, 0);
+            String next = m.receive(WPKH, 25_000, 0);
             m.mine("regtest", 2);
             assertEquals(1002, m.tip("regtest"));
             assertEquals(2, record(m, next).confirmations());
@@ -123,7 +118,7 @@ class MemoryBackendTest {
             assertEquals(5_000_000, m.balance(PKH, Set.of()).components().immatureSats());
 
             Utxo u = m.utxos(WPKH, Set.of()).get(0);
-            TransactionOutPoint outpoint = new TransactionOutPoint(u.vout(), u.txid());
+            OutPoint outpoint = new OutPoint(u.txid(), u.vout());
             m.spendByUser(WPKH, outpoint, u.valueSats() - 1000);
             assertFalse(m.isUnspent(WPKH, outpoint));
 
@@ -144,8 +139,7 @@ class MemoryBackendTest {
     @Test
     void psbtsMessagesAndBroadcast() throws Exception {
         try (MemoryBackend m = MemoryBackend.demo()) {
-            TransactionOutput pay = new TransactionOutput(
-                    null, Coin.valueOf(100_000), m.utxos(PKH, Set.of()).get(0).scriptPubKey().program());
+            TxOut pay = new TxOut(100_000, m.utxos(PKH, Set.of()).get(0).scriptPubKey());
             CreatedPsbt created = m.createPsbt(WPKH, new CreateRequest(List.of(pay), 2000, null, true), Set.of());
             assertTrue(created.fee() > 0 && created.vsize() > 0);
             assertEquals(1, created.inputs().size());
@@ -167,7 +161,7 @@ class MemoryBackendTest {
                     WPKH, m.utxos(WPKH, Set.of()).get(0).scriptPubKey(), "hello", MessageFormat.BIP322_FULL));
             assertEquals(ErrorCode.UNSUPPORTED_OPERATION, full.code());
 
-            Transaction unsigned = Transaction.read(ByteBuffer.wrap(unsignedTx(created.psbt())));
+            byte[] unsigned = unsignedTx(created.psbt());
             PwcException rejected = assertThrows(PwcException.class, () -> m.broadcast("regtest", unsigned));
             assertEquals(ErrorCode.TRANSACTION_REJECTED, rejected.code());
             m.setOffline("regtest", true);
@@ -188,11 +182,11 @@ class MemoryBackendTest {
         return tx;
     }
 
-    private static TransactionRecord record(MemoryBackend m, Sha256Hash txid) throws PwcException {
+    private static TransactionRecord record(MemoryBackend m, String txid) throws PwcException {
         return m.transactions(WPKH).stream().filter(t -> t.txid().equals(txid)).findFirst().orElseThrow();
     }
 
-    private static TransactionStatus status(MemoryBackend m, Sha256Hash txid) throws PwcException {
+    private static TransactionStatus status(MemoryBackend m, String txid) throws PwcException {
         return record(m, txid).status();
     }
 }

@@ -210,12 +210,8 @@ impl WalletBackend for JavaBackend {
     fn owns_script(&self, account_id: &str, script_pubkey: &bitcoin::Script) -> bool {
         self.call("ownsScript", |env, o| {
             let id = string(env, account_id)?;
-            // A script that bitcoinj cannot parse belongs to no account.
-            let Ok(s) = script(env, script_pubkey.as_bytes()) else {
-                env.exception_clear()?;
-                return Ok(false);
-            };
-            let sig = format!("({STRING_ARG}{SCRIPT})Z");
+            let s = bytes(env, script_pubkey.as_bytes())?;
+            let sig = format!("({STRING_ARG}[B)Z");
             Ok(env
                 .call_method(o, "ownsScript", sig, &[(&id).into(), (&s).into()])?
                 .z()?)
@@ -316,10 +312,10 @@ impl WalletBackend for JavaBackend {
     ) -> std::result::Result<Vec<u8>, PwcError> {
         Ok(self.call("signMessage", |env, o| {
             let id = string(env, account_id)?;
-            let s = script(env, script_pubkey.as_bytes())?;
+            let s = bytes(env, script_pubkey.as_bytes())?;
             let m = string(env, message)?;
             let f = serde_enum(env, "MessageFormat", &format)?;
-            let sig = format!("({STRING_ARG}{SCRIPT}{STRING_ARG}{})[B", sdk_type("MessageFormat"));
+            let sig = format!("({STRING_ARG}[B{STRING_ARG}{})[B", sdk_type("MessageFormat"));
             let r = self.method(
                 env,
                 o,
@@ -335,7 +331,7 @@ impl WalletBackend for JavaBackend {
         Ok(self.call("broadcast", |env, o| {
             let n = string(env, network)?;
             let t = transaction(env, tx)?;
-            let sig = format!("({STRING_ARG}{TRANSACTION}){SHA256}");
+            let sig = format!("({STRING_ARG}[B){STRING}");
             let h = self.method(env, o, "broadcast", &sig, &[(&n).into(), (&t).into()])?;
             txid(env, &h)
         })?)

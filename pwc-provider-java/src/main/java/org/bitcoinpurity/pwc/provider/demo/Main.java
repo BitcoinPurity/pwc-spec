@@ -29,7 +29,8 @@ import org.bitcoinpurity.pwc.provider.WalletInfo;
 /**
  * Demo PWC LOCAL Provider backed by the in-memory wallet.
  *
- * <p>Usage: {@code Main [--dir DIR] [--approve ask|auto] [--approve-delay-ms N]}
+ * <p>Usage: {@code Main [--dir DIR] [--approve ask|auto] [--approve-delay-ms N]}; {@code --dir} is for macOS and
+ * Linux, Windows endpoints being named pipes.
  */
 public final class Main {
     private Main() {}
@@ -123,20 +124,15 @@ public final class Main {
                 default -> usage();
             }
         }
-        if (dir == null) {
-            dir = LocalServer.defaultDirectory().orElse(null);
-            if (dir == null) {
-                System.err.println("cannot determine the endpoint directory; pass --dir");
-                System.exit(1);
-            }
-        }
         MemoryBackend backend = MemoryBackend.demo();
         PromptHandler prompts = auto ? approveAutomatically(backend, delay) : ask(backend);
         Provider provider = Provider.create(backend, Config.defaults(), prompts);
         LocalServer server;
         try {
-            server = LocalServer.start(provider, dir);
-        } catch (EndpointException e) {
+            server = dir == null
+                    ? LocalServer.start(provider)
+                    : LocalServer.start(provider, dir, LocalServer.PROVIDER_ID);
+        } catch (EndpointException | UnsupportedOperationException e) {
             System.err.println("pwc-provider: " + e.getMessage());
             System.exit(1);
             return;

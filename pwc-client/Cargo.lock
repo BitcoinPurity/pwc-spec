@@ -1012,6 +1012,7 @@ dependencies = [
  "serde_json",
  "time",
  "tokio",
+ "windows-sys",
 ]
 
 [[package]]

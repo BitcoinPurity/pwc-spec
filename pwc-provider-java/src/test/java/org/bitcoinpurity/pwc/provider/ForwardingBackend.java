@@ -6,11 +6,6 @@ import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import org.bitcoinj.base.Sha256Hash;
-import org.bitcoinj.core.Transaction;
-import org.bitcoinj.core.TransactionOutPoint;
-import org.bitcoinj.core.TransactionOutput;
-import org.bitcoinj.script.Script;
 
 /** A Java backend that forwards to the in-memory one, records each method called and can be made to fail. */
 final class ForwardingBackend implements WalletBackend {
@@ -60,7 +55,7 @@ final class ForwardingBackend implements WalletBackend {
     }
 
     @Override
-    public Balance balance(String accountId, Set<TransactionOutPoint> reserved) throws PwcException {
+    public Balance balance(String accountId, Set<OutPoint> reserved) throws PwcException {
         enter("balance");
         return memory.balance(accountId, reserved);
     }
@@ -84,7 +79,7 @@ final class ForwardingBackend implements WalletBackend {
     }
 
     @Override
-    public List<Utxo> utxos(String accountId, Set<TransactionOutPoint> reserved) throws PwcException {
+    public List<Utxo> utxos(String accountId, Set<OutPoint> reserved) throws PwcException {
         enter("utxos");
         return memory.utxos(accountId, reserved);
     }
@@ -96,13 +91,13 @@ final class ForwardingBackend implements WalletBackend {
     }
 
     @Override
-    public boolean ownsScript(String accountId, Script script) {
+    public boolean ownsScript(String accountId, byte[] script) {
         enterUnchecked("ownsScript");
         return memory.ownsScript(accountId, script);
     }
 
     @Override
-    public boolean isUnspent(String accountId, TransactionOutPoint outpoint) {
+    public boolean isUnspent(String accountId, OutPoint outpoint) {
         enterUnchecked("isUnspent");
         return memory.isUnspent(accountId, outpoint);
     }
@@ -114,14 +109,14 @@ final class ForwardingBackend implements WalletBackend {
     }
 
     @Override
-    public CreatedPsbt createPsbt(String accountId, CreateRequest request, Set<TransactionOutPoint> excluded)
+    public CreatedPsbt createPsbt(String accountId, CreateRequest request, Set<OutPoint> excluded)
             throws PwcException {
         enter("createPsbt");
         return memory.createPsbt(accountId, request, excluded);
     }
 
     @Override
-    public Optional<TransactionOutput> ownedOutput(String accountId, TransactionOutPoint outpoint) {
+    public Optional<TxOut> ownedOutput(String accountId, OutPoint outpoint) {
         enterUnchecked("ownedOutput");
         return memory.ownedOutput(accountId, outpoint);
     }
@@ -133,14 +128,14 @@ final class ForwardingBackend implements WalletBackend {
     }
 
     @Override
-    public byte[] signMessage(String accountId, Script script, String message, MessageFormat format)
+    public byte[] signMessage(String accountId, byte[] script, String message, MessageFormat format)
             throws PwcException {
         enter("signMessage");
         return memory.signMessage(accountId, script, message, format);
     }
 
     @Override
-    public Sha256Hash broadcast(String network, Transaction tx) throws PwcException {
+    public String broadcast(String network, byte[] tx) throws PwcException {
         enter("broadcast");
         return memory.broadcast(network, tx);
     }

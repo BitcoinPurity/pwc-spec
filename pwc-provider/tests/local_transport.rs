@@ -2,11 +2,16 @@
 
 mod common;
 
+#[cfg(unix)]
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::time::Duration;
 
-use common::{code, Conn, Harness};
-use pwc_provider::local::{self, EndpointError};
+#[cfg(unix)]
+use common::Conn;
+use common::{code, Harness};
+use pwc_provider::local;
+#[cfg(unix)]
+use pwc_provider::local::EndpointError;
 use pwc_provider::prompt::Prompt;
 use pwc_provider::provider::{Config, RateLimit};
 use serde_json::{json, Value};
@@ -15,6 +20,7 @@ fn hex(b: &[u8]) -> String {
     bitcoin::hex::DisplayHex::to_lower_hex_string(b)
 }
 
+#[cfg(unix)]
 #[tokio::test]
 async fn l01_endpoint_directory_and_socket_permissions() {
     let tmp = tempfile::tempdir().unwrap();
@@ -33,6 +39,7 @@ async fn l01_endpoint_directory_and_socket_permissions() {
     assert_eq!(std::fs::metadata(&h.path).unwrap().mode() & 0o777, 0o600);
 }
 
+#[cfg(unix)]
 #[tokio::test]
 async fn l25_endpoint_path_too_long() {
     let tmp = tempfile::tempdir().unwrap();
@@ -43,6 +50,7 @@ async fn l25_endpoint_path_too_long() {
     ));
 }
 
+#[cfg(unix)]
 #[tokio::test]
 async fn l26_stale_socket_replaced_running_instance_untouched() {
     let tmp = tempfile::tempdir().unwrap();
@@ -391,6 +399,7 @@ async fn l27_pairing_prompt_marks_claims_and_shows_peer() {
     assert!(shown.contains(&std::process::id().to_string()));
 }
 
+#[cfg(unix)]
 #[tokio::test]
 async fn l28_no_network_listener() {
     let _h = Harness::start(Config::default()).await;

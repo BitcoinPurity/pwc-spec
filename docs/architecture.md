@@ -22,7 +22,10 @@ pwc-provider/
 │   │   ├── grants.rs   grant coverage and narrowing
 │   │   ├── operations.rs Operation states, idempotency records, reservations
 │   │   └── handlers.rs check 10 of each method
-│   └── local.rs        LOCAL transport: endpoint, peer check, frames, JSON-RPC, handshake
+│   ├── local.rs        LOCAL transport: frames, JSON-RPC, handshake, generic over the stream
+│   └── local/
+│       ├── unix.rs     endpoint directory and AF_UNIX socket, peer check through SO_PEERCRED
+│       └── windows.rs  named pipe with first-instance flag and DACL, peer check through the process token
 └── tests/              integration tests over the Unix socket
 ```
 
@@ -154,7 +157,9 @@ Native.java ──JNI──► pwc-provider-jni ──────────�
 - A dedicated thread, attached as a daemon, receives from the `PromptReceiver` and calls the Java dispatcher with a `Prompt` object. The object holds a reply handle: a `Box` with the `oneshot::Sender`. Answering takes the sender out and sends; freeing the handle without an answer drops the sender, which refuses the prompt. `isWithdrawn` is `Sender::is_closed`.
 - `LocalServer.start` calls `local::bind` and spawns `local::serve`. `close` aborts that task and waits until it has ended, so the socket file is gone when `close` returns.
 - Rust panics never cross the boundary: each native function catches them and throws `IllegalStateException`.
-- Classes are looked up through the class loader of `Native`, remembered at `JNI_OnLoad`, so that threads started by Rust find the SDK and bitcoinj classes under any class loader.
+- Classes are looked up through the class loader of `Native`, remembered at `JNI_OnLoad`, so that threads started by Rust find the SDK classes under any class loader.
+- `Native` first calls `System.loadLibrary("pwc_provider_jni")`; when the library is not on `java.library.path` it extracts `native/<os>-<arch>/<library>` from the jar to a temporary file.
+- On Windows `LocalServer.start(provider[, id])` binds the pipe through `local::bind_pipe`; the directory overloads throw `UnsupportedOperationException`.
 - A Java backend must not call the Provider: its methods run while the Provider holds its lock (section 5).
 
 ### 8.3 Value mapping
@@ -162,11 +167,11 @@ Native.java ──JNI──► pwc-provider-jni ──────────�
 | Rust | Java |
 |---|---|
 | `Id`, `Text`, `Network`, `Scope`, `Address` | `String`, validated with the Rust `Deserialize` rules when entering Rust |
-| `Hash256`, `bitcoin::Txid` | `Sha256Hash` (display byte order, as `Sha256Hash.wrap(hex)`) |
-| `bitcoin::OutPoint`, `Reserved` | `TransactionOutPoint`, `Set<TransactionOutPoint>` |
-| `bitcoin::Script`, `Hex` of a script | `Script` (`Script.parse`); `OutputSummary.scriptPubKey` stays a hex `String` as in Rust |
-| `bitcoin::TxOut`, `(ScriptBuf, u64)` | `TransactionOutput` with no parent transaction |
-| `bitcoin::Transaction` | `Transaction` (consensus serialization) |
+| `Hash256`, `bitcoin::Txid` | `String`, lower-case hex in display order |
+| `bitcoin::OutPoint`, `Reserved` | `OutPoint(String txid, int vout)`, `Set<OutPoint>` |
+| `bitcoin::Script`, `Hex` of a script | `byte[]`; `OutputSummary.scriptPubKey` stays a hex `String` as in Rust |
+| `bitcoin::TxOut`, `(ScriptBuf, u64)` | `TxOut(long valueSats, byte[] scriptPubKey)` |
+| `bitcoin::Transaction` | `byte[]` (consensus serialization) |
 | `bitcoin::Psbt` | `byte[]` (BIP-174 serialization) |
 | `Sats`, `SignedSats`, `u64` | `long` |
 | `u32` | `int`; a negative value is refused when entering Rust |
@@ -183,8 +188,17 @@ Native.java ──JNI──► pwc-provider-jni ──────────�
 |---|---|
 | `jni` 0.21.1 | JNI functions and calls into the JVM |
 | `pwc-provider`, tokio, bitcoin, serde_json, time | As in section 7 |
-| bitcoinj-core 0.17.1 (`api`) | Bitcoin types of the Java interface |
 | JUnit 5, Jackson (tests only) | Tests and the test LOCAL Client |
+
+### 8.5 Build and distribution
+
+- `./gradlew build` builds this platform's library with cargo. `-PnativeLibs=<dir>` instead takes prebuilt libraries laid out as `<os>-<arch>/<library>`.
+- CI (`.github/workflows/ci.yml`):
+  - The `java-sdk` matrix runs `ci/build.sh <platform>` on the four platforms. Each job builds, tests and uploads its library with `actions/upload-artifact`; run steps get no Buildkite agent token, so `buildkite-agent` cannot be called from them.
+  - `java-sdk-jar` downloads the four libraries and runs `ci/assemble.sh`, which checks that the jar has `module-info.class` and all four libraries.
+  - `java-sdk-publish` runs only on a tag `pwc-provider-java-v<version>`, after `java-sdk-jar`, and publishes with `ci/assemble.sh --publish <tag>`, using the `PWC_PACKAGES_TOKEN` secret. It is a job of its own because the runner resolves every secret a job references before the job starts.
+- `provider-windows` runs the Rust tests on Windows, where they run over the named pipe.
+- Jobs on one Buildkite agent share the home directory, so every Rust job outside Windows sets its own `CARGO_HOME` under the job's workspace before installing the toolchain; the toolchains in `~/.rustup` stay shared.
 
 # PWC LOCAL Client (Rust)
 

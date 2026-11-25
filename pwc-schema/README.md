@@ -1,6 +1,6 @@
 # PWC schemas and registry
 
-Machine-readable companions of the PWC specifications. License: CC BY 4.0, except the `.py` scripts (see PWC-GOVERNANCE-001 §2.2).
+Machine-readable companions of the PWC specifications. License: CC BY 4.0, except the `.py` scripts, which are MIT (PWC-GOVERNANCE-001 §2.2).
 
 | File | Content |
 |---|---|

@@ -1,15 +1,17 @@
 plugins {
     `java-library`
     application
+    `maven-publish`
 }
 
 group = "org.bitcoinpurity.pwc"
-version = "0.1.0"
+version = "0.2.0"
 
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(25)
     }
+    withSourcesJar()
 }
 
 repositories {
@@ -17,17 +19,24 @@ repositories {
 }
 
 dependencies {
-    api("org.bitcoinj:bitcoinj-core:0.17.1")
     testImplementation(platform("org.junit:junit-bom:5.13.4"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testImplementation("com.fasterxml.jackson.core:jackson-databind:2.20.0")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
-    testRuntimeOnly("org.slf4j:slf4j-nop:2.0.16")
 }
 
-val os = System.getProperty("os.name").lowercase().let { if (it.startsWith("mac")) "macos" else it }
+// The platform names of Native.platform(); the published jar carries all of them (input/requirements.md §6.2).
+val os = System.getProperty("os.name").lowercase().let {
+    when {
+        it.startsWith("mac") -> "macos"
+        it.startsWith("windows") -> "windows"
+        else -> it
+    }
+}
 val arch = System.getProperty("os.arch").let { if (it == "amd64") "x86_64" else if (it == "arm64") "aarch64" else it }
-val libraryFile = if (os == "macos") "libpwc_provider_jni.dylib" else "libpwc_provider_jni.so"
+val libraryFile = System.mapLibraryName("pwc_provider_jni")
+// A directory with prebuilt libraries as <os>-<arch>/<library>, used instead of building this platform's library.
+val nativeLibs = findProperty("nativeLibs")?.toString()
 
 val cargoBuild by tasks.registering(Exec::class) {
     description = "Builds the JNI library with cargo."
@@ -40,8 +49,14 @@ val cargoBuild by tasks.registering(Exec::class) {
 }
 
 tasks.processResources {
-    from(cargoBuild) {
-        into("org/bitcoinpurity/pwc/provider/native/$os-$arch")
+    if (nativeLibs != null) {
+        from(nativeLibs) {
+            into("org/bitcoinpurity/pwc/provider/native")
+        }
+    } else {
+        from(cargoBuild) {
+            into("org/bitcoinpurity/pwc/provider/native/$os-$arch")
+        }
     }
 }
 
@@ -62,6 +77,40 @@ tasks.withType<JavaCompile> {
 }
 
 application {
+    mainModule = "org.bitcoinpurity.pwc.provider"
     mainClass = "org.bitcoinpurity.pwc.provider.demo.Main"
-    applicationDefaultJvmArgs = listOf(nativeAccess)
+    applicationDefaultJvmArgs = listOf("--enable-native-access=org.bitcoinpurity.pwc.provider")
+}
+
+publishing {
+    publications {
+        create<MavenPublication>("sdk") {
+            from(components["java"])
+            pom {
+                name = "PWC Provider SDK for Java"
+                description = "The Rust PWC Provider (Core v0.2.1 over LOCAL v0.1.0) for Java host wallets, through JNI"
+                url = "https://github.com/BitcoinPurity/pwc-spec"
+                licenses {
+                    license {
+                        name = "MIT License"
+                        url = "https://opensource.org/license/mit"
+                    }
+                }
+                scm {
+                    url = "https://github.com/BitcoinPurity/pwc-spec"
+                }
+            }
+        }
+    }
+    repositories {
+        // CI publishes with a token from the environment (input/requirements.md §6.2).
+        maven {
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/BitcoinPurity/pwc-spec")
+            credentials {
+                username = System.getenv("PWC_PACKAGES_USER")
+                password = System.getenv("PWC_PACKAGES_TOKEN")
+            }
+        }
+    }
 }

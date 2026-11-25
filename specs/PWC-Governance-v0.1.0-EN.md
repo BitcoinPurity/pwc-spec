@@ -24,9 +24,9 @@ Attribution SHOULD take this form:
 
 > "⟨Document title⟩ ⟨version⟩, Purity Wallet Connect, licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/)." followed by a note of any changes.
 
-### 2.2 Test scripts
+### 2.2 Code
 
-Creative Commons recommends against using its licenses for software. The license of the executable scripts in the test kit is therefore not yet assigned (Appendix A, G-01). Until it is, they are distributed for evaluation only.
+Creative Commons recommends against using its licenses for software. The executable scripts of the test kit and of the schema tools, and the implementations distributed with the specifications, are therefore licensed under the **MIT License**, whose text is in the license file at the root of the repository.
 
 ### 2.3 Trademarks and patents
 
@@ -111,7 +111,7 @@ All documents of this family are currently review drafts.
 
 | ID | Subject | Current draft policy |
 |---|---|---|
-| G-01 | License of the test-kit scripts | Not assigned; Apache-2.0 or MIT would be usual choices |
+| G-01 | License of the test-kit scripts | Resolved: MIT (§2.2) |
 | G-02 | Security contact | To be named by the Specification Owner |
 | G-03 | Canonical repository and permanent schema URIs | Not assigned; schemas use the placeholder domain `purity-wallet-connect.invalid` |
 | G-04 | Patent policy | None |

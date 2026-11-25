@@ -32,6 +32,9 @@ jobs:
         working-directory: pwc-provider
     steps:
       - uses: actions/checkout@v4
+      # A private CARGO_HOME per job: jobs on one agent share the home directory, and rustup-init of one job rewrote
+      # ~/.cargo/bin while another job ran rustc from it ("Text file busy", build 35).
+      - run: echo "CARGO_HOME=$GITHUB_WORKSPACE/.cargo-home" >> "$GITHUB_ENV"
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: "1.97.0"
@@ -53,6 +56,8 @@ jobs:
         working-directory: pwc-client
     steps:
       - uses: actions/checkout@v4
+      # A private CARGO_HOME, as in the provider job.
+      - run: echo "CARGO_HOME=$GITHUB_WORKSPACE/.cargo-home" >> "$GITHUB_ENV"
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: "1.97.0"
@@ -85,6 +90,8 @@ jobs:
         working-directory: pwc-client-ffi
     steps:
       - uses: actions/checkout@v4
+      # A private CARGO_HOME, as in the provider job.
+      - run: echo "CARGO_HOME=$GITHUB_WORKSPACE/.cargo-home" >> "$GITHUB_ENV"
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: "1.97.0"
@@ -110,6 +117,8 @@ jobs:
         working-directory: pwc-provider
     steps:
       - uses: actions/checkout@v4
+      # A private CARGO_HOME, as in the provider job.
+      - run: echo "CARGO_HOME=$GITHUB_WORKSPACE/.cargo-home" >> "$GITHUB_ENV"
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: "1.97.0"
@@ -129,37 +138,127 @@ jobs:
             { echo "## Coverage of pwc-provider"; echo; echo '```text'; cat coverage.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           fi
 
-  java-sdk:
-    name: Java Provider SDK
-    runs-on: ubuntu-latest
+  provider-windows:
+    name: Rust Provider (Windows)
+    runs-on: windows-latest
     defaults:
       run:
-        working-directory: pwc-provider-java
+        working-directory: pwc-provider
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: "1.97.0"
+          components: clippy
+      - run: cargo clippy --all-targets --locked -- -D warnings
+      # The named pipe tests run here; tests/runner.rs, which needs AF_UNIX, is compiled out.
+      - run: cargo test --locked
+
+  java-sdk:
+    name: Java Provider SDK (${{ matrix.platform }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x86_64
+            runner: ubuntu-latest
+          - platform: linux-aarch64
+            runner: ubuntu-24.04-arm
+          - platform: macos-aarch64
+            runner: macos-latest
+          - platform: windows-x86_64
+            runner: windows-latest
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        working-directory: pwc-provider-java
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      # A private CARGO_HOME, as in the provider job.
+      - if: runner.os != 'Windows'
+        run: echo "CARGO_HOME=$GITHUB_WORKSPACE/.cargo-home" >> "$GITHUB_ENV"
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.97.0"
           components: rustfmt, clippy
-      # One step with a private CARGO_HOME: the Swatinem/rust-cache save step of the other jobs on the same agent
-      # deletes the crate sources in the shared ~/.cargo/registry/src, possibly while this job compiles them.
-      # Temurin JDK 25 is downloaded here because actions/setup-java needs a GitHub workflow token, which this
-      # pipeline does not get (see the spec job); the Gradle wrapper downloads Gradle itself. The tests include
-      # DemoRunnerTest, which runs pwc-testkit/local_runner.py with the agent's python3.
-      - run: |
-          export CARGO_HOME="$(mktemp -d)"
-          trap 'rm -rf "$CARGO_HOME"' EXIT
-          (cd native && cargo fmt --check && cargo clippy --all-targets --locked -- -D warnings)
-          arch=$(uname -m); case "$arch" in x86_64) arch=x64;; arm64) arch=aarch64;; esac
-          jdk="$HOME/.cache/pwc-jdk-25-$arch"
-          if [ ! -x "$jdk/bin/java" ]; then
-            mkdir -p "$jdk"
-            curl -fsSL "https://api.adoptium.net/v3/binary/latest/25/ga/linux/$arch/jdk/hotspot/normal/eclipse" \
-              | tar -xz -C "$jdk" --strip-components=1
-          fi
-          export JAVA_HOME="$jdk" PATH="$jdk/bin:$PATH"
-          java -version
-          # The absolute path bash resolves, because the JVM does not expand entries such as ~/.cargo/bin in PATH.
-          export CARGO="$(command -v cargo)"
-          echo "cargo: $CARGO; PATH entries with cargo: $(echo "$PATH" | tr ':' '\n' | grep cargo | tr '\n' ' ')"
-          ./gradlew build --no-daemon
+      # Builds and tests on this platform; see the script for the JDK and $CARGO.
+      - run: ci/build.sh ${{ matrix.platform }}
+      # The Buildkite GitHub Actions runner gives run steps no agent token, so artifacts go through the actions.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform }}
+          path: pwc-provider-java/natives/${{ matrix.platform }}/
+          if-no-files-found: error
+
+  java-sdk-jar:
+    name: Java Provider SDK jar
+    needs: java-sdk
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: pwc-provider-java
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      # One download per platform into natives/<platform>/: the runner's adapter merges pattern downloads into
+      # one directory, which would lose the platform directories.
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux-x86_64
+          path: pwc-provider-java/natives/linux-x86_64
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux-aarch64
+          path: pwc-provider-java/natives/linux-aarch64
+      - uses: actions/download-artifact@v4
+        with:
+          name: macos-aarch64
+          path: pwc-provider-java/natives/macos-aarch64
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-x86_64
+          path: pwc-provider-java/natives/windows-x86_64
+      # One jar with the native libraries of the four platforms.
+      - run: ci/assemble.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pwc-provider-java-jar
+          path: pwc-provider-java/build/libs/*.jar
+          if-no-files-found: error
+
+  # A job of its own: the runner's adapter resolves every secret a job references before the job starts, even in
+  # steps that would be skipped, so the secret is referenced only by a job that runs on tags.
+  java-sdk-publish:
+    name: Publish the Java Provider SDK
+    needs: java-sdk-jar
+    if: startsWith(github.ref, 'refs/tags/pwc-provider-java-v')
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: pwc-provider-java
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      # One download per platform into natives/<platform>/: the runner's adapter merges pattern downloads into
+      # one directory, which would lose the platform directories.
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux-x86_64
+          path: pwc-provider-java/natives/linux-x86_64
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux-aarch64
+          path: pwc-provider-java/natives/linux-aarch64
+      - uses: actions/download-artifact@v4
+        with:
+          name: macos-aarch64
+          path: pwc-provider-java/natives/macos-aarch64
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-x86_64
+          path: pwc-provider-java/natives/windows-x86_64
+      - env:
+          PWC_PACKAGES_USER: ${{ github.actor }}
+          PWC_PACKAGES_TOKEN: ${{ secrets.PWC_PACKAGES_TOKEN }}
+        run: ci/assemble.sh --publish "${{ github.ref_name }}"

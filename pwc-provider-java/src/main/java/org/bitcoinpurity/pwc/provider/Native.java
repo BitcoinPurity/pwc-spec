@@ -9,39 +9,46 @@ import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import org.bitcoinj.base.Sha256Hash;
-import org.bitcoinj.core.Transaction;
-import org.bitcoinj.core.TransactionOutPoint;
-import org.bitcoinj.core.TransactionOutput;
-import org.bitcoinj.script.Script;
 
 /** The native methods of the JNI library, which is loaded from the jar. */
 final class Native {
-    static {
-        load();
-    }
+    /** Where the library was loaded from: {@code "java.library.path"} or {@code "jar"}. */
+    static final String loadedFrom = load();
 
     private Native() {}
 
-    @SuppressWarnings("restricted")
-    private static void load() {
-        String osName = System.getProperty("os.name").toLowerCase(Locale.ROOT);
-        String os = osName.startsWith("mac") ? "macos" : osName;
+    /** The jar's directory name for this platform: {@code <os>-<arch>}. */
+    static String platform() {
+        String name = System.getProperty("os.name").toLowerCase(Locale.ROOT);
+        String os = name.startsWith("mac") ? "macos" : name.startsWith("windows") ? "windows" : name;
         String arch = switch (System.getProperty("os.arch")) {
             case "amd64" -> "x86_64";
             case "arm64" -> "aarch64";
             default -> System.getProperty("os.arch");
         };
-        String file = os.equals("macos") ? "libpwc_provider_jni.dylib" : "libpwc_provider_jni.so";
-        String resource = "native/" + os + "-" + arch + "/" + file;
+        return os + "-" + arch;
+    }
+
+    /** Loads {@code pwc_provider_jni} from {@code java.library.path}, or else the copy in the jar. */
+    @SuppressWarnings("restricted")
+    private static String load() {
+        try {
+            System.loadLibrary("pwc_provider_jni");
+            return "java.library.path";
+        } catch (UnsatisfiedLinkError notOnPath) {
+            // Not installed next to the application: use the jar's copy.
+        }
+        String file = System.mapLibraryName("pwc_provider_jni");
+        String resource = "native/" + platform() + "/" + file;
         try (InputStream in = Native.class.getResourceAsStream(resource)) {
             if (in == null) {
-                throw new UnsatisfiedLinkError("this jar has no native library for " + os + "-" + arch);
+                throw new UnsatisfiedLinkError("this jar has no native library for " + platform());
             }
             Path copy = Files.createTempFile("pwc_provider_jni", file.substring(file.lastIndexOf('.')));
             copy.toFile().deleteOnExit();
             Files.copy(in, copy, StandardCopyOption.REPLACE_EXISTING);
             System.load(copy.toString());
+            return "jar";
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -75,6 +82,7 @@ final class Native {
 
     static native String serverDefaultDirectory();
 
+    /** {@code dir} is null for the platform's default endpoint. */
     static native long serverStart(long provider, String dir, String providerId) throws EndpointException;
 
     static native String serverPath(long server);
@@ -104,13 +112,13 @@ final class Native {
 
     static native void memorySetWalletState(long memory, String walletId, WalletState state);
 
-    static native Sha256Hash memoryReceive(long memory, String accountId, long value, int confirmations, boolean coinbase);
+    static native String memoryReceive(long memory, String accountId, long value, int confirmations, boolean coinbase);
 
-    static native Sha256Hash memoryReceiveConflicting(long memory, String accountId, Sha256Hash txid, long value);
+    static native String memoryReceiveConflicting(long memory, String accountId, String txid, long value);
 
-    static native void memoryReplace(long memory, String network, Sha256Hash txid, Sha256Hash by);
+    static native void memoryReplace(long memory, String network, String txid, String by);
 
-    static native void memoryDropPending(long memory, String network, Sha256Hash txid);
+    static native void memoryDropPending(long memory, String network, String txid);
 
     static native void memoryMine(long memory, String network, int blocks);
 
@@ -120,7 +128,7 @@ final class Native {
 
     static native void memorySetFeeEstimate(long memory, String network, boolean present, long satPerKvb);
 
-    static native Sha256Hash memorySpendByUser(long memory, String accountId, TransactionOutPoint outpoint, long value);
+    static native String memorySpendByUser(long memory, String accountId, OutPoint outpoint, long value);
 
     static native int memoryTip(long memory, String network);
 
@@ -128,7 +136,7 @@ final class Native {
 
     static native AccountInfo memoryAccount(long memory, String accountId);
 
-    static native Balance memoryBalance(long memory, String accountId, Set<TransactionOutPoint> reserved)
+    static native Balance memoryBalance(long memory, String accountId, Set<OutPoint> reserved)
             throws PwcException;
 
     static native AddressRecord memoryReceiveAddress(long memory, String accountId) throws PwcException;
@@ -137,28 +145,28 @@ final class Native {
 
     static native List<AddressRecord> memoryAddresses(long memory, String accountId);
 
-    static native List<Utxo> memoryUtxos(long memory, String accountId, Set<TransactionOutPoint> reserved)
+    static native List<Utxo> memoryUtxos(long memory, String accountId, Set<OutPoint> reserved)
             throws PwcException;
 
     static native List<TransactionRecord> memoryTransactions(long memory, String accountId) throws PwcException;
 
-    static native boolean memoryOwnsScript(long memory, String accountId, Script script);
+    static native boolean memoryOwnsScript(long memory, String accountId, byte[] scriptPubKey);
 
-    static native boolean memoryIsUnspent(long memory, String accountId, TransactionOutPoint outpoint);
+    static native boolean memoryIsUnspent(long memory, String accountId, OutPoint outpoint);
 
     static native Long memoryFeeEstimate(long memory, String network, long targetBlocks);
 
     static native CreatedPsbt memoryCreatePsbt(
-            long memory, String accountId, CreateRequest request, Set<TransactionOutPoint> excluded)
+            long memory, String accountId, CreateRequest request, Set<OutPoint> excluded)
             throws PwcException;
 
-    static native TransactionOutput memoryOwnedOutput(long memory, String accountId, TransactionOutPoint outpoint);
+    static native TxOut memoryOwnedOutput(long memory, String accountId, OutPoint outpoint);
 
     static native SignedPsbt memorySignPsbt(long memory, String accountId, byte[] psbt, List<Integer> inputs)
             throws PwcException;
 
     static native byte[] memorySignMessage(
-            long memory, String accountId, Script script, String message, MessageFormat format) throws PwcException;
+            long memory, String accountId, byte[] scriptPubKey, String message, MessageFormat format) throws PwcException;
 
-    static native Sha256Hash memoryBroadcast(long memory, String network, Transaction tx) throws PwcException;
+    static native String memoryBroadcast(long memory, String network, byte[] transaction) throws PwcException;
 }

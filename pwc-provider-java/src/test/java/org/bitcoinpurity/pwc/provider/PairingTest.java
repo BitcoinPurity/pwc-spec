@@ -105,7 +105,7 @@ class PairingTest {
                 Provider provider = Provider.create(memory, Config.defaults(), p -> {
                     throw new IllegalStateException("handler failed");
                 });
-                LocalServer server = LocalServer.start(provider, java.nio.file.Files.createTempDirectory("pwc").resolve("run"))) {
+                LocalServer server = Harness.start(provider, java.nio.file.Files.createTempDirectory("pwc"))) {
             LocalClient c = new LocalClient(server.path());
             c.hello();
             assertEquals("USER_REJECTED", c.fails("local.pair", obj("client_name", "App", "pairing_code", "111111")));

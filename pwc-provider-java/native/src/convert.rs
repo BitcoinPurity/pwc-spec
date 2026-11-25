@@ -20,10 +20,8 @@ pub const INSTANT: &str = "Ljava/time/Instant;";
 pub const DURATION: &str = "Ljava/time/Duration;";
 pub const INTEGER: &str = "Ljava/lang/Integer;";
 pub const LONG: &str = "Ljava/lang/Long;";
-pub const SHA256: &str = "Lorg/bitcoinj/base/Sha256Hash;";
-pub const OUTPOINT: &str = "Lorg/bitcoinj/core/TransactionOutPoint;";
-pub const SCRIPT: &str = "Lorg/bitcoinj/script/Script;";
-pub const TRANSACTION: &str = "Lorg/bitcoinj/core/Transaction;";
+pub const BYTES: &str = "[B";
+pub const OUTPOINT: &str = "Lorg/bitcoinpurity/pwc/provider/OutPoint;";
 
 /// Why a native call or a call into Java did not produce a value.
 #[derive(Debug)]
@@ -229,29 +227,14 @@ pub fn bytes<'l>(env: &mut JNIEnv<'l>, b: &[u8]) -> Result<JObject<'l>> {
     Ok(env.byte_array_from_slice(b)?.into())
 }
 
-pub fn sha256<'l>(env: &mut JNIEnv<'l>, hex: &str) -> Result<JObject<'l>> {
-    let c = class(env, "org/bitcoinj/base/Sha256Hash")?;
-    let s = string(env, hex)?;
-    Ok(env
-        .call_static_method(&c, "wrap", format!("({STRING}){SHA256}"), &[(&s).into()])?
-        .l()?)
-}
-
-pub fn opt_sha256<'l>(env: &mut JNIEnv<'l>, hex: Option<&str>) -> Result<JObject<'l>> {
-    match hex {
-        Some(h) => sha256(env, h),
-        None => Ok(JObject::null()),
-    }
-}
-
 pub fn outpoint<'l>(env: &mut JNIEnv<'l>, o: &bitcoin::OutPoint) -> Result<JObject<'l>> {
-    let hash = sha256(env, &o.txid.to_string())?;
-    let c = class(env, "org/bitcoinj/core/TransactionOutPoint")?;
-    Ok(env.new_object(
-        &c,
-        format!("(J{SHA256})V"),
-        &[JValue::Long(o.vout.into()), (&hash).into()],
-    )?)
+    let txid = string(env, &o.txid.to_string())?;
+    new(
+        env,
+        "OutPoint",
+        &format!("({STRING}I)V"),
+        &[(&txid).into(), JValue::Int(u32_int(o.vout)?)],
+    )
 }
 
 pub fn outpoints<'l>(env: &mut JNIEnv<'l>, items: impl IntoIterator<Item = bitcoin::OutPoint>) -> Result<JObject<'l>> {
@@ -272,48 +255,13 @@ pub fn outpoint_set<'l>(env: &mut JNIEnv<'l>, items: &pwc_provider::backend::Res
     Ok(set)
 }
 
-pub fn script<'l>(env: &mut JNIEnv<'l>, program: &[u8]) -> Result<JObject<'l>> {
-    let c = class(env, "org/bitcoinj/script/Script")?;
-    let b = bytes(env, program)?;
-    Ok(env
-        .call_static_method(&c, "parse", format!("([B){SCRIPT}"), &[(&b).into()])?
-        .l()?)
-}
-
 pub fn txout<'l>(env: &mut JNIEnv<'l>, value: u64, script: &[u8]) -> Result<JObject<'l>> {
-    let coin_class = class(env, "org/bitcoinj/base/Coin")?;
-    let coin = env
-        .call_static_method(
-            &coin_class,
-            "valueOf",
-            "(J)Lorg/bitcoinj/base/Coin;",
-            &[JValue::Long(u64_long(value)?)],
-        )?
-        .l()?;
     let b = bytes(env, script)?;
-    let c = class(env, "org/bitcoinj/core/TransactionOutput")?;
-    Ok(env.new_object(
-        &c,
-        format!("({TRANSACTION}Lorg/bitcoinj/base/Coin;[B)V"),
-        &[(&JObject::null()).into(), (&coin).into(), (&b).into()],
-    )?)
+    new(env, "TxOut", "(J[B)V", &[JValue::Long(u64_long(value)?), (&b).into()])
 }
 
 pub fn transaction<'l>(env: &mut JNIEnv<'l>, tx: &bitcoin::Transaction) -> Result<JObject<'l>> {
-    let b = bytes(env, &serialize(tx))?;
-    let buffers = class(env, "java/nio/ByteBuffer")?;
-    let buffer = env
-        .call_static_method(&buffers, "wrap", "([B)Ljava/nio/ByteBuffer;", &[(&b).into()])?
-        .l()?;
-    let c = class(env, "org/bitcoinj/core/Transaction")?;
-    Ok(env
-        .call_static_method(
-            &c,
-            "read",
-            format!("(Ljava/nio/ByteBuffer;){TRANSACTION}"),
-            &[(&buffer).into()],
-        )?
-        .l()?)
+    bytes(env, &serialize(tx))
 }
 
 /// `new PwcException(code, message, details, retryable)`.
@@ -549,23 +497,18 @@ pub fn bytes_field(env: &mut JNIEnv, o: &JObject, name: &str) -> Result<Vec<u8>>
     get_bytes(env, &b)
 }
 
-/// A `Sha256Hash` as lower-case hex in display order.
-pub fn from_sha256(env: &mut JNIEnv, h: &JObject) -> Result<String> {
-    let s = obj(env, h, "toString", STRING)?;
-    get_string(env, &s)
-}
-
+/// A transaction id given as hex in display order.
 pub fn txid(env: &mut JNIEnv, h: &JObject) -> Result<bitcoin::Txid> {
-    let s = from_sha256(env, h)?;
+    let s = get_string(env, h)?;
     bitcoin::Txid::from_str(&s).map_err(invalid)
 }
 
 pub fn from_outpoint(env: &mut JNIEnv, o: &JObject) -> Result<bitcoin::OutPoint> {
-    let hash = obj(env, o, "hash", SHA256)?;
-    let txid = txid(env, &hash)?;
-    let index = long_field(env, o, "index")?;
-    let vout = u32::try_from(index).map_err(|_| invalid("outpoint index out of range"))?;
-    Ok(bitcoin::OutPoint { txid, vout })
+    let t = obj(env, o, "txid", STRING)?;
+    Ok(bitcoin::OutPoint {
+        txid: txid(env, &t)?,
+        vout: u32_field(env, o, "vout")?,
+    })
 }
 
 pub fn outpoint_list(env: &mut JNIEnv, l: &JObject) -> Result<Vec<bitcoin::OutPoint>> {
@@ -592,24 +535,18 @@ pub fn from_outpoint_set(env: &mut JNIEnv, set: &JObject) -> Result<pwc_provider
 }
 
 pub fn from_script(env: &mut JNIEnv, s: &JObject) -> Result<bitcoin::ScriptBuf> {
-    let program = obj(env, s, "program", "[B")?;
-    get_bytes(env, &program).map(bitcoin::ScriptBuf::from_bytes)
+    get_bytes(env, s).map(bitcoin::ScriptBuf::from_bytes)
 }
 
 pub fn from_txout(env: &mut JNIEnv, o: &JObject) -> Result<bitcoin::TxOut> {
-    let coin = obj(env, o, "getValue", "Lorg/bitcoinj/base/Coin;")?;
-    let value = env.call_method(&coin, "getValue", "()J", &[])?.j()?;
-    let value = u64::try_from(value).map_err(|_| invalid("negative output value"))?;
-    let script = obj(env, o, "getScriptBytes", "[B")?;
     Ok(bitcoin::TxOut {
-        value: bitcoin::Amount::from_sat(value),
-        script_pubkey: bitcoin::ScriptBuf::from_bytes(get_bytes(env, &script)?),
+        value: bitcoin::Amount::from_sat(u64_field(env, o, "valueSats")?),
+        script_pubkey: bitcoin::ScriptBuf::from_bytes(bytes_field(env, o, "scriptPubKey")?),
     })
 }
 
 pub fn from_transaction(env: &mut JNIEnv, t: &JObject) -> Result<bitcoin::Transaction> {
-    let b = obj(env, t, "serialize", "[B")?;
-    let b = get_bytes(env, &b)?;
+    let b = get_bytes(env, t)?;
     deserialize(&b).map_err(invalid)
 }
 
