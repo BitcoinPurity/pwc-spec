@@ -194,8 +194,8 @@ Native.java ──JNI──► pwc-provider-jni ──────────�
 
 - `./gradlew build` builds this platform's library with cargo. `-PnativeLibs=<dir>` instead takes prebuilt libraries laid out as `<os>-<arch>/<library>`.
 - CI (`.github/workflows/ci.yml`):
-  - The `java-sdk` matrix runs `ci/build.sh <platform>` on the five platforms. Each job builds, tests and uploads its library with `actions/upload-artifact`; run steps get no Buildkite agent token, so `buildkite-agent` cannot be called from them.
-  - `java-sdk-jar` downloads the five libraries and runs `ci/assemble.sh`, which checks that the jar has `module-info.class` and all five libraries.
+  - The `java-sdk` matrix runs `ci/build.sh <platform>` on the four platforms. Each job builds, tests and uploads its library with `actions/upload-artifact`; run steps get no Buildkite agent token, so `buildkite-agent` cannot be called from them.
+  - `java-sdk-jar` downloads the four libraries and runs `ci/assemble.sh`, which checks that the jar has `module-info.class` and all four libraries.
   - `java-sdk-publish` runs only on a tag `pwc-provider-java-v<version>`, after `java-sdk-jar`, and publishes with `ci/assemble.sh --publish <tag>`, using the `PWC_PACKAGES_TOKEN` secret. It is a job of its own because the runner resolves every secret a job references before the job starts.
 - `provider-windows` runs the Rust tests on Windows, where they run over the named pipe.
 - Jobs on one Buildkite agent share the home directory, so every Rust job outside Windows sets its own `CARGO_HOME` under the job's workspace before installing the toolchain; the toolchains in `~/.rustup` stay shared.

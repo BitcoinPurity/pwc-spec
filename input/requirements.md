@@ -111,11 +111,11 @@ Prepares the SDK for embedding in PurityWallet desktop (`PurityWallet/PurityWall
 | Java value types | Transaction ids: lower-case hex `String`s in display order. Outpoints: `OutPoint(String txid, int vout)`. Scripts, transactions and PSBTs: `byte[]`. Outputs: `TxOut(long valueSats, byte[] scriptPubKey)` |
 | Java endpoint selection | `LocalServer.start(provider)` and `start(provider, providerId)` use the platform's default endpoint; `start(provider, dir, providerId)` exists on macOS and Linux only |
 | Native library | Name `pwc_provider_jni`. Jar resources `org/bitcoinpurity/pwc/provider/native/<os>-<arch>/`, with `<os>` one of `linux`, `macos`, `windows` and `<arch>` one of `x86_64`, `aarch64` |
-| Platforms in the published jar | linux-x86_64, linux-aarch64, macos-x86_64, macos-aarch64, windows-x86_64 |
+| Platforms in the published jar | linux-x86_64, linux-aarch64, macos-aarch64, windows-x86_64. Not macos-x86_64: there is no Intel Mac build agent |
 | JPMS module | `org.bitcoinpurity.pwc.provider`, exporting `org.bitcoinpurity.pwc.provider` |
 | Publishing | Maven coordinates `org.bitcoinpurity.pwc:pwc-provider-java:<version>` on `https://maven.pkg.github.com/BitcoinPurity/pwc-spec`. CI publishes on a tag `pwc-provider-java-v<version>`, with a token from a Buildkite secret. Version 0.2.0 |
 | License | MIT for all code: `pwc-provider/`, `pwc-provider-java/`, `pwc-client/`, `pwc-client-ffi/`, the scripts in `pwc-schema/` and `pwc-testkit/`. Documents, schemas, the registry and test vectors stay CC BY 4.0 |
-| CI | Rust tests on Linux and Windows. Java SDK build and tests on all five platforms, then one jar with all five native libraries |
+| CI | Rust tests on Linux and Windows. Java SDK build and tests on all four platforms, then one jar with all four native libraries |
 
 ### 6.3 Out of scope
 
@@ -126,8 +126,8 @@ Prepares the SDK for embedding in PurityWallet desktop (`PurityWallet/PurityWall
 ### 6.4 Acceptance
 
 - `cargo test` in `pwc-provider/` passes on Linux and on Windows; the Windows tests cover the pipe name, the DACL, `ALREADY_RUNNING`, the peer check and the protocol over the pipe.
-- `./gradlew build` in `pwc-provider-java/` passes on all five platforms.
-- The assembled jar contains the five native libraries, has a `module-info.class` and depends on no other artifact.
+- `./gradlew build` in `pwc-provider-java/` passes on all four platforms.
+- The assembled jar contains the four native libraries, has a `module-info.class` and depends on no other artifact.
 - `cargo clippy -D warnings` is clean for Linux and for the Windows target.
 
 # PWC LOCAL Client (Rust)

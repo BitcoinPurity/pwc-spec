@@ -42,7 +42,7 @@ Requirements: `input/requirements.md` §6.
 | [TASK-018](TASK-018.md) | Windows named pipe endpoint | M17 | Done |
 | [TASK-019](TASK-019.md) | Java interface without bitcoinj | M18 | Done |
 | [TASK-020](TASK-020.md) | Native loading, JPMS module and Windows in the Java SDK | M19 | Done |
-| [TASK-021](TASK-021.md) | Five-platform jar, publishing and CI | M20 | Done |
+| [TASK-021](TASK-021.md) | Four-platform jar, publishing and CI | M20 | Done |
 
 # PWC LOCAL Client (Rust)
 

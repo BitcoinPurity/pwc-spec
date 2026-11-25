@@ -164,8 +164,6 @@ jobs:
             runner: ubuntu-latest
           - platform: linux-aarch64
             runner: ubuntu-24.04-arm
-          - platform: macos-x86_64
-            runner: macos-13
           - platform: macos-aarch64
             runner: macos-latest
           - platform: windows-x86_64
@@ -215,17 +213,13 @@ jobs:
           path: pwc-provider-java/natives/linux-aarch64
       - uses: actions/download-artifact@v4
         with:
-          name: macos-x86_64
-          path: pwc-provider-java/natives/macos-x86_64
-      - uses: actions/download-artifact@v4
-        with:
           name: macos-aarch64
           path: pwc-provider-java/natives/macos-aarch64
       - uses: actions/download-artifact@v4
         with:
           name: windows-x86_64
           path: pwc-provider-java/natives/windows-x86_64
-      # One jar with the native libraries of the five platforms.
+      # One jar with the native libraries of the four platforms.
       - run: ci/assemble.sh
       - uses: actions/upload-artifact@v4
         with:
@@ -256,10 +250,6 @@ jobs:
         with:
           name: linux-aarch64
           path: pwc-provider-java/natives/linux-aarch64
-      - uses: actions/download-artifact@v4
-        with:
-          name: macos-x86_64
-          path: pwc-provider-java/natives/macos-x86_64
       - uses: actions/download-artifact@v4
         with:
           name: macos-aarch64

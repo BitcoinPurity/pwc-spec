@@ -86,7 +86,7 @@ Kept consistent with `input/requirements.md` §5 and §6. The Java SDK is a JNI 
 
 | Deliverable | Description |
 |---|---|
-| Java library `pwc-provider-java` | JPMS module and package `org.bitcoinpurity.pwc.provider`: Provider, LOCAL server, prompts, backend interface, in-memory backend. No dependencies. The published jar contains the native library `pwc_provider_jni` for linux-x86_64, linux-aarch64, macos-x86_64, macos-aarch64 and windows-x86_64; a local build contains that of the build platform |
+| Java library `pwc-provider-java` | JPMS module and package `org.bitcoinpurity.pwc.provider`: Provider, LOCAL server, prompts, backend interface, in-memory backend. No dependencies. The published jar contains the native library `pwc_provider_jni` for linux-x86_64, linux-aarch64, macos-aarch64 and windows-x86_64; a local build contains that of the build platform |
 | Maven artifact | `org.bitcoinpurity.pwc:pwc-provider-java` on GitHub Packages (`https://maven.pkg.github.com/BitcoinPurity/pwc-spec`), published by CI from a tag `pwc-provider-java-v<version>` |
 | JNI crate `pwc-provider-jni` | `pwc-provider-java/native/`, a `cdylib` over `pwc-provider/` |
 | Demo program | `org.bitcoinpurity.pwc.provider.demo.Main`, with the options of the Rust demo binary; `./gradlew run` or the `installDist` start script |
@@ -109,7 +109,7 @@ Kept consistent with `input/requirements.md` §5 and §6. The Java SDK is a JNI 
 
 ### 6.4 Known limitations
 
-- Platforms other than the five of the published jar are not supported.
+- Platforms other than the four of the published jar are not supported. Intel Macs (macos-x86_64) are not among them: there is no build agent for them.
 - The library does not create PSBTs or signatures for a Java backend; a Java backend does that itself.
 
 # PWC LOCAL Client (Rust)
