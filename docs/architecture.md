@@ -198,3 +198,4 @@ Native.java ──JNI──► pwc-provider-jni ──────────�
   - `java-sdk-jar` downloads the five libraries and runs `ci/assemble.sh`, which checks that the jar has `module-info.class` and all five libraries.
   - `java-sdk-publish` runs only on a tag `pwc-provider-java-v<version>`, after `java-sdk-jar`, and publishes with `ci/assemble.sh --publish <tag>`, using the `PWC_PACKAGES_TOKEN` secret. It is a job of its own because the runner resolves every secret a job references before the job starts.
 - `provider-windows` runs the Rust tests on Windows, where they run over the named pipe.
+- Jobs on one Buildkite agent share the home directory, so every Rust job outside Windows sets its own `CARGO_HOME` under the job's workspace before installing the toolchain; the toolchains in `~/.rustup` stay shared.

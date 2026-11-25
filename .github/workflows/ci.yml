@@ -30,6 +30,9 @@ jobs:
         working-directory: pwc-provider
     steps:
       - uses: actions/checkout@v4
+      # A private CARGO_HOME per job: jobs on one agent share the home directory, and rustup-init of one job rewrote
+      # ~/.cargo/bin while another job ran rustc from it ("Text file busy", build 35).
+      - run: echo "CARGO_HOME=$GITHUB_WORKSPACE/.cargo-home" >> "$GITHUB_ENV"
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: "1.97.0"
@@ -50,6 +53,8 @@ jobs:
         working-directory: pwc-provider
     steps:
       - uses: actions/checkout@v4
+      # A private CARGO_HOME, as in the provider job.
+      - run: echo "CARGO_HOME=$GITHUB_WORKSPACE/.cargo-home" >> "$GITHUB_ENV"
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: "1.97.0"
@@ -107,6 +112,9 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v4
+      # A private CARGO_HOME, as in the provider job.
+      - if: runner.os != 'Windows'
+        run: echo "CARGO_HOME=$GITHUB_WORKSPACE/.cargo-home" >> "$GITHUB_ENV"
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: "1.97.0"

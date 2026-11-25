@@ -8,11 +8,6 @@ platform="$1"
 case "$(uname -s)" in
     MINGW* | MSYS* | CYGWIN*) ;;
     *)
-        # A private CARGO_HOME: the Swatinem/rust-cache save step of other jobs on the same agent deletes the crate
-        # sources in the shared ~/.cargo/registry/src, possibly while this job compiles them.
-        CARGO_HOME="$(mktemp -d)"
-        export CARGO_HOME
-        trap 'rm -rf "$CARGO_HOME"' EXIT
         # The absolute path bash resolves, because the JVM does not expand entries such as ~/.cargo/bin in PATH.
         CARGO="$(command -v cargo)"
         export CARGO
