@@ -231,7 +231,8 @@ jobs:
   # steps that would be skipped, so the secret is referenced only by a job that runs on tags.
   java-sdk-publish:
     name: Publish the Java Provider SDK
-    needs: java-sdk-jar
+    # The runner's adapter finds artifacts only in the jobs a job directly needs; the libraries come from java-sdk.
+    needs: [java-sdk, java-sdk-jar]
     if: startsWith(github.ref, 'refs/tags/pwc-provider-java-v')
     runs-on: ubuntu-latest
     defaults:
