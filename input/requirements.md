@@ -113,7 +113,7 @@ Prepares the SDK for embedding in PurityWallet desktop (`PurityWallet/PurityWall
 | Native library | Name `pwc_provider_jni`. Jar resources `org/bitcoinpurity/pwc/provider/native/<os>-<arch>/`, with `<os>` one of `linux`, `macos`, `windows` and `<arch>` one of `x86_64`, `aarch64` |
 | Platforms in the published jar | linux-x86_64, linux-aarch64, macos-aarch64, windows-x86_64. Not macos-x86_64: there is no Intel Mac build agent |
 | JPMS module | `org.bitcoinpurity.pwc.provider`, exporting `org.bitcoinpurity.pwc.provider` |
-| Publishing | Maven coordinates `org.bitcoinpurity.pwc:pwc-provider-java:<version>` on `https://maven.pkg.github.com/BitcoinPurity/pwc-spec`. CI publishes on a tag `pwc-provider-java-v<version>`, with a token from a Buildkite secret. Version 0.2.0 |
+| Publishing | Maven coordinates `org.bitcoinpurity.pwc:pwc-provider-java:<version>` on `https://maven.pkg.github.com/BitcoinPurity/pwc-spec`. CI publishes on a tag `pwc-provider-java-v<version>`, with a token from a Buildkite secret. Version 0.2.0; 0.2.1 in section 7 |
 | License | MIT for all code: `pwc-provider/`, `pwc-provider-java/`, `pwc-client/`, `pwc-client-ffi/`, the scripts in `pwc-schema/` and `pwc-testkit/`. Documents, schemas, the registry and test vectors stay CC BY 4.0 |
 | CI | Rust tests on Linux and Windows. Java SDK build and tests on all four platforms, then one jar with all four native libraries |
 
@@ -129,6 +129,59 @@ Prepares the SDK for embedding in PurityWallet desktop (`PurityWallet/PurityWall
 - `./gradlew build` in `pwc-provider-java/` passes on all four platforms.
 - The assembled jar contains the four native libraries, has a `module-info.class` and depends on no other artifact.
 - `cargo clippy -D warnings` is clean for Linux and for the Windows target.
+
+## 7. Java Provider SDK 0.2.1: the `provider_id` of `local.hello`
+
+A fix. Where this section and sections 2 to 6 differ, this section applies.
+
+### 7.1 Problem
+
+`local.hello` always answered `provider_id` `pwc-provider`, whatever id the endpoint was bound with. A host that serves on its own id, for example `LocalServer.start(provider, "puritywallet")`, listens on `puritywallet.sock` but reports `pwc-provider`, and a Client that checks the id against the socket name (LOCAL §3.2, §5.2), such as `pwc-client`, refuses to connect.
+
+### 7.2 Decisions
+
+| Item | Decision |
+|---|---|
+| `provider_id` of `local.hello` | The id the endpoint was bound with: `local::bind(dir, provider_id)` or `local::bind_pipe(provider_id)` |
+| Default id | `PROVIDER_ID` stays `pwc-provider`; the demo binary and `LocalServer.start(provider)` still use it |
+| Java SDK version | 0.2.1, published on a tag `pwc-provider-java-v0.2.1`. The Java interface is unchanged |
+
+### 7.3 Acceptance
+
+- `cargo test` in `pwc-provider/` checks that `local.hello` reports the id of the endpoint, with an id other than `pwc-provider`.
+- A Java test checks the same through `LocalServer.start(provider, providerId)`, on every platform.
+- A `pwc-client` test connects to the Rust Provider bound with an id other than `pwc-provider`.
+- The checks of section 6.4 still pass.
+
+## 8. Java Provider SDK 0.2.1: backend calls without the state lock
+
+A fix in the same release as section 7. Where this section and sections 2 to 6 differ, this section applies.
+
+### 8.1 Problem
+
+The Provider called the wallet backend while holding the one lock that guards all of its state. A backend method that waits, for example a `broadcast` that waits for the User to confirm a warning, blocked every request of every Client, including `local.authenticate`, and the host's own calls (`grants`, `revoke_grant`, `save_state`). A backend method that called `notify`, or waited for a thread that called it, deadlocked the Provider.
+
+### 8.2 Decisions
+
+| Item | Decision |
+|---|---|
+| State lock | Guards the Provider's state and is held only while reading or changing it, never during a backend call |
+| Backend lock | A second lock serializes backend calls: backend methods still never run concurrently. It is taken before the state lock |
+| Core requests and approval decisions | Run on Tokio's blocking pool, so a waiting backend call does not occupy an asynchronous worker |
+| Calls that never wait for the backend | `local.hello`, `local.pair`, `local.authenticate`, `local.unpair`, the answers to prompts, and the host's `paired_clients`, `grants`, `revoke_grant`, `unpair_client` and `save_state` |
+| `notify` | Queues the event and returns at once. A Provider thread delivers queued events in order, reading the backend under the backend lock. It may be called from any thread, including from inside a backend method |
+| Revocation | A revoked or expired grant stops authorizing requests at once. Unfinished Operations that it authorized fail with `PERMISSION_REVOKED` shortly after, on the thread that delivers events |
+| A panic while handling a Core request | Answered with `INTERNAL_ERROR`; the Provider keeps serving |
+| Lock implementation | `parking_lot` 0.12, already in the dependency tree; its locks are not poisoned by a panic |
+
+### 8.3 Acceptance
+
+- `cargo test` in `pwc-provider/` shows that, while a backend call waits: another Client authenticates, the host's calls return and `notify` returns.
+- `notify` called from inside a backend method does not deadlock, and its event is delivered.
+- Under parallel requests of several Clients and `notify` calls, backend methods never run concurrently.
+- A backend panic during a request gives `INTERNAL_ERROR`, and the next request is answered.
+- A Java test calls `Provider.notify` from inside a Java backend method and the request completes.
+- The checks of sections 6.4 and 7.3 still pass.
 
 # PWC LOCAL Client (Rust)
 

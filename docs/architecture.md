@@ -41,7 +41,7 @@ local.rs ──frames, handshake──► Provider (order of checks, grants, Ope
                              WalletBackend trait ◄── MemoryBackend
 ```
 
-- **local.rs** handles only the transport: endpoint, peer user, frames, the JSON-RPC envelope, the `local.*` methods and time limits. After authentication it passes Core methods to `Provider::handle`.
+- **local.rs** handles only the transport: endpoint, peer user, frames, the JSON-RPC envelope, the `local.*` methods and time limits. The `Endpoint` keeps the `provider_id` it was bound with and gives it to each connection for `local.hello`. After authentication it passes Core methods to `Provider::handle`.
 - **Provider** is transport-independent and owns the Core semantics: order of checks, grants, the Operation state machine, idempotency, reservations, pagination cursors, event fan-out and the approval flow.
 - **WalletBackend** owns wallet data and keys: wallet and account inventory, balances, addresses, UTXOs, history, output ownership, coin selection and PSBT construction, signing, broadcast and message signing.
 
@@ -83,8 +83,12 @@ Each Operation awaiting approval has a task that waits for the first of: the Use
 
 ## 5. State and concurrency
 
-- All mutable Provider state lives in one `Mutex<Inner>`, and each request runs under it. Requests are therefore serialized, so requests competing for the same UTXO cannot race (Core §9.3).
-- Backend calls are made under the lock. The backend never calls back into the Provider, so this cannot deadlock.
+- All mutable Provider state lives in one state lock, `Mutex<Inner>`. It is held only while state is read or changed: every backend call is made through `MutexGuard::unlocked`, which releases it for the duration of the call.
+- A second lock, the backend lock, serializes backend calls, so backend methods never run concurrently. A Core request, an approval decision and the event thread hold it from start to end; it is always taken before the state lock. Requests that call the backend are therefore serialized, so requests competing for the same UTXO cannot race (Core §9.3).
+- The handshake, pairing, `local.unpair`, prompt answers, Operation expiry and the host's calls take only the state lock, so a waiting backend call never holds them up.
+- `local.rs` runs each Core request with `spawn_blocking`, and approval decisions run the same way, so a request waiting for the backend lock does not occupy an asynchronous worker. A panic in a request ends its blocking task; the connection answers `INTERNAL_ERROR`.
+- `notify` and revocation queue a job for the event thread, a plain thread started with the Provider that ends when the Provider is dropped. It handles jobs in order under the backend lock: a backend event is delivered to authorized Clients; a re-evaluation fails the unfinished Operations a revoked or expired grant authorized (Core §7 step 6). `notify` therefore never waits, and a backend method may call it.
+- The locks are those of `parking_lot`, which a panic does not poison.
 - Each connection has a bounded output channel and a writer task. Responses use `send().await`; events use `try_send`, and a full channel closes that connection (LOCAL §8).
 - A pending pairing prompt runs in its own task, which the connection aborts when it closes; aborting drops the reply's receiver and so withdraws the prompt.
 
@@ -103,6 +107,7 @@ Not included: live sessions, rate-limit counters and waiting tasks. All times ar
 | Crate | Use |
 |---|---|
 | tokio | Unix sockets, timers, channels, signals |
+| parking_lot | The state and backend locks |
 | serde, serde_json | Wire format and snapshot |
 | bitcoin 0.32 | Addresses, transactions, PSBT, sighash, secp256k1, HMAC/SHA-256, legacy message signatures |
 | miniscript 13 | `psbt.finalize` only |

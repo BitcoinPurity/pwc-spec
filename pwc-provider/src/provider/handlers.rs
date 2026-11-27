@@ -7,7 +7,7 @@ use tokio::sync::oneshot;
 
 use super::grants::{self, Grant};
 use super::operations::Reservation;
-use super::{Inner, OpState, Outcome, Provider, Target};
+use super::{Guard, Inner, Job, OpState, Outcome, Provider, Target};
 use crate::backend::CreateRequest;
 use crate::backend::{AccountInfo, WalletInfo};
 use crate::error::{err, ErrorCode, PwcError};
@@ -74,7 +74,7 @@ fn account_summary(a: &AccountInfo) -> Value {
 impl Provider {
     pub(super) fn execute(
         self: &Arc<Self>,
-        inner: &mut Inner,
+        inner: &mut Guard,
         ctx: &Ctx,
         request: Request,
     ) -> Result<Outcome, PwcError> {
@@ -93,7 +93,7 @@ impl Provider {
                     "created_at": session.created_at,
                 })))
             }
-            Request::RequestPermissions(p) => Ok(self.request_permissions(inner, ctx, p)),
+            Request::RequestPermissions(p) => self.request_permissions(inner, ctx, p),
             Request::GetPermissions => {
                 let grants: Vec<Value> = inner
                     .state
@@ -117,52 +117,46 @@ impl Provider {
                 Ok(Outcome::Value(json!({ "revoked": revoked })))
             }
             Request::WalletList => {
-                let grants: Vec<&Grant> = self
-                    .active_grants(inner, ctx.client_id, ctx.now)
-                    .filter(|g| g.has_scope("wallets:read"))
-                    .collect();
-                let wallets: Vec<Value> = self
-                    .backend
-                    .wallets()
-                    .into_iter()
-                    .filter(|w| grants.iter().any(|g| g.covers_wallet(w)))
-                    .map(|w| {
-                        let readable = super::wallet_readable(&w).is_ok();
-                        let account_ids: Vec<&Id> = w
-                            .account_ids
-                            .iter()
-                            .filter(|a| {
-                                readable
-                                    && self
-                                        .backend
-                                        .account(a.as_str())
-                                        .is_some_and(|a| grants.iter().any(|g| g.covers_account(&a)))
+                let grants = self.grants_with(inner, ctx, "wallets:read");
+                let wallets: Vec<Value> = self.call(inner, |b| {
+                    b.wallets()
+                        .into_iter()
+                        .filter(|w| grants.iter().any(|g| g.covers_wallet(w)))
+                        .map(|w| {
+                            let readable = super::wallet_readable(&w).is_ok();
+                            let account_ids: Vec<&Id> = w
+                                .account_ids
+                                .iter()
+                                .filter(|a| {
+                                    readable
+                                        && b.account(a.as_str())
+                                            .is_some_and(|a| grants.iter().any(|g| g.covers_account(&a)))
+                                })
+                                .collect();
+                            json!({
+                                "wallet_id": w.wallet_id,
+                                "display_name": w.display_name,
+                                "network": w.network,
+                                "wallet_kind": w.kind,
+                                "state": w.state,
+                                "account_ids": account_ids,
                             })
-                            .collect();
-                        json!({
-                            "wallet_id": w.wallet_id,
-                            "display_name": w.display_name,
-                            "network": w.network,
-                            "wallet_kind": w.kind,
-                            "state": w.state,
-                            "account_ids": account_ids,
                         })
-                    })
-                    .collect();
+                        .collect()
+                });
                 Ok(Outcome::Value(json!({ "wallets": wallets })))
             }
             Request::AccountList(_) => {
-                let accounts: Vec<Value> = ctx
-                    .wallet()
-                    .account_ids
-                    .iter()
-                    .filter_map(|a| self.backend.account(a.as_str()))
-                    .filter(|a| {
-                        self.active_grants(inner, ctx.client_id, ctx.now)
-                            .any(|g| g.has_scope("wallets:read") && g.covers_account(a))
-                    })
-                    .map(|a| account_summary(&a))
-                    .collect();
+                let grants = self.grants_with(inner, ctx, "wallets:read");
+                let accounts: Vec<Value> = self.call(inner, |b| {
+                    ctx.wallet()
+                        .account_ids
+                        .iter()
+                        .filter_map(|a| b.account(a.as_str()))
+                        .filter(|a| grants.iter().any(|g| g.covers_account(a)))
+                        .map(|a| account_summary(&a))
+                        .collect()
+                });
                 Ok(Outcome::AccountData(json!({ "accounts": accounts })))
             }
             Request::OperationGet(p) => {
@@ -182,34 +176,35 @@ impl Provider {
                 Ok(Outcome::Operation(p.operation_id))
             }
             Request::GetBalance(_) => {
+                let id = ctx.account().account_id.as_str();
                 let reserved = self.reserved(inner, &ctx.account().account_id, ctx.now);
-                let b = self.backend.balance(ctx.account().account_id.as_str(), &reserved)?;
+                let b = self.call(inner, |b| b.balance(id, &reserved))?;
                 Ok(Outcome::AccountData(json!(b)))
             }
-            Request::GetReceiveAddress(_) => Ok(Outcome::AccountData(json!(self
-                .backend
-                .receive_address(ctx.account().account_id.as_str())?))),
+            Request::GetReceiveAddress(_) => {
+                let a = self.call(inner, |b| b.receive_address(ctx.account().account_id.as_str()))?;
+                Ok(Outcome::AccountData(json!(a)))
+            }
             Request::AddressCreate(p) => {
                 self.account_method(ctx, "address.create")?;
-                let a = self
-                    .backend
-                    .create_address(ctx.account().account_id.as_str(), p.label.as_ref())?;
+                let a = self.call(inner, |b| {
+                    b.create_address(ctx.account().account_id.as_str(), p.label.as_ref())
+                })?;
                 Ok(Outcome::AccountData(json!(a)))
             }
             Request::AddressList(p) => {
                 let items: Vec<Value> = self
-                    .backend
-                    .addresses(ctx.account().account_id.as_str())
+                    .call(inner, |b| b.addresses(ctx.account().account_id.as_str()))
                     .iter()
                     .map(|a| json!(a))
                     .collect();
                 self.page(inner, ctx, "address.list", &p, items, "addresses")
             }
             Request::UtxoList(p) => {
+                let id = ctx.account().account_id.as_str();
                 let reserved = self.reserved(inner, &ctx.account().account_id, ctx.now);
                 let items: Vec<Value> = self
-                    .backend
-                    .utxos(ctx.account().account_id.as_str(), &reserved)?
+                    .call(inner, |b| b.utxos(id, &reserved))?
                     .iter()
                     .map(|u| json!(u))
                     .collect();
@@ -217,8 +212,7 @@ impl Provider {
             }
             Request::TransactionList(p) => {
                 let items: Vec<Value> = self
-                    .backend
-                    .transactions(ctx.account().account_id.as_str())?
+                    .call(inner, |b| b.transactions(ctx.account().account_id.as_str()))?
                     .iter()
                     .map(|t| json!(t))
                     .collect();
@@ -226,8 +220,7 @@ impl Provider {
             }
             Request::TransactionGet(p) => {
                 let found = self
-                    .backend
-                    .transactions(ctx.account().account_id.as_str())?
+                    .call(inner, |b| b.transactions(ctx.account().account_id.as_str()))?
                     .into_iter()
                     .find(|t| t.txid == p.txid);
                 match found {
@@ -259,7 +252,9 @@ impl Provider {
                 if &r.client_id != ctx.client_id || r.account_id != ctx.account().account_id {
                     return Err(not_found());
                 }
-                let released = self.reservation_active(inner, r, ctx.now);
+                let (live, outpoints) = (self.reservation_live(inner, r, ctx.now), r.outpoints.clone());
+                let id = ctx.account().account_id.as_str();
+                let released = live && self.call(inner, |b| outpoints.iter().all(|o| b.is_unspent(id, o)));
                 inner
                     .state
                     .reservations
@@ -272,11 +267,15 @@ impl Provider {
                 self.account_method(ctx, "transaction.broadcast")?;
                 let tx: bitcoin::Transaction = bitcoin::consensus::deserialize(&p.raw_transaction.0)
                     .map_err(|_| err(ErrorCode::InvalidArgument, "raw_transaction is not a valid transaction"))?;
-                let outcome = match self.backend.broadcast(&ctx.account().network, &tx) {
+                let outcome = match self.call(inner, |b| b.broadcast(&ctx.account().network, &tx)) {
                     Ok(txid) => {
                         let account = ctx.account();
+                        let readable = self
+                            .call(inner, |b| b.wallet(account.wallet_id.as_str()))
+                            .is_some_and(|w| super::wallet_readable(&w).is_ok());
                         let a = super::Audience::Account {
                             account,
+                            readable,
                             scope: "balances:read",
                         };
                         self.emit(
@@ -289,6 +288,7 @@ impl Provider {
                         );
                         let a = super::Audience::Account {
                             account,
+                            readable,
                             scope: "transactions:read",
                         };
                         let payload = json!({ "txid": txid.to_string(), "status": "unconfirmed" });
@@ -334,6 +334,14 @@ impl Provider {
         }
     }
 
+    /// The Client's active grants holding `scope`.
+    fn grants_with(&self, inner: &Inner, ctx: &Ctx, scope: &str) -> Vec<Grant> {
+        self.active_grants(inner, ctx.client_id, ctx.now)
+            .filter(|g| g.has_scope(scope))
+            .cloned()
+            .collect()
+    }
+
     /// The grant under which an amount is allowed: an active grant of the Client holding `scope` for the
     /// account whose `max_amount_sats_per_request` admits `outflow` (Core §4.8).
     fn grant_for_amount(&self, inner: &Inner, ctx: &Ctx, scope: &str, outflow: u64) -> Result<Id, PwcError> {
@@ -352,7 +360,7 @@ impl Provider {
             })
     }
 
-    fn psbt_create(&self, inner: &mut Inner, ctx: &Ctx, p: crate::methods::PsbtCreate) -> Result<Outcome, PwcError> {
+    fn psbt_create(&self, inner: &mut Guard, ctx: &Ctx, p: crate::methods::PsbtCreate) -> Result<Outcome, PwcError> {
         self.account_method(ctx, "psbt.create")?;
         let account = ctx.account();
         let network = chain_network(&account.network).expect("supported network");
@@ -366,8 +374,7 @@ impl Provider {
         let fee_rate = match &p.fee_policy {
             FeePolicy::Rate { sat_per_kvb } => sat_per_kvb.0,
             FeePolicy::WalletEstimate { target_blocks } => self
-                .backend
-                .fee_estimate(&account.network, target_blocks.0)
+                .call(inner, |b| b.fee_estimate(&account.network, target_blocks.0))
                 .ok_or_else(|| err(ErrorCode::StateUnavailable, "The wallet cannot estimate a fee now"))?,
         };
         let selected = p.selected_utxos.as_ref().map(|list| {
@@ -385,22 +392,24 @@ impl Provider {
             replaceable: p.replaceable.unwrap_or(true),
         };
         let excluded = self.reserved(inner, &account.account_id, ctx.now);
-        let created = self
-            .backend
-            .create_psbt(account.account_id.as_str(), &request, &excluded)?;
+        let id = account.account_id.as_str();
+        let (created, back) = self.call(inner, |b| {
+            let created = b.create_psbt(id, &request, &excluded)?;
+            let back: u64 = created
+                .psbt
+                .unsigned_tx
+                .output
+                .iter()
+                .filter(|o| b.owns_script(id, &o.script_pubkey))
+                .map(|o| o.value.to_sat())
+                .sum();
+            Ok::<_, PwcError>((created, back))
+        })?;
         let inputs: u64 = created
             .psbt
             .inputs
             .iter()
             .filter_map(|i| i.witness_utxo.as_ref())
-            .map(|o| o.value.to_sat())
-            .sum();
-        let back: u64 = created
-            .psbt
-            .unsigned_tx
-            .output
-            .iter()
-            .filter(|o| self.backend.owns_script(account.account_id.as_str(), &o.script_pubkey))
             .map(|o| o.value.to_sat())
             .sum();
         let grant_id = self.grant_for_amount(inner, ctx, "psbt:create", inputs.saturating_sub(back))?;
@@ -442,7 +451,7 @@ impl Provider {
     /// types and sighash modes, review validation, grant constraints, high-fee warning.
     fn psbt_sign(
         self: &Arc<Self>,
-        inner: &mut Inner,
+        inner: &mut Guard,
         ctx: &Ctx,
         p: crate::methods::PsbtSign,
     ) -> Result<Outcome, PwcError> {
@@ -457,12 +466,16 @@ impl Provider {
         {
             return Err(err(ErrorCode::InvalidArgument, "input_indexes out of range"));
         }
-        let owned: Vec<Option<bitcoin::TxOut>> = psbt
-            .unsigned_tx
-            .input
-            .iter()
-            .map(|txin| self.backend.owned_output(id, &txin.previous_output))
-            .collect();
+        let (owned, ours): (Vec<Option<bitcoin::TxOut>>, Vec<bool>) = self.call(inner, |b| {
+            let tx = &psbt.unsigned_tx;
+            (
+                tx.input
+                    .iter()
+                    .map(|txin| b.owned_output(id, &txin.previous_output))
+                    .collect(),
+                tx.output.iter().map(|o| b.owns_script(id, &o.script_pubkey)).collect(),
+            )
+        });
         let cannot = || {
             err(
                 ErrorCode::UnsupportedOperation,
@@ -520,8 +533,9 @@ impl Provider {
             .unsigned_tx
             .output
             .iter()
-            .filter(|o| self.backend.owns_script(id, &o.script_pubkey))
-            .map(|o| o.value.to_sat())
+            .zip(&ours)
+            .filter(|(_, &ours)| ours)
+            .map(|(o, _)| o.value.to_sat())
             .sum();
         self.grant_for_amount(inner, ctx, "psbt:sign", owned_in.saturating_sub(back))?;
         let fee = in_total
@@ -547,17 +561,18 @@ impl Provider {
             .unsigned_tx
             .output
             .iter()
-            .map(|o| OutputSummary {
+            .zip(&ours)
+            .map(|(o, &ours)| OutputSummary {
                 address: bitcoin::Address::from_script(&o.script_pubkey, net)
                     .ok()
                     .map(|a| a.to_string()),
                 script_pub_key: o.script_pubkey.to_hex_string(),
                 amount_sats: o.value.to_sat(),
-                to_this_account: self.backend.owns_script(id, &o.script_pubkey),
+                to_this_account: ours,
             })
             .collect();
         let request = PsbtSignRequest {
-            requester: self.requester(inner, ctx.client_id),
+            requester: self.requester(inner, ctx.client_id)?,
             account_id: account.account_id.clone(),
             network: account.network.clone(),
             inputs_to_sign: targets.iter().map(|&i| i as u32).collect(),
@@ -570,12 +585,10 @@ impl Provider {
         let op_id = self.new_operation(inner, ctx, "psbt.sign", OpState::AwaitingApproval);
         let (reply, answer) = oneshot::channel();
         let client_id = ctx.client_id.clone();
-        let decide = move |provider: &Arc<Provider>, inner: &mut Inner, op_id: &Id, yes: bool| {
-            let sign = |provider: &Arc<Provider>, inner: &mut Inner| -> Result<Value, PwcError> {
+        let decide = move |provider: &Arc<Provider>, inner: &mut Guard, op_id: &Id, yes: bool| {
+            let sign = |provider: &Arc<Provider>, inner: &mut Guard| -> Result<Value, PwcError> {
                 provider.still_allowed(inner, &client_id, "psbt:sign", &account)?;
-                let signed = provider
-                    .backend
-                    .sign_psbt(account.account_id.as_str(), &mut psbt, &targets)?;
+                let signed = provider.call(inner, |b| b.sign_psbt(account.account_id.as_str(), &mut psbt, &targets))?;
                 Ok(json!({
                     "account_id": account.account_id,
                     "network": account.network,
@@ -600,7 +613,7 @@ impl Provider {
 
     fn message_sign(
         self: &Arc<Self>,
-        inner: &mut Inner,
+        inner: &mut Guard,
         ctx: &Ctx,
         p: crate::methods::MessageSign,
     ) -> Result<Outcome, PwcError> {
@@ -611,14 +624,13 @@ impl Provider {
             chain_network(&account.network).expect("supported network"),
         )?;
         format_signs(p.format, &address)?;
-        if !self
-            .backend
-            .owns_script(account.account_id.as_str(), &address.script_pubkey())
-        {
+        if !self.call(inner, |b| {
+            b.owns_script(account.account_id.as_str(), &address.script_pubkey())
+        }) {
             return Err(err(ErrorCode::InvalidArgument, "The account does not own this address"));
         }
         let request = MessageSignRequest {
-            requester: self.requester(inner, ctx.client_id),
+            requester: self.requester(inner, ctx.client_id)?,
             account_id: account.account_id.clone(),
             network: account.network.clone(),
             address: p.address.to_string(),
@@ -628,15 +640,17 @@ impl Provider {
         let op_id = self.new_operation(inner, ctx, "message.sign", OpState::AwaitingApproval);
         let (reply, answer) = oneshot::channel();
         let client_id = ctx.client_id.clone();
-        let decide = move |provider: &Arc<Provider>, inner: &mut Inner, op_id: &Id, yes: bool| {
-            let sign = |provider: &Arc<Provider>, inner: &mut Inner| -> Result<Value, PwcError> {
+        let decide = move |provider: &Arc<Provider>, inner: &mut Guard, op_id: &Id, yes: bool| {
+            let sign = |provider: &Arc<Provider>, inner: &mut Guard| -> Result<Value, PwcError> {
                 provider.still_allowed(inner, &client_id, "messages:sign", &account)?;
-                let sig = provider.backend.sign_message(
-                    account.account_id.as_str(),
-                    &address.script_pubkey(),
-                    &p.message,
-                    p.format,
-                )?;
+                let sig = provider.call(inner, |b| {
+                    b.sign_message(
+                        account.account_id.as_str(),
+                        &address.script_pubkey(),
+                        &p.message,
+                        p.format,
+                    )
+                })?;
                 Ok(json!({ "signature": Base64(sig), "format": p.format, "address": p.address }))
             };
             provider.conclude(inner, op_id, yes, sign);
@@ -653,13 +667,18 @@ impl Provider {
     }
 
     /// After approval the request is authorized afresh (Core §7 step 5).
-    fn still_allowed(&self, inner: &Inner, client_id: &Id, scope: &str, account: &AccountInfo) -> Result<(), PwcError> {
+    fn still_allowed(
+        &self,
+        inner: &mut Guard,
+        client_id: &Id,
+        scope: &str,
+        account: &AccountInfo,
+    ) -> Result<(), PwcError> {
         if !self.authorized(inner, client_id, scope, Some(&account.account_id), Timestamp::now()) {
             return Err(err(ErrorCode::PermissionRevoked, "The grant was revoked"));
         }
         let wallet = self
-            .backend
-            .wallet(account.wallet_id.as_str())
+            .call(inner, |b| b.wallet(account.wallet_id.as_str()))
             .ok_or_else(|| err(ErrorCode::StateUnavailable, "The wallet is unavailable"))?;
         super::wallet_readable(&wallet)
     }
@@ -667,10 +686,10 @@ impl Provider {
     /// Ends an approval Operation: refused, or completed or failed by `run`.
     fn conclude(
         self: &Arc<Self>,
-        inner: &mut Inner,
+        inner: &mut Guard,
         op_id: &Id,
         approved: bool,
-        run: impl FnOnce(&Arc<Provider>, &mut Inner) -> Result<Value, PwcError>,
+        run: impl FnOnce(&Arc<Provider>, &mut Guard) -> Result<Value, PwcError>,
     ) {
         if !approved {
             let e = err(ErrorCode::UserRejected, "The User refused the request");
@@ -749,11 +768,17 @@ impl Provider {
         }
     }
 
-    fn request_permissions(self: &Arc<Self>, inner: &mut Inner, ctx: &Ctx, p: RequestPermissions) -> Outcome {
+    fn request_permissions(
+        self: &Arc<Self>,
+        inner: &mut Guard,
+        ctx: &Ctx,
+        p: RequestPermissions,
+    ) -> Result<Outcome, PwcError> {
+        let (wallet_ids, account_ids) = self.call(inner, |b| grants::known_resources(b, &p));
+        let requester = self.requester(inner, ctx.client_id)?;
         let op_id = self.new_operation(inner, ctx, "session.requestPermissions", OpState::AwaitingApproval);
-        let (wallet_ids, account_ids) = grants::known_resources(&*self.backend, &p);
         let request = PermissionRequest {
-            requester: self.requester(inner, ctx.client_id),
+            requester,
             scopes: p.scopes.clone(),
             network: p.network.clone(),
             wallet_ids,
@@ -763,9 +788,10 @@ impl Provider {
         };
         let (reply, answer) = oneshot::channel();
         let client_id = ctx.client_id.clone();
-        let decide = move |provider: &Arc<Provider>, inner: &mut Inner, op_id: &Id, choice: Option<GrantChoice>| {
+        let decide = move |provider: &Arc<Provider>, inner: &mut Guard, op_id: &Id, choice: Option<GrantChoice>| {
             let now = Timestamp::now();
-            match choice.and_then(|c| grants::narrow(&*provider.backend, &p, c, &client_id, now)) {
+            let grant = choice.and_then(|c| provider.call(inner, |b| grants::narrow(b, &p, c, &client_id, now)));
+            match grant {
                 Some(grant) => {
                     let result = json!({ "grants": [grant.to_json(now)] });
                     provider.schedule_expiry(&grant);
@@ -786,7 +812,7 @@ impl Provider {
             answer,
             decide,
         );
-        Outcome::Operation(op_id)
+        Ok(Outcome::Operation(op_id))
     }
 
     /// At a grant's expiry, unfinished Operations that relied on it fail (Core §7 step 6).
@@ -797,7 +823,7 @@ impl Provider {
         let grant_id = grant.grant_id.clone();
         tokio::spawn(async move {
             tokio::time::sleep(expiry.remaining()).await;
-            let mut inner = provider.lock();
+            let inner = provider.lock();
             if inner.state.grants.get(&grant_id).is_some_and(|g| !g.revoked) {
                 let audience = super::Audience::Client(&client_id);
                 provider.emit(
@@ -809,7 +835,8 @@ impl Provider {
                     audience,
                 );
             }
-            provider.reevaluate(&mut inner, &client_id);
+            drop(inner);
+            provider.queue(Job::Reevaluate(client_id));
         });
     }
 }

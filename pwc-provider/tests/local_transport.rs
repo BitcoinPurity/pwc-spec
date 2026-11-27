@@ -107,7 +107,7 @@ async fn hello_result_and_fresh_nonces() {
     let a = h.connect().await.hello().await;
     let b = h.connect().await.hello().await;
     assert_eq!(a["protocol"], "pwc-local/1");
-    assert_eq!(a["provider_id"], "pwc-provider");
+    assert_eq!(a["provider_id"], h.provider_id.as_str());
     assert_eq!(a["delegation"], false);
     assert!(a["max_frame_bytes"].as_u64().unwrap() >= 1_048_576);
     assert_ne!(a["server_nonce"], b["server_nonce"]);

@@ -14,6 +14,7 @@ use crate::provider::Provider;
 pub struct Endpoint {
     listener: UnixListener,
     path: PathBuf,
+    provider_id: Arc<str>,
 }
 
 impl Endpoint {
@@ -80,7 +81,11 @@ pub fn bind(dir: &Path, provider_id: &str) -> Result<Endpoint, EndpointError> {
         }
     }
     let listener = UnixListener::bind(&path).map_err(|e| EndpointError::Io(path.clone(), e))?;
-    let endpoint = Endpoint { listener, path };
+    let endpoint = Endpoint {
+        listener,
+        path,
+        provider_id: provider_id.into(),
+    };
     std::fs::set_permissions(&endpoint.path, std::fs::Permissions::from_mode(0o600))
         .map_err(|e| EndpointError::Io(endpoint.path.clone(), e))?;
     Ok(endpoint)
@@ -94,7 +99,7 @@ pub async fn serve(provider: Arc<Provider>, endpoint: Endpoint) {
                 continue; // LOCAL §3.4: closed without any message
             };
             let (rd, wr) = stream.into_split();
-            tokio::spawn(connection(provider.clone(), rd, wr, peer));
+            tokio::spawn(connection(provider.clone(), endpoint.provider_id.clone(), rd, wr, peer));
         }
     }
 }

@@ -2,10 +2,12 @@ package org.bitcoinpurity.pwc.provider;
 
 import static org.bitcoinpurity.pwc.provider.LocalClient.obj;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -81,6 +83,19 @@ class JavaBackendTest {
             assertEquals("Still syncing", e.get("message").asText());
             assertEquals(0.5, e.get("details").get("progress").asDouble());
             assertTrue(e.get("retryable").asBoolean());
+        }
+    }
+
+    @Test
+    void notifyFromInsideABackendMethod() throws Exception {
+        ForwardingBackend[] java = new ForwardingBackend[1];
+        try (Harness h = Harness.start(Config.defaults(), m -> java[0] = new ForwardingBackend(m))) {
+            LocalClient c = h.client("balances:read", "events:read").client();
+            java[0].onBalance = () -> h.provider.notify(new BackendEvent.BalanceChanged(WPKH));
+            assertTimeoutPreemptively(Duration.ofSeconds(10), () -> {
+                c.ok("account.getBalance", obj("account_id", WPKH));
+                assertEquals("account.balanceChanged", c.nextEvent().get("event_type").asText());
+            });
         }
     }
 

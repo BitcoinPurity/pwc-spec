@@ -107,7 +107,9 @@ class LocalServerTest {
             } else {
                 assertEquals(LocalServer.defaultDirectory().orElseThrow().resolve(id + ".sock"), server.path());
             }
-            new LocalClient(server.path()).close();
+            try (LocalClient client = new LocalClient(server.path())) {
+                assertEquals(id, client.hello().get("provider_id").asText());
+            }
         }
     }
 

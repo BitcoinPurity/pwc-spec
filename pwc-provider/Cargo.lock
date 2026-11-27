@@ -730,6 +730,7 @@ dependencies = [
  "jsonschema",
  "libc",
  "miniscript",
+ "parking_lot",
  "serde",
  "serde_json",
  "tempfile",

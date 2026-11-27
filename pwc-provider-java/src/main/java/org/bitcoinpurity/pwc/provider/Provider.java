@@ -93,7 +93,11 @@ public final class Provider implements AutoCloseable {
         }
     }
 
-    /** Reports a wallet change; authorized Clients receive the corresponding event. */
+    /**
+     * Reports a wallet change; authorized Clients receive the corresponding event. The event is queued and delivered
+     * by a Provider thread, so this returns at once and may be called from any thread, including from inside a
+     * {@link WalletBackend} method.
+     */
     public void notify(BackendEvent event) {
         try {
             Native.providerNotify(handle(), event);
