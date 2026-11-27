@@ -18,6 +18,8 @@ final class ForwardingBackend implements WalletBackend {
     final Set<String> called = ConcurrentHashMap.newKeySet();
     /** A method's name mapped to the exception it throws: a {@link PwcException} or a RuntimeException. */
     final Map<String, Exception> failures = new ConcurrentHashMap<>();
+    /** Runs inside {@code balance}, before it answers. */
+    volatile Runnable onBalance = () -> {};
 
     ForwardingBackend(MemoryBackend memory) {
         this.memory = memory;
@@ -57,6 +59,7 @@ final class ForwardingBackend implements WalletBackend {
     @Override
     public Balance balance(String accountId, Set<OutPoint> reserved) throws PwcException {
         enter("balance");
+        onBalance.run();
         return memory.balance(accountId, reserved);
     }
 

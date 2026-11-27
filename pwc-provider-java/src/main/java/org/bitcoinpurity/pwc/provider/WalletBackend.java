@@ -10,6 +10,10 @@ import java.util.Set;
  * {@code WalletBackend} trait and are called from the Provider's threads, never concurrently with each other.
  * Account data methods are called only for existing accounts of readable wallets.
  *
+ * <p>A method that has not returned holds up the other Core requests, which all need the backend, but not the
+ * handshake, pairing, the answers to prompts, {@link Provider#notify} or the host's own calls on the
+ * {@link Provider}. A method may call {@link Provider#notify}.
+ *
  * <p>A {@link PwcException} thrown by a method that declares it becomes the request's error; any other
  * exception gives {@code INTERNAL_ERROR}. A method that declares none is treated as returning nothing (an
  * empty list, an empty optional or {@code false}) when it throws, and the exception is printed.

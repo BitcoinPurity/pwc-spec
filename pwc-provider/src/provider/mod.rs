@@ -6,9 +6,10 @@ mod operations;
 
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::hash::Hash;
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{mpsc as std_mpsc, Arc, Weak};
 use std::time::{Duration, Instant};
 
+use parking_lot::{Mutex, MutexGuard};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tokio::sync::{mpsc, oneshot, Notify};
@@ -229,11 +230,25 @@ struct Inner {
     pending: HashMap<Id, oneshot::Sender<()>>,
 }
 
+/// The state lock held by a thread.
+type Guard<'a> = MutexGuard<'a, Inner>;
+
+/// Work for the event thread.
+enum Job {
+    Event(BackendEvent),
+    /// Fail the Client's unfinished Operations that its grants no longer authorize (Core §7 step 6).
+    Reevaluate(Id),
+}
+
+/// The state lock guards `inner` and is never held during a backend call. The backend lock serializes backend
+/// calls and is taken before the state lock.
 pub struct Provider {
     config: Config,
     backend: Arc<dyn WalletBackend>,
     prompts: mpsc::UnboundedSender<Prompt>,
     inner: Mutex<Inner>,
+    backend_lock: Mutex<()>,
+    jobs: std_mpsc::Sender<Job>,
 }
 
 const AUTH_FAILED: &str = "Authentication failed";
@@ -247,6 +262,8 @@ enum Audience<'a> {
     },
     Account {
         account: &'a AccountInfo,
+        /// Whether the account's wallet is readable (check 8).
+        readable: bool,
         scope: &'static str,
     },
 }
@@ -280,6 +297,7 @@ impl Provider {
 
     fn from_state(backend: Arc<dyn WalletBackend>, config: Config, state: State) -> (Arc<Provider>, PromptReceiver) {
         let (tx, rx) = mpsc::unbounded_channel();
+        let (jobs, queue) = std_mpsc::channel();
         let inner = Inner {
             state,
             sessions: HashMap::new(),
@@ -288,15 +306,20 @@ impl Provider {
             prompt_log: RateLog::new(),
             pending: HashMap::new(),
         };
-        (
-            Arc::new(Provider {
-                config,
-                backend,
-                prompts: tx,
-                inner: Mutex::new(inner),
-            }),
-            rx,
-        )
+        let provider = Arc::new(Provider {
+            config,
+            backend,
+            prompts: tx,
+            inner: Mutex::new(inner),
+            backend_lock: Mutex::new(()),
+            jobs,
+        });
+        let weak = Arc::downgrade(&provider);
+        std::thread::Builder::new()
+            .name("pwc-events".into())
+            .spawn(move || run_jobs(weak, queue))
+            .expect("start the event thread");
+        (provider, rx)
     }
 
     /// Restores a Provider from a snapshot made by `save_state`. Operations that were waiting for the User
@@ -349,8 +372,18 @@ impl Provider {
         &self.config
     }
 
-    fn lock(&self) -> MutexGuard<'_, Inner> {
-        self.inner.lock().unwrap()
+    fn lock(&self) -> Guard<'_> {
+        self.inner.lock()
+    }
+
+    /// Calls the backend with the state lock released. The caller holds the backend lock.
+    fn call<T>(&self, inner: &mut Guard, f: impl FnOnce(&dyn WalletBackend) -> T) -> T {
+        debug_assert!(self.backend_lock.is_locked());
+        MutexGuard::unlocked(inner, || f(&*self.backend))
+    }
+
+    fn queue(&self, job: Job) {
+        let _ = self.jobs.send(job);
     }
 
     // -----------------------------------------------------------------------------------------------------
@@ -496,8 +529,9 @@ impl Provider {
         })?;
         // 4: parameter syntax and size limits
         let request = methods::parse(spec, params.clone(), &self.config.limits)?;
+        let _turn = self.backend_lock.lock();
         let mut guard = self.lock();
-        let inner = &mut *guard;
+        let inner = &mut guard;
         let client_id = match inner.sessions.get(session_id) {
             Some(s) => s.client_id.clone(),
             None => return Err(err(ErrorCode::Unauthenticated, "Session closed")),
@@ -516,7 +550,8 @@ impl Provider {
                     "Idempotency key reused with different parameters",
                 ));
             }
-            return self.replay(inner, &record.replay.clone(), now);
+            let replay = record.replay.clone();
+            return self.replay(inner, &replay, now);
         }
         // 6: scope
         if let Some(scope) = spec.scope {
@@ -621,7 +656,7 @@ impl Provider {
 
     fn covered_wallet(
         &self,
-        inner: &Inner,
+        inner: &mut Guard,
         client_id: &Id,
         scope: &str,
         params: &Value,
@@ -629,8 +664,7 @@ impl Provider {
     ) -> Result<Target, PwcError> {
         let not_found = || err(ErrorCode::WalletNotFound, "Wallet not found");
         let wallet = self
-            .backend
-            .wallet(params["wallet_id"].as_str().unwrap_or_default())
+            .call(inner, |b| b.wallet(params["wallet_id"].as_str().unwrap_or_default()))
             .ok_or_else(not_found)?;
         if self
             .active_grants(inner, client_id, now)
@@ -644,7 +678,7 @@ impl Provider {
 
     fn covered_account(
         &self,
-        inner: &Inner,
+        inner: &mut Guard,
         client_id: &Id,
         scope: &str,
         params: &Value,
@@ -652,8 +686,7 @@ impl Provider {
     ) -> Result<Target, PwcError> {
         let not_found = || err(ErrorCode::AccountNotFound, "Account not found");
         let account = self
-            .backend
-            .account(params["account_id"].as_str().unwrap_or_default())
+            .call(inner, |b| b.account(params["account_id"].as_str().unwrap_or_default()))
             .ok_or_else(not_found)?;
         if !self
             .active_grants(inner, client_id, now)
@@ -661,7 +694,9 @@ impl Provider {
         {
             return Err(not_found());
         }
-        let wallet = self.backend.wallet(account.wallet_id.as_str()).ok_or_else(not_found)?;
+        let wallet = self
+            .call(inner, |b| b.wallet(account.wallet_id.as_str()))
+            .ok_or_else(not_found)?;
         Ok(Target {
             wallet,
             account: Some(account),
@@ -669,20 +704,33 @@ impl Provider {
     }
 
     /// Whether the Client currently holds `scope` for the Operation's account (or at all, without one).
-    fn authorized(&self, inner: &Inner, client_id: &Id, scope: &str, account_id: Option<&Id>, now: Timestamp) -> bool {
-        let account = account_id.and_then(|a| self.backend.account(a.as_str()));
-        if account_id.is_some() && account.is_none() {
-            return false;
-        }
+    fn authorized(
+        &self,
+        inner: &mut Guard,
+        client_id: &Id,
+        scope: &str,
+        account_id: Option<&Id>,
+        now: Timestamp,
+    ) -> bool {
+        let account = match account_id {
+            Some(a) => match self.call(inner, |b| b.account(a.as_str())) {
+                Some(account) => Some(account),
+                None => return false,
+            },
+            None => None,
+        };
         self.active_grants(inner, client_id, now)
             .any(|g| g.has_scope(scope) && account.as_ref().is_none_or(|a| g.covers_account(a)))
     }
 
-    fn replay(&self, inner: &Inner, replay: &Replay, now: Timestamp) -> Result<Value, PwcError> {
+    fn replay(&self, inner: &mut Guard, replay: &Replay, now: Timestamp) -> Result<Value, PwcError> {
         match replay {
             Replay::Operation(id) => Ok(self.view(inner, id, now)),
             Replay::Value { result, wallet_id } => {
-                if let Some(w) = wallet_id.as_ref().and_then(|w| self.backend.wallet(w.as_str())) {
+                if let Some(w) = wallet_id
+                    .as_ref()
+                    .and_then(|w| self.call(inner, |b| b.wallet(w.as_str())))
+                {
                     wallet_readable(&w)?;
                 }
                 Ok(result.clone())
@@ -691,18 +739,17 @@ impl Provider {
     }
 
     /// The Operation as its Client may see it now (Core §8.5).
-    fn view(&self, inner: &Inner, op_id: &Id, now: Timestamp) -> Value {
+    fn view(&self, inner: &mut Guard, op_id: &Id, now: Timestamp) -> Value {
         let rec = &inner.state.operations[op_id];
         let mut op = rec.op.clone();
         if op.result.is_some() && op.method != "session.requestPermissions" {
-            let scope_held = rec
-                .scope
+            let (client_id, scope, wallet_id) = (rec.client_id.clone(), rec.scope.clone(), rec.wallet_id.clone());
+            let scope_held = scope
                 .as_deref()
-                .is_none_or(|s| self.authorized(inner, &rec.client_id, s, op.account_id.as_ref(), now));
-            let wallet_ok = rec
-                .wallet_id
+                .is_none_or(|s| self.authorized(inner, &client_id, s, op.account_id.as_ref(), now));
+            let wallet_ok = wallet_id
                 .as_ref()
-                .and_then(|w| self.backend.wallet(w.as_str()))
+                .and_then(|w| self.call(inner, |b| b.wallet(w.as_str())))
                 .is_none_or(|w| wallet_readable(&w).is_ok());
             if !scope_held || !wallet_ok {
                 op.result = None;
@@ -779,8 +826,8 @@ impl Provider {
         self.transition(inner, op_id, OpState::Failed, None, Some(e));
     }
 
-    /// Sends `prompt` and waits on its answer in a task. `decide` runs under the lock with the answer if the
-    /// Operation is still awaiting approval; refusal, expiry and cancellation are handled here.
+    /// Sends `prompt` and waits on its answer in a task. `decide` runs under the backend and state locks with the
+    /// answer if the Operation is still awaiting approval; refusal, expiry and cancellation are handled here.
     fn await_approval<T, F>(
         self: &Arc<Self>,
         inner: &mut Inner,
@@ -791,7 +838,7 @@ impl Provider {
         decide: F,
     ) where
         T: Send + 'static,
-        F: FnOnce(&Arc<Provider>, &mut Inner, &Id, T) + Send + 'static,
+        F: FnOnce(&Arc<Provider>, &mut Guard, &Id, T) + Send + 'static,
     {
         inner.prompt_log.record(client_id.clone());
         let (cancel_tx, cancel_rx) = oneshot::channel::<()>();
@@ -806,16 +853,19 @@ impl Provider {
         tokio::spawn(async move {
             tokio::select! {
                 a = answer => {
-                    let mut guard = provider.lock();
-                    let inner = &mut *guard;
-                    let awaiting = inner.state.operations.get(&op_id).is_some_and(|o| o.op.state == OpState::AwaitingApproval);
-                    match a {
-                        Ok(v) if awaiting => decide(&provider, inner, &op_id, v),
-                        _ => {
-                            let e = err(ErrorCode::UserRejected, "The User refused the request");
-                            provider.transition(inner, &op_id, OpState::Rejected, None, Some(e));
+                    let _ = tokio::task::spawn_blocking(move || {
+                        let _turn = provider.backend_lock.lock();
+                        let mut inner = provider.lock();
+                        let awaiting = inner.state.operations.get(&op_id).is_some_and(|o| o.op.state == OpState::AwaitingApproval);
+                        match a {
+                            Ok(v) if awaiting => decide(&provider, &mut inner, &op_id, v),
+                            _ => {
+                                let e = err(ErrorCode::UserRejected, "The User refused the request");
+                                provider.transition(&mut inner, &op_id, OpState::Rejected, None, Some(e));
+                            }
                         }
-                    }
+                    })
+                    .await;
                 }
                 _ = tokio::time::sleep(expires_at.remaining()) => {
                     let mut inner = provider.lock();
@@ -877,27 +927,30 @@ impl Provider {
             Audience::Client(&client_id),
         );
         inner.state.grants.get_mut(grant_id).expect("found above").revoked = true;
-        self.reevaluate(inner, &client_id);
+        self.queue(Job::Reevaluate(client_id));
         true
     }
 
-    /// Core §7 step 6: unfinished Operations that are no longer authorized fail with `PERMISSION_REVOKED`.
-    fn reevaluate(&self, inner: &mut Inner, client_id: &Id) {
-        let now = Timestamp::now();
-        let stale: Vec<Id> = inner
+    /// Core §7 step 6: unfinished Operations that are no longer authorized fail with `PERMISSION_REVOKED`. Runs
+    /// on the event thread.
+    fn reevaluate(&self, client_id: &Id) {
+        let mut inner = self.lock();
+        let open: Vec<(Id, String, Option<Id>)> = inner
             .state
             .operations
             .values()
             .filter(|o| &o.client_id == client_id && !o.op.state.terminal())
-            .filter(|o| {
-                o.scope
-                    .as_deref()
-                    .is_some_and(|s| !self.authorized(inner, client_id, s, o.op.account_id.as_ref(), now))
-            })
-            .map(|o| o.op.operation_id.clone())
+            .filter_map(|o| Some((o.op.operation_id.clone(), o.scope.clone()?, o.op.account_id.clone())))
             .collect();
-        for id in stale {
-            self.fail(inner, &id, err(ErrorCode::PermissionRevoked, "The grant was revoked"));
+        let now = Timestamp::now();
+        for (id, scope, account_id) in open {
+            if !self.authorized(&mut inner, client_id, &scope, account_id.as_ref(), now) {
+                self.fail(
+                    &mut inner,
+                    &id,
+                    err(ErrorCode::PermissionRevoked, "The grant was revoked"),
+                );
+            }
         }
     }
 
@@ -943,24 +996,27 @@ impl Provider {
     }
 
     /// A reservation ends when it expires, is released, its grant ends or one of its inputs is spent (Core §8.3).
-    fn reservation_active(&self, inner: &Inner, r: &Reservation, now: Timestamp) -> bool {
-        !r.released
-            && now < r.until
-            && inner.state.grants.get(&r.grant_id).is_some_and(|g| g.active(now))
-            && r.outpoints
-                .iter()
-                .all(|o| self.backend.is_unspent(r.account_id.as_str(), o))
+    /// This is the part decided by the Provider's state; `unspent` checks the inputs.
+    fn reservation_live(&self, inner: &Inner, r: &Reservation, now: Timestamp) -> bool {
+        !r.released && now < r.until && inner.state.grants.get(&r.grant_id).is_some_and(|g| g.active(now))
     }
 
     /// Outpoints of the account under an active reservation of any Client.
-    fn reserved(&self, inner: &Inner, account_id: &Id, now: Timestamp) -> Reserved {
-        inner
+    fn reserved(&self, inner: &mut Guard, account_id: &Id, now: Timestamp) -> Reserved {
+        let state: &Inner = inner;
+        let live: Vec<Vec<bitcoin::OutPoint>> = state
             .state
             .reservations
             .values()
-            .filter(|r| &r.account_id == account_id && self.reservation_active(inner, r, now))
-            .flat_map(|r| r.outpoints.iter().copied())
-            .collect()
+            .filter(|r| &r.account_id == account_id && self.reservation_live(state, r, now))
+            .map(|r| r.outpoints.clone())
+            .collect();
+        self.call(inner, |b| {
+            live.into_iter()
+                .filter(|o| o.iter().all(|p| b.is_unspent(account_id.as_str(), p)))
+                .flatten()
+                .collect()
+        })
     }
 
     /// An Operation that is already terminal when created, for methods that complete synchronously.
@@ -984,9 +1040,30 @@ impl Provider {
         id
     }
 
-    /// Reports a wallet change; authorized Clients receive the corresponding event.
+    /// Reports a wallet change; authorized Clients receive the corresponding event. The event is queued and
+    /// delivered by the event thread, so this returns at once and may be called from inside a backend method.
     pub fn notify(&self, event: BackendEvent) {
-        let inner = self.lock();
+        self.queue(Job::Event(event));
+    }
+
+    /// Runs a job of the event thread under the backend lock.
+    fn run_job(&self, job: Job) {
+        let _turn = self.backend_lock.lock();
+        match job {
+            Job::Event(event) => self.deliver(event),
+            Job::Reevaluate(client_id) => self.reevaluate(&client_id),
+        }
+    }
+
+    fn deliver(&self, event: BackendEvent) {
+        let readable_account = |account_id: &Id| {
+            let account = self.backend.account(account_id.as_str())?;
+            let readable = self
+                .backend
+                .wallet(account.wallet_id.as_str())
+                .is_some_and(|w| wallet_readable(&w).is_ok());
+            Some((account, readable))
+        };
         match &event {
             BackendEvent::WalletLocked { wallet_id } | BackendEvent::WalletUnlocked { wallet_id } => {
                 let Some(wallet) = self.backend.wallet(wallet_id.as_str()) else {
@@ -1001,7 +1078,14 @@ impl Provider {
                     wallet: &wallet,
                     readable_only: false,
                 };
-                self.emit(&inner, kind, None, None, json!({ "wallet_id": wallet_id }), audience);
+                self.emit(
+                    &self.lock(),
+                    kind,
+                    None,
+                    None,
+                    json!({ "wallet_id": wallet_id }),
+                    audience,
+                );
             }
             BackendEvent::WalletSyncChanged { wallet_id } => {
                 let Some(wallet) = self.backend.wallet(wallet_id.as_str()) else {
@@ -1014,7 +1098,7 @@ impl Provider {
                 };
                 let payload = json!({ "wallet_id": wallet_id, "sync": { "state": state } });
                 self.emit(
-                    &inner,
+                    &self.lock(),
                     "wallet.syncChanged",
                     None,
                     None,
@@ -1026,15 +1110,16 @@ impl Provider {
                 );
             }
             BackendEvent::BalanceChanged { account_id } => {
-                let Some(account) = self.backend.account(account_id.as_str()) else {
+                let Some((account, readable)) = readable_account(account_id) else {
                     return;
                 };
                 let audience = Audience::Account {
                     account: &account,
+                    readable,
                     scope: "balances:read",
                 };
                 self.emit(
-                    &inner,
+                    &self.lock(),
                     "account.balanceChanged",
                     Some(account_id),
                     None,
@@ -1047,16 +1132,17 @@ impl Provider {
                 txid,
                 status,
             } => {
-                let Some(account) = self.backend.account(account_id.as_str()) else {
+                let Some((account, readable)) = readable_account(account_id) else {
                     return;
                 };
                 let audience = Audience::Account {
                     account: &account,
+                    readable,
                     scope: "transactions:read",
                 };
                 let payload = json!({ "txid": txid, "status": status });
                 self.emit(
-                    &inner,
+                    &self.lock(),
                     "account.transactionChanged",
                     Some(account_id),
                     None,
@@ -1091,7 +1177,6 @@ impl Provider {
             .expect("event serializes");
         frame.push(b'\n');
         let readable = |w: &WalletInfo| wallet_readable(w).is_ok();
-        let wallet_of = |a: &AccountInfo| self.backend.wallet(a.wallet_id.as_str());
         for s in inner.sessions.values() {
             let grants: Vec<&Grant> = self.active_grants(inner, &s.client_id, now).collect();
             if !grants.iter().any(|g| g.has_scope("events:read")) {
@@ -1105,10 +1190,11 @@ impl Provider {
                             .iter()
                             .any(|g| g.has_scope("wallets:read") && g.covers_wallet(wallet))
                 }
-                Audience::Account { account, scope } => {
-                    wallet_of(account).is_some_and(|w| readable(&w))
-                        && grants.iter().any(|g| g.has_scope(scope) && g.covers_account(account))
-                }
+                Audience::Account {
+                    account,
+                    readable,
+                    scope,
+                } => *readable && grants.iter().any(|g| g.has_scope(scope) && g.covers_account(account)),
             };
             if allowed && s.out.try_send(Outbound::Frame(frame.clone())).is_err() {
                 s.kill.notify_one();
@@ -1116,13 +1202,19 @@ impl Provider {
         }
     }
 
-    fn requester(&self, inner: &Inner, client_id: &Id) -> Requester {
-        let info = &inner.state.clients[client_id].info;
-        Requester {
+    /// The Client a prompt is for. It may have been unpaired while a backend call ran.
+    fn requester(&self, inner: &Inner, client_id: &Id) -> Result<Requester, PwcError> {
+        let info = &inner
+            .state
+            .clients
+            .get(client_id)
+            .ok_or_else(|| err(ErrorCode::Unauthenticated, "The Client was unpaired"))?
+            .info;
+        Ok(Requester {
             client_id: client_id.clone(),
             claimed_name: info.claimed_name.clone(),
             peer: info.peer.clone(),
-        }
+        })
     }
 
     fn capabilities(&self) -> Value {
@@ -1147,5 +1239,15 @@ fn wallet_readable(w: &WalletInfo) -> Result<(), PwcError> {
         WalletState::Locked => Err(err(ErrorCode::WalletLocked, "The wallet is locked")),
         WalletState::Unavailable => Err(err(ErrorCode::StateUnavailable, "The wallet is unavailable")),
         WalletState::Ready | WalletState::Syncing => Ok(()),
+    }
+}
+
+/// The event thread: runs queued jobs in order until the Provider is dropped.
+fn run_jobs(provider: Weak<Provider>, queue: std_mpsc::Receiver<Job>) {
+    while let Ok(job) = queue.recv() {
+        let Some(provider) = provider.upgrade() else {
+            return;
+        };
+        provider.run_job(job);
     }
 }

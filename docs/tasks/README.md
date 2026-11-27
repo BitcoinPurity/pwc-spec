@@ -46,11 +46,12 @@ Requirements: `input/requirements.md` §6.
 
 ## Java Provider SDK 0.2.1
 
-Requirements: `input/requirements.md` §7.
+Requirements: `input/requirements.md` §7 and §8.
 
 | Task | Title | Milestone | Status |
 |---|---|---|---|
 | [TASK-022](TASK-022.md) | `local.hello` reports the endpoint's `provider_id` | M21 | Done |
+| [TASK-023](TASK-023.md) | Backend calls without the state lock | M21 | Done |
 
 # PWC LOCAL Client (Rust)
 

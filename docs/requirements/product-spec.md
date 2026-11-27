@@ -24,6 +24,8 @@ Kept consistent with `input/requirements.md`. The specifications in `specs/` are
 - Failed authentications are rate-limited per peer process and answered after a delay.
 - `local.unpair` deletes the credential, revokes all of the Client's grants and closes all of its connections.
 - Event push: a Client holding `events:read` receives `pwc.event` notifications on each authenticated connection. A connection whose Client reads too slowly for its output buffer is closed.
+- A backend call that waits holds up only the Core requests that need the backend. The handshake, pairing, `local.unpair`, the answers to prompts and the host's calls go on; `notify` returns at once and may be called from inside a backend method. Backend methods never run concurrently.
+- A panic while handling a Core request is answered with `INTERNAL_ERROR`, and the Provider keeps serving.
 
 ### 2.2 Core methods
 
@@ -80,7 +82,7 @@ The `limits` values are in `docs/api-contract.md`.
 
 ## 6. Java Provider SDK
 
-Kept consistent with `input/requirements.md` §5, §6 and §7. Version 0.2.1. The Java SDK is a JNI binding of the library above: every protocol behavior, value and limit in sections 2 to 5 applies unchanged.
+Kept consistent with `input/requirements.md` §5 to §8. Version 0.2.1. The Java SDK is a JNI binding of the library above: every protocol behavior, value and limit in sections 2 to 5 applies unchanged.
 
 ### 6.1 Deliverables
 

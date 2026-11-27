@@ -450,8 +450,13 @@ impl Conn {
                     Next::Continue,
                 ),
                 _ => {
-                    let session_id = session_id.clone();
-                    (self.provider.handle(&session_id, method, params), Next::Continue)
+                    // On the blocking pool: the request may wait for the backend lock or a backend call.
+                    let (provider, session_id, method) =
+                        (self.provider.clone(), session_id.clone(), method.to_string());
+                    let outcome = tokio::task::spawn_blocking(move || provider.handle(&session_id, &method, params))
+                        .await
+                        .unwrap_or_else(|_| Err(err(ErrorCode::InternalError, "The request failed")));
+                    (outcome, Next::Continue)
                 }
             },
         }
