@@ -64,11 +64,14 @@ fn as_requested(backend: &MemoryBackend, r: &PermissionRequest) -> GrantChoice {
     }
 }
 
+const PROVIDER_ID: &str = "puritywallet";
+
 async fn start() -> Wallet {
     let dir = tempfile::tempdir().unwrap();
     let backend = Arc::new(MemoryBackend::demo());
     let (provider, mut prompts) = Provider::new(backend.clone(), Config::default());
-    let bound = pwc_provider::local::bind(&dir.path().join("run"), pwc_provider::PROVIDER_ID).unwrap();
+    // A host wallet's own id, not PROVIDER_ID: the Client checks it against local.hello.
+    let bound = pwc_provider::local::bind(&dir.path().join("run"), PROVIDER_ID).unwrap();
     let path = bound.path().to_path_buf();
     let approve_signing = Arc::new(AtomicBool::new(true));
     let hold_signing = Arc::new(AtomicBool::new(false));
@@ -99,7 +102,7 @@ async fn start() -> Wallet {
         }
     });
     let endpoint = Endpoint {
-        provider_id: pwc_provider::PROVIDER_ID.into(),
+        provider_id: PROVIDER_ID.into(),
         path,
     };
     Wallet {
@@ -203,7 +206,7 @@ async fn capabilities_and_account_data() {
     assert_eq!(caps.pwc_version, "0.2.1");
     assert_eq!(caps.methods.len(), 24);
     assert!(caps.features.contains(&"event_push".to_string()));
-    assert_eq!(client.hello().provider_id, "pwc-provider");
+    assert_eq!(client.hello().provider_id, PROVIDER_ID);
 
     let wallets = client.list_wallets().await.unwrap();
     let main = wallets.iter().find(|w| w.wallet_id == "w-regtest-main").unwrap();
@@ -525,9 +528,9 @@ async fn events_revocation_and_unpairing() {
     );
     assert_eq!(client.get_permissions().await.unwrap()[0].status, GrantStatus::Revoked);
 
-    let credential = store.load("pwc-provider").unwrap().unwrap();
+    let credential = store.load(PROVIDER_ID).unwrap().unwrap();
     client.unpair().await.unwrap();
-    assert_eq!(store.load("pwc-provider").unwrap(), None);
+    assert_eq!(store.load(PROVIDER_ID).unwrap(), None);
     let conn = Connection::open(&wallet.endpoint.path).await.unwrap();
     assert_eq!(
         code(conn.authenticate(&credential).await.map(|_| ())),

@@ -20,6 +20,7 @@ pub const WAIT: Duration = Duration::from_secs(5);
 pub struct Harness {
     pub dir: tempfile::TempDir,
     pub path: PathBuf,
+    pub provider_id: String,
     pub provider: Arc<Provider>,
     pub prompts: PromptReceiver,
     pub backend: Arc<MemoryBackend>,
@@ -53,16 +54,22 @@ impl Harness {
 
     pub async fn serve(provider: Arc<Provider>, prompts: PromptReceiver) -> Harness {
         let dir = tempfile::tempdir().unwrap();
+        // Not PROVIDER_ID, so that local.hello cannot report the default by accident.
         #[cfg(unix)]
-        let endpoint = local::bind(&dir.path().join("run"), pwc_provider::PROVIDER_ID).unwrap();
+        let provider_id = "puritywallet".to_string();
         // The pipe namespace is shared by every test of the run, so each Harness has its own provider id.
         #[cfg(windows)]
-        let endpoint = local::bind_pipe(&format!("pwc-test-{}", rand_suffix())).unwrap();
+        let provider_id = format!("pwc-test-{}", rand_suffix());
+        #[cfg(unix)]
+        let endpoint = local::bind(&dir.path().join("run"), &provider_id).unwrap();
+        #[cfg(windows)]
+        let endpoint = local::bind_pipe(&provider_id).unwrap();
         let path = endpoint.path().to_path_buf();
         let server = tokio::spawn(local::serve(provider.clone(), endpoint));
         Harness {
             dir,
             path,
+            provider_id,
             provider,
             prompts,
             backend: Arc::new(MemoryBackend::demo()),

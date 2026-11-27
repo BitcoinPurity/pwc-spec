@@ -233,6 +233,7 @@ enum Stage {
 
 struct Conn {
     provider: Arc<Provider>,
+    provider_id: Arc<str>,
     peer: PeerInfo,
     out: mpsc::Sender<Outbound>,
     kill: Arc<Notify>,
@@ -249,7 +250,7 @@ enum Next {
 }
 
 /// Serves one connection whose peer passed the check of LOCAL §3.4.
-pub(crate) async fn connection<R, W>(provider: Arc<Provider>, rd: R, mut wr: W, peer: PeerInfo)
+pub(crate) async fn connection<R, W>(provider: Arc<Provider>, provider_id: Arc<str>, rd: R, mut wr: W, peer: PeerInfo)
 where
     R: AsyncRead + Unpin + Send + 'static,
     W: AsyncWrite + Unpin + Send + 'static,
@@ -270,6 +271,7 @@ where
     });
     let mut conn = Conn {
         provider,
+        provider_id,
         peer,
         out,
         kill: Arc::new(Notify::new()),
@@ -477,7 +479,7 @@ impl Conn {
         let result = json!({
             "protocol": PROTOCOL,
             "pwc_version": "0.2.1",
-            "provider_id": crate::PROVIDER_ID,
+            "provider_id": &*self.provider_id,
             "provider": {"name": c.provider_name, "version": c.provider_version},
             "max_frame_bytes": MAX_FRAME_BYTES,
             "server_nonce": Hex(nonce.to_vec()),

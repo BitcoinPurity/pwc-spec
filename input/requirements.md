@@ -113,7 +113,7 @@ Prepares the SDK for embedding in PurityWallet desktop (`PurityWallet/PurityWall
 | Native library | Name `pwc_provider_jni`. Jar resources `org/bitcoinpurity/pwc/provider/native/<os>-<arch>/`, with `<os>` one of `linux`, `macos`, `windows` and `<arch>` one of `x86_64`, `aarch64` |
 | Platforms in the published jar | linux-x86_64, linux-aarch64, macos-aarch64, windows-x86_64. Not macos-x86_64: there is no Intel Mac build agent |
 | JPMS module | `org.bitcoinpurity.pwc.provider`, exporting `org.bitcoinpurity.pwc.provider` |
-| Publishing | Maven coordinates `org.bitcoinpurity.pwc:pwc-provider-java:<version>` on `https://maven.pkg.github.com/BitcoinPurity/pwc-spec`. CI publishes on a tag `pwc-provider-java-v<version>`, with a token from a Buildkite secret. Version 0.2.0 |
+| Publishing | Maven coordinates `org.bitcoinpurity.pwc:pwc-provider-java:<version>` on `https://maven.pkg.github.com/BitcoinPurity/pwc-spec`. CI publishes on a tag `pwc-provider-java-v<version>`, with a token from a Buildkite secret. Version 0.2.0; 0.2.1 in section 7 |
 | License | MIT for all code: `pwc-provider/`, `pwc-provider-java/`, `pwc-client/`, `pwc-client-ffi/`, the scripts in `pwc-schema/` and `pwc-testkit/`. Documents, schemas, the registry and test vectors stay CC BY 4.0 |
 | CI | Rust tests on Linux and Windows. Java SDK build and tests on all four platforms, then one jar with all four native libraries |
 
@@ -129,6 +129,29 @@ Prepares the SDK for embedding in PurityWallet desktop (`PurityWallet/PurityWall
 - `./gradlew build` in `pwc-provider-java/` passes on all four platforms.
 - The assembled jar contains the four native libraries, has a `module-info.class` and depends on no other artifact.
 - `cargo clippy -D warnings` is clean for Linux and for the Windows target.
+
+## 7. Java Provider SDK 0.2.1: the `provider_id` of `local.hello`
+
+A fix. Where this section and sections 2 to 6 differ, this section applies.
+
+### 7.1 Problem
+
+`local.hello` always answered `provider_id` `pwc-provider`, whatever id the endpoint was bound with. A host that serves on its own id, for example `LocalServer.start(provider, "puritywallet")`, listens on `puritywallet.sock` but reports `pwc-provider`, and a Client that checks the id against the socket name (LOCAL §3.2, §5.2), such as `pwc-client`, refuses to connect.
+
+### 7.2 Decisions
+
+| Item | Decision |
+|---|---|
+| `provider_id` of `local.hello` | The id the endpoint was bound with: `local::bind(dir, provider_id)` or `local::bind_pipe(provider_id)` |
+| Default id | `PROVIDER_ID` stays `pwc-provider`; the demo binary and `LocalServer.start(provider)` still use it |
+| Java SDK version | 0.2.1, published on a tag `pwc-provider-java-v0.2.1`. The Java interface is unchanged |
+
+### 7.3 Acceptance
+
+- `cargo test` in `pwc-provider/` checks that `local.hello` reports the id of the endpoint, with an id other than `pwc-provider`.
+- A Java test checks the same through `LocalServer.start(provider, providerId)`, on every platform.
+- A `pwc-client` test connects to the Rust Provider bound with an id other than `pwc-provider`.
+- The checks of section 6.4 still pass.
 
 # PWC LOCAL Client (Rust)
 

@@ -19,7 +19,7 @@ Kept consistent with `input/requirements.md`. The specifications in `specs/` are
 - On Windows the endpoint is the named pipe `\\.\pipe\pwc-<sid>-pwc-provider` (LOCAL §3.3), whose DACL grants the user's SID only, and `--dir` is not accepted. If the name exists, the Provider checks the SID of its server process: the same SID means another instance is running, any other SID that the name is taken. In both cases it refuses to start.
 - Every connection is checked for the peer's operating-system user and closed at once if it is another user. The peer's process id and executable are recorded on Linux, macOS and Windows.
 - Frames: one JSON-RPC 2.0 object per line; `max_frame_bytes` is 1048576.
-- Handshake: `local.hello`, then `local.pair` or `local.authenticate`, within 10 and 60 seconds.
+- Handshake: `local.hello`, then `local.pair` or `local.authenticate`, within 10 and 60 seconds. `local.hello` reports the `provider_id` the endpoint was bound with, which is also the socket's file name or the last part of the pipe name.
 - The pairing code has 6 digits. A pairing prompt unanswered for 300 seconds fails with `OPERATION_EXPIRED`; if the connection closes, the prompt is withdrawn and no credential is created.
 - Failed authentications are rate-limited per peer process and answered after a delay.
 - `local.unpair` deletes the credential, revokes all of the Client's grants and closes all of its connections.
@@ -80,7 +80,7 @@ The `limits` values are in `docs/api-contract.md`.
 
 ## 6. Java Provider SDK
 
-Kept consistent with `input/requirements.md` §5 and §6. The Java SDK is a JNI binding of the library above: every protocol behavior, value and limit in sections 2 to 5 applies unchanged.
+Kept consistent with `input/requirements.md` §5, §6 and §7. Version 0.2.1. The Java SDK is a JNI binding of the library above: every protocol behavior, value and limit in sections 2 to 5 applies unchanged.
 
 ### 6.1 Deliverables
 

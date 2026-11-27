@@ -41,7 +41,7 @@ local.rs ──frames, handshake──► Provider (order of checks, grants, Ope
                              WalletBackend trait ◄── MemoryBackend
 ```
 
-- **local.rs** handles only the transport: endpoint, peer user, frames, the JSON-RPC envelope, the `local.*` methods and time limits. After authentication it passes Core methods to `Provider::handle`.
+- **local.rs** handles only the transport: endpoint, peer user, frames, the JSON-RPC envelope, the `local.*` methods and time limits. The `Endpoint` keeps the `provider_id` it was bound with and gives it to each connection for `local.hello`. After authentication it passes Core methods to `Provider::handle`.
 - **Provider** is transport-independent and owns the Core semantics: order of checks, grants, the Operation state machine, idempotency, reservations, pagination cursors, event fan-out and the approval flow.
 - **WalletBackend** owns wallet data and keys: wallet and account inventory, balances, addresses, UTXOs, history, output ownership, coin selection and PSBT construction, signing, broadcast and message signing.
 

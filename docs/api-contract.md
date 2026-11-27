@@ -7,7 +7,7 @@ This document states the interface of this implementation and the values it choo
 | Item | Value |
 |---|---|
 | Transport | LOCAL v0.1.0, protocol `pwc-local/1` |
-| `provider_id` | `pwc-provider` |
+| `provider_id` | The id passed to `local::bind` or `local::bind_pipe`, reported by `local.hello`; `PROVIDER_ID` (`pwc-provider`) for the demo binary |
 | Endpoint | macOS and Linux: `<endpoint directory>/pwc-provider.sock`; directory 0700, socket 0600. Windows: `\\.\pipe\pwc-<sid>-pwc-provider`, first instance with `FILE_FLAG_FIRST_PIPE_INSTANCE`, `PIPE_REJECT_REMOTE_CLIENTS`, byte mode, DACL `D:P(A;;GA;;;<sid>)` |
 | `max_frame_bytes` | 1048576 |
 | `delegation` | `false` |
@@ -176,7 +176,7 @@ provider.paired_clients();                                       // the list of 
 
 ## 8. Java Provider SDK
 
-Module and package `org.bitcoinpurity.pwc.provider`, version 0.2.0. Sections 1 to 7 apply unchanged. "Nullable" means the field is `null` when the Rust field is `None`.
+Module and package `org.bitcoinpurity.pwc.provider`, version 0.2.1. Sections 1 to 7 apply unchanged. "Nullable" means the field is `null` when the Rust field is `None`.
 
 ### 8.1 Provider and server
 
@@ -194,7 +194,7 @@ Module and package `org.bitcoinpurity.pwc.provider`, version 0.2.0. Sections 1 t
 | `void close()` | dropping the `Arc` | Releases this handle; servers and connections keep their own references |
 | `LocalServer.PROVIDER_ID` | `PROVIDER_ID` | `"pwc-provider"` |
 | `Optional<Path> LocalServer.defaultDirectory()` | `local::default_directory` | Empty on Windows |
-| `LocalServer.start(Provider)`, `start(Provider, String providerId)` | `local::bind` in the default directory, or `local::bind_pipe` on Windows; then `local::serve` | |
+| `LocalServer.start(Provider)`, `start(Provider, String providerId)` | `local::bind` in the default directory, or `local::bind_pipe` on Windows; then `local::serve` | `local.hello` reports `providerId`, or `PROVIDER_ID` without it |
 | `LocalServer.start(Provider, Path dir)`, `start(Provider, Path dir, String providerId)` | `local::bind` and `local::serve` | macOS and Linux; `UnsupportedOperationException` on Windows |
 | `EndpointException` | `EndpointError` | Kind `UNSAFE_DIRECTORY`, `PATH_TOO_LONG`, `ALREADY_RUNNING`, `NAME_TAKEN` (Windows) or `IO`, and the path or pipe name |
 | `Path path()`, `void close()` | `Endpoint::path`, dropping `serve` | The socket path or pipe name; `close` returns after the socket file is removed |

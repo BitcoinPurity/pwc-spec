@@ -165,6 +165,7 @@ impl Drop for Security {
 /// A listening endpoint: the pending pipe instance and what is needed to create the next ones.
 pub struct Endpoint {
     path: PathBuf,
+    provider_id: Arc<str>,
     sid: String,
     security: Security,
     pending: NamedPipeServer,
@@ -202,6 +203,7 @@ pub fn bind_pipe(provider_id: &str) -> Result<Endpoint, EndpointError> {
     match security.create(&name, true) {
         Ok(pending) => Ok(Endpoint {
             path,
+            provider_id: provider_id.into(),
             sid,
             security,
             pending,
@@ -236,6 +238,7 @@ fn peer_info(pipe: &NamedPipeServer, sid: &str) -> Option<PeerInfo> {
 pub async fn serve(provider: Arc<Provider>, endpoint: Endpoint) {
     let Endpoint {
         path,
+        provider_id,
         sid,
         security,
         mut pending,
@@ -257,6 +260,6 @@ pub async fn serve(provider: Arc<Provider>, endpoint: Endpoint) {
             continue; // LOCAL §3.4: closed without any message
         };
         let (rd, wr) = tokio::io::split(pipe);
-        tokio::spawn(connection(provider.clone(), rd, wr, peer));
+        tokio::spawn(connection(provider.clone(), provider_id.clone(), rd, wr, peer));
     }
 }
